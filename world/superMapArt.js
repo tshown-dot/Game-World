@@ -4,7 +4,7 @@
 
 import {
   PALETTE, tree, pine, bush, palm, rock, flowers, cottage, boat, cloud, nameplateSvg, heroSvg,
-} from '../towns/topic-3-expression-town/js/worldArt.js';
+} from '../shared/art.js';
 
 export { heroSvg };
 

@@ -5,7 +5,7 @@
  * handles postMessage communication, and manages session completion & exit.
  */
 
-import { hubAudio } from '../../../shared/audio.js';
+import { hubAudio } from './audio.js';
 
 export class CartridgeHarness {
   constructor(options = {}) {

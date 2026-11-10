@@ -18,7 +18,7 @@ const TOWN_ID = 'topic_3';
 import { playerState } from './state.js?v=w3map3';
 import { hubAudio } from '../../../shared/audio.js';
 import { progressStore } from '../../../shared/progressStore.js';
-import { CartridgeHarness } from './cartridgeHarness.js';
+import { CartridgeHarness } from '../../../shared/cartridgeHarness.js';
 import {
   MAP_W, MAP_H, PALETTE,
   worldDefs, terrainSvg, scenerySvg, cloudsSvg,
