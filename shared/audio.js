@@ -1,5 +1,5 @@
 /**
- * Expression Town - Retro 8-Bit SMB3 Web Audio Synthesizer
+ * Game World - Retro 8-Bit Web Audio Synthesizer (shared by the Super Map and every town)
  * 
  * Lightweight, zero-asset Web Audio synthesizer for Super Mario Bros 3 style SFX.
  * Persists mute preference in localStorage.

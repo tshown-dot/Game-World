@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Game World - enVision 2.0 Grade 6 Math</title>
+  <!-- The shared look (cards, buttons, pixel font, hero) comes from Expression Town's styles for now. -->
+  <link rel="stylesheet" href="./towns/topic-3-expression-town/css/world.css">
+  <link rel="stylesheet" href="./world/superMap.css">
+</head>
+<body>
+  <main id="gameFrame">
+
+    <!-- ============================================================ -->
+    <!-- SIGN IN                                                       -->
+    <!-- ============================================================ -->
+    <section id="loginScreen" class="screen">
+      <canvas id="loginLandCanvas" class="land"></canvas>
+      <div class="login-dim fill"></div>
+      <div class="curtain-top"></div>
+      <div class="curtain curtain-l"></div>
+      <div class="curtain curtain-r"></div>
+
+      <div class="login-center">
+        <div class="logo-drop title-block">
+          <div class="world-badge px">6TH GRADE MATH</div>
+          <h1 class="logo-text px">GAME<br>WORLD</h1>
+          <div class="logo-sub">enVision 2.0 · Grade 6 · 8 towns to explore</div>
+        </div>
+
+        <div class="card-cream login-card">
+          <form id="loginForm" onsubmit="return false;">
+            <label for="codeInput" class="field-label px">YOUR CODE</label>
+            <input type="text" id="codeInput" maxlength="10" placeholder="K7M2QX" autocomplete="off"
+              autocapitalize="characters" spellcheck="false" required class="field-input code-input">
+            <div class="login-hint">6 letters and numbers from your sticky note</div>
+            <div id="loginError" class="hidden msg-error"></div>
+            <button type="submit" id="loginBtn" class="btn-chunky btn-red start-btn"><span class="px">▶ PRESS START</span></button>
+          </form>
+        </div>
+      </div>
+      <div class="checker-floor"></div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- SUPER MAP                                                     -->
+    <!-- ============================================================ -->
+    <section id="worldScreen" class="screen hidden">
+      <canvas id="landCanvas" class="land"></canvas>
+      <svg id="mapSvg" class="map-layer" viewBox="0 0 1366 768" preserveAspectRatio="xMidYMid slice" aria-label="World map"></svg>
+
+      <div class="world-sign-static">
+        <span class="px sign-top">6TH GRADE MATH</span>
+        <span class="px sign-name">GAME WORLD</span>
+      </div>
+
+      <div class="top-right">
+        <span id="teacherBanner" class="hidden chip chip-purple px">TEACHER: ALL OPEN</span>
+        <span id="hudCode" class="chip chip-ink px"></span>
+        <button type="button" id="myStarsBtn" class="sys-btn px" title="My progress">MY STARS</button>
+        <button type="button" id="soundBtn" class="sys-btn" title="Sound on or off">🔊</button>
+        <button type="button" id="exitBtn" class="sys-btn sys-exit px" title="Sign out">EXIT</button>
+      </div>
+
+      <div class="town-panel">
+        <button type="button" id="prevBtn" class="arrow-btn px" title="Previous town">◀</button>
+        <div class="panel-badge px" id="panelNumber">3</div>
+        <div class="panel-text">
+          <div class="px panel-name" id="panelName"></div>
+          <div class="panel-topic" id="panelTopic"></div>
+          <div class="panel-status" id="panelStatus"></div>
+        </div>
+        <button type="button" id="nextBtn" class="arrow-btn px" title="Next town">▶</button>
+        <button type="button" id="enterBtn" class="btn-chunky btn-red enter-btn"><span class="px">▶ ENTER TOWN</span></button>
+      </div>
+
+      <div id="toast" class="toast hidden px"></div>
+
+      <!-- My Progress -->
+      <div id="progressModal" class="hidden modal-scrim">
+        <div class="card-cream progress-card pop-in">
+          <div class="progress-head">
+            <div>
+              <div id="progressCode" class="progress-code"></div>
+              <h2 class="px progress-title">MY PROGRESS</h2>
+            </div>
+            <button type="button" id="closeProgressBtn" class="x-btn">✕</button>
+          </div>
+          <div id="progressSummary" class="progress-summary"></div>
+          <div id="progressList" class="progress-list"></div>
+          <div id="progressSync" class="progress-sync"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./world/superMap.js"></script>
+</body>
+</html>

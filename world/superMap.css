@@ -1,0 +1,107 @@
+/* Super Map layout. Colors, cards, buttons and the pixel font come from the shared world.css. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; font-family: 'Nunito', system-ui, sans-serif; }
+#gameFrame { position: relative; width: 100%; height: 100%; max-width: 1366px; max-height: 768px; overflow: hidden; }
+.hidden { display: none !important; }
+.screen { position: absolute; inset: 0; }
+.fill { position: absolute; inset: 0; pointer-events: none; }
+.land { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.map-layer { position: absolute; inset: 0; width: 100%; height: 100%; }
+button { font-family: inherit; }
+
+/* ---------- sign in ---------- */
+.login-center { position: relative; z-index: 10; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.title-block { text-align: center; margin-bottom: 18px; }
+.title-block h1 { margin: 10px 0 0; }
+.login-card { width: 400px; max-width: 92vw; padding: 20px; }
+.code-input { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 800; letter-spacing: 0.25em; text-transform: uppercase; }
+.login-hint { margin: 6px 0 12px; text-align: center; font-size: 11px; font-weight: 800; color: #8a6d3b; }
+.msg-error { margin-bottom: 12px; }
+.start-btn { width: 100%; justify-content: center; padding: 12px; font-size: 14px; color: #fff; }
+.start-btn:disabled { filter: grayscale(0.6); cursor: wait; }
+
+/* ---------- map chrome ---------- */
+.world-sign-static {
+  position: absolute; top: 12px; left: 14px; z-index: 20;
+  display: flex; flex-direction: column; gap: 6px;
+  background: #fff4d6; color: var(--ink); border: 4px solid var(--ink); border-radius: 12px;
+  box-shadow: 0 5px 0 var(--ink); padding: 8px 14px;
+}
+.sign-top { font-size: 7px; color: #8a6d3b; }
+.sign-name { font-size: 12px; }
+.top-right { position: absolute; top: 12px; right: 14px; z-index: 20; display: flex; gap: 8px; align-items: center; }
+.top-right .sys-btn { font-size: 9px; color: var(--ink); }
+.top-right .sys-exit { color: #fff; }
+
+.town-panel {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 20;
+  width: 900px; max-width: 96%;
+  display: flex; align-items: center; gap: 14px;
+  background: #fff4d6; color: var(--ink); border: 4px solid var(--ink); border-radius: 16px;
+  box-shadow: 0 6px 0 var(--ink); padding: 10px 14px;
+}
+.panel-badge {
+  width: 48px; height: 48px; flex: none; display: flex; align-items: center; justify-content: center;
+  background: var(--gold); border: 3px solid var(--ink); border-radius: 12px; font-size: 18px;
+}
+.panel-text { flex: 1; min-width: 0; }
+.panel-name { font-size: 12px; }
+.panel-topic { margin-top: 5px; font-size: 13px; font-weight: 800; color: #5e4a26; }
+.panel-status { margin-top: 3px; font-size: 13px; font-weight: 900; }
+.panel-status.open { color: #1f8a4c; }
+.panel-status.locked { color: #b03a2e; }
+.panel-status.soon { color: #7b4bff; }
+.arrow-btn {
+  width: 42px; height: 42px; flex: none; border: 3px solid var(--ink); border-radius: 10px;
+  background: #fffaf0; box-shadow: 0 4px 0 var(--ink); cursor: pointer; font-size: 12px; color: var(--ink);
+}
+.arrow-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--ink); }
+.enter-btn { padding: 14px 18px; font-size: 12px; color: #fff; flex: none; }
+.enter-btn:disabled { background: #b9b2a0; color: #5e5640; cursor: not-allowed; }
+
+.toast {
+  position: absolute; left: 50%; top: 84px; transform: translateX(-50%); z-index: 30;
+  background: var(--ink); color: var(--gold); font-size: 10px; padding: 12px 18px; border-radius: 10px;
+  border: 3px solid var(--gold);
+}
+
+/* ---------- map art states ---------- */
+.region-soon .landmark, .region-locked .landmark { filter: grayscale(0.55) brightness(0.97); }
+.region-soon > g:not(.town-hit), .region-locked > g:not(.town-hit) { filter: grayscale(0.5); opacity: 0.9; }
+#hero.walking .hero-bob { animation: heroWalk 0.18s steps(2, jump-none) infinite alternate; }
+#hero.walking .leg-a { animation: legA 0.18s steps(1) infinite; }
+#hero.walking .leg-b { animation: legB 0.18s steps(1) infinite; }
+#hero.walking .hero-marker { display: none; }
+.hero-facing { transform-box: fill-box; transform-origin: 50% 50%; }
+.beacon { animation: beacon 1.2s steps(2, jump-none) infinite alternate; }
+@keyframes beacon { from { fill: #ffd23f; } to { fill: #fff8c4; } }
+.volcano-smoke { animation: smokeRise 2.4s ease-in-out infinite alternate; }
+@keyframes smokeRise { from { transform: translateY(0); opacity: 0.9; } to { transform: translateY(-6px); opacity: 0.6; } }
+.lava-glow { animation: beacon 1s steps(2, jump-none) infinite alternate; }
+.twinkle { animation: twinkle 1.4s steps(2, jump-none) infinite alternate; }
+@keyframes twinkle { from { opacity: 1; } to { opacity: 0.45; } }
+.scale-tip { animation: scaleTip 2.4s ease-in-out infinite alternate; transform-origin: 0 -94px; }
+@keyframes scaleTip { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+#worldScreen.leaving { animation: fadeOut 350ms ease forwards; }
+@keyframes fadeOut { to { opacity: 0; } }
+
+/* ---------- My Progress ---------- */
+.progress-card { width: 600px; max-width: 94vw; padding: 20px; }
+.progress-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 3px dashed #d9c69c; }
+.progress-code { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; color: #8a6d3b; }
+.progress-title { font-size: 15px; margin: 6px 0 0; }
+.progress-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+.stat-label { font-size: 7px; color: #8a6d3b; }
+.stat-value { font-size: 14px; margin-top: 6px; color: var(--ink); }
+.progress-list { display: flex; flex-direction: column; gap: 6px; }
+.progress-row .town-num { width: 30px; height: 30px; flex: none; display: flex; align-items: center; justify-content: center; border: 3px solid var(--ink); border-radius: 8px; background: var(--gold); font-size: 10px; }
+.progress-row.soon { opacity: 0.6; }
+.progress-row.soon .town-num { background: #c9c3b6; }
+.row-main { flex: 1; min-width: 0; }
+.row-name { font-size: 9px; color: var(--ink); }
+.row-detail { font-size: 11px; font-weight: 800; color: #5e4a26; margin-top: 3px; }
+.row-stars { font-size: 10px; color: #b8860b; }
+.progress-sync { margin-top: 12px; text-align: center; font-size: 12px; font-weight: 800; color: #8a6d3b; }
+
+#progressModal { z-index: 40; }   /* above the town panel and the top buttons */

@@ -14,8 +14,10 @@ direct instruction. These are not tutorials.
 
 ## Structure
 ```
-index.html                         Super Map (choose a town)
-shared/                            code used by every town: map engine, audio, progress saving, styles
+index.html                         Super Map (sign in once, choose a town)
+world/                             Super Map code: superMap.js (behavior), superMapArt.js (art), superMap.css
+shared/                            code used by every town: progressStore.js (sign-in and saving), towns.js
+                                   (town list and unlock rules), audio.js (sound), config.js (sheet address)
 towns/<town-name>/index.html       a town map (one building per lesson)
 towns/<town-name>/games/<lesson>/  one folder per game
 tests/                             math-logic tests, runnable with plain `node`
@@ -29,7 +31,13 @@ docs/lessons.md                    lesson lists from the textbook database
 - `npm test` runs every test in the repo (the sheet script, the progress store, the Topic 3 hub and all its games).
 - Towns 1 and 2 are not built yet. Town order is by textbook topic: 1 Decimal Docks, 2 Integer Highlands,
   3 Expression Town, 4 Equation Valley, 5-8 to be decided.
-- Each town has its own biome (terrain, palette, landmark). The Super Map is a pixel-style overworld with 8 regions.
+- Each town has its own biome (terrain, palette, landmark). The Super Map is a pixel-style overworld with 8 regions:
+  harbor (1), highlands (2), meadow (3), canyon (4), and placeholder biomes for towns 5-8 (swamp, volcano, tundra,
+  sky) until the owner names those towns. Town names, topics and biomes live in `shared/towns.js`.
+- Students sign in once on the Super Map; towns reuse the remembered code. A town's "world map" sign returns to the
+  Super Map (`index.html?from=<town id>` puts the hero outside that town). EXIT anywhere signs out.
+- Known shortcut: the Super Map borrows Expression Town's `css/world.css` and the small props in `js/worldArt.js`
+  (trees, clouds, hero, nameplates). Move them into `shared/` when a second town needs them, instead of copying.
 - Write shared code once in `shared/`. Do not copy the map engine or audio code into each town.
 
 ## Progress and unlocks (owner decisions)
@@ -38,7 +46,10 @@ docs/lessons.md                    lesson lists from the textbook database
 - Each student gets a teacher-issued code: 6 characters from `A-H J-N P-Z 2-9` (no I, O, 0 or 1), generated inside
   the owner's Google account and handed out on sticky notes. Codes are not case-sensitive in the game. Only codes that
   exist in the sheet are accepted. No names anywhere, and no passcode or stored password.
-- Towns unlock in order: town N+1 opens when the boss of town N is beaten. A teacher can open a town early by ticking
+- The first built town is always open (for now Expression Town, Town 3). Towns that are not built show
+  "coming soon" and are skipped in the unlock chain. A town a student has already played never locks again,
+  even if earlier towns are built later.
+- Towns unlock in order: the next built town opens when the boss of the previous built town is beaten. A teacher can open a town early by ticking
   that town's box for a student or for the `ALL` row. That opens the town only; buildings inside still unlock in order.
 - `full_access` (a checkbox column, for a teacher or preview code) opens every building in every town, like the old
   teacher mode. It shows a TEACHER banner and never rewrites the student's real saved unlocks.

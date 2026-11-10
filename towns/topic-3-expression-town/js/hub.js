@@ -10,9 +10,13 @@
  * - Multi-world selector ready for future topics
  */
 
-import { REALM_NODES, WORLD_CHAPTERS, getEffectivePrerequisite } from './nodes.js?v=w3map3';
+import { REALM_NODES, getEffectivePrerequisite } from './nodes.js?v=w3map3';
+
+/** The Super Map, relative to this town's page. */
+const SUPER_MAP_URL = '../../index.html';
+const TOWN_ID = 'topic_3';
 import { playerState } from './state.js?v=w3map3';
-import { hubAudio } from './audio.js';
+import { hubAudio } from '../../../shared/audio.js';
 import { progressStore } from '../../../shared/progressStore.js';
 import { CartridgeHarness } from './cartridgeHarness.js';
 import {
@@ -86,9 +90,6 @@ class NumeriaHub {
       switchUserBtn: document.getElementById('switchUserBtn'),
       teacherBanner: document.getElementById('teacherBanner'),
       worldSelectBtn: document.getElementById('worldSelectBtn'),
-      worldChaptersModal: document.getElementById('worldChaptersModal'),
-      worldChaptersList: document.getElementById('worldChaptersList'),
-      closeChaptersBtn: document.getElementById('closeChaptersBtn'),
 
       // Map
       mapSvgContainer: document.getElementById('mapSvgContainer'),
@@ -193,27 +194,17 @@ class NumeriaHub {
     });
 
     this.dom.worldSelectBtn?.addEventListener('click', () => {
+      // Back to the Super Map, which puts the hero outside this town.
       hubAudio.playSelect();
-      this.openChaptersModal();
-    });
-    this.dom.closeChaptersBtn?.addEventListener('click', () => {
-      hubAudio.playSelect();
-      this.dom.worldChaptersModal.classList.add('hidden');
+      location.href = `${SUPER_MAP_URL}?from=${TOWN_ID}`;
     });
 
-    // Switch user / Logout
+    // Sign out: forget the code on this device and return to the Super Map's sign-in.
     this.dom.switchUserBtn?.addEventListener('click', () => {
       hubAudio.playSelect();
       this.cancelWalk();
       progressStore.clearActiveCode();
-      this.dom.worldScreen.classList.add('hidden');
-      if (this.dom.mapSvgContainer) this.dom.mapSvgContainer.innerHTML = '';
-      this.dom.loginScreen.classList.remove('hidden');
-      this.renderLoginBackdrop();
-      if (this.dom.codeInput) {
-        this.dom.codeInput.value = '';
-        this.dom.codeInput.focus();
-      }
+      location.href = SUPER_MAP_URL;
     });
 
     // Code login form
@@ -265,11 +256,6 @@ class NumeriaHub {
           e.preventDefault();
           this.dom.returnToMapBtn.click();
         }
-        return;
-      }
-
-      if (!this.dom.worldChaptersModal.classList.contains('hidden')) {
-        if (e.key === 'Escape') this.dom.closeChaptersBtn.click();
         return;
       }
 
@@ -749,28 +735,6 @@ class NumeriaHub {
     this.dom.progressSync.textContent = waiting === 0
       ? 'Saved. Your teacher can see your progress.'
       : 'Saved on this Chromebook. It will send to your teacher when the internet is back. Keep this page open.';
-  }
-
-  openChaptersModal() {
-    if (!this.dom.worldChaptersModal || !this.dom.worldChaptersList) return;
-
-    this.dom.worldChaptersList.innerHTML = WORLD_CHAPTERS.map((chap) => `
-      <div class="chapter-card ${chap.isActive ? 'bg-[#ffd23f]' : 'bg-[#ece2c8] opacity-80'}">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg border-[3px] border-[#1d1433] flex items-center justify-center px text-[10px] ${chap.isActive ? 'bg-[#e5484d] text-white' : 'bg-[#b9b2a0] text-[#5e5640]'}">
-            ${chap.worldLabel.replace('WORLD ', '')}
-          </div>
-          <div>
-            <div class="px text-[10px] text-[#1d1433]">${chap.title.toUpperCase()}</div>
-            <div class="text-xs font-bold text-[#5e4a26] mt-1">${chap.subtitle}</div>
-          </div>
-        </div>
-        ${chap.isActive
-          ? '<span class="px text-[8px] px-2 py-1.5 rounded-md bg-[#2fbf71] text-white border-2 border-[#1d1433]">YOU ARE HERE</span>'
-          : '<span class="px text-[8px] px-2 py-1.5 rounded-md bg-[#d9cfb4] text-[#7a6f52] border-2 border-[#9a9078]">SOON</span>'}
-      </div>`).join('');
-
-    this.dom.worldChaptersModal.classList.remove('hidden');
   }
 
   questArtSvg(node) {
