@@ -31,20 +31,28 @@ docs/lessons.md                    lesson lists from the textbook database
 - Write shared code once in `shared/`. Do not copy the map engine or audio code into each town.
 
 ## Progress and unlocks (owner decisions)
-- Students use an anonymous code (no names). Progress is kept on the device (localStorage) and the active code is
-  remembered locally. Passcodes are never stored in the browser.
-- Towns unlock in order: town N+1 opens when the boss of town N is beaten. A teacher can open any town early.
-- Teacher unlocks and class progress live in one Google Sheet, "Game World: Unlocks & Progress", with tabs:
-  `Unlocks` (one row per anonymous student code plus an `ALL` row, one column per town, TRUE = open),
+- About 200 students, each with their own Chromebook. Progress must survive a browser clear and a device change,
+  so it is saved in the owner's Google Sheet, with the device keeping a local copy for speed and offline use.
+- Each student gets a teacher-issued code: 6 characters from `A-H J-N P-Z 2-9` (no I, O, 0 or 1), generated inside
+  the owner's Google account and handed out on sticky notes. Codes are not case-sensitive in the game. Only codes that
+  exist in the sheet are accepted. No names anywhere, and no passcode or stored password.
+- Towns unlock in order: town N+1 opens when the boss of town N is beaten. A teacher can open any town early, and
+  opening a town also opens every building inside it.
+- One Google Sheet, "Game World: Unlocks & Progress", has tabs: `Unlocks` (one row per student code plus an `ALL` row,
+  one checkbox column per town), `Progress` (student_code, progress JSON, updated_at; one row per student),
   `Results` (one row per finished game: timestamp, student_code, town, lesson, game, score, problems_attempted,
   problems_correct, accuracy, boss_defeated, practice_mode) and `Towns` (column-to-town key and instructions).
-- The game reads unlocks and writes results through a small Google Apps Script web app (it returns only one student's
-  row, never the whole table). Results are queued on the device and sent when the network is back.
+- A Google Apps Script web app is the only backend. `GET ?action=load&code=` returns that student's open towns and
+  saved progress, never other rows. `POST` with `type: "save"` or `type: "result"` writes progress or a result row.
+  The game saves at milestones (finished game, boss, new building), not on every click, retries with a short random
+  delay if the script says `busy`, and queues writes on the device while offline.
+- Fallback: a short "save code" the student can copy and paste to restore progress if the sheet is unreachable.
+- Students see their own progress in-game (a "My Progress" screen with stars and badges). No printing. A screenshot is
+  how a student shares progress with the teacher.
 - No Supabase or other database unless the owner approves it. The name-to-code roster is never stored in this repo or
-  in that sheet.
-- Verify with a stand-in endpoint in tests: the build container cannot reach Google, so live sheet access needs a
-  manual check on a real network.
-- Write shared code once in `shared/`. Do not copy the map engine or audio code into each town.
+  in that sheet. Treat codes like passwords: never commit them.
+- The build container cannot reach Google. Test the game against a stand-in endpoint, and give the owner a manual
+  checklist for the real sheet.
 
 ## Reference projects (read-only, owned by the same teacher)
 - `tshown-dot/tactics-math-arena`: Topic 3 hub ("Expression Town") with 8 cartridge games. Source of the design pillars and test pattern.
