@@ -22,8 +22,28 @@ tests/                             math-logic tests, runnable with plain `node`
 docs/lessons.md                    lesson lists from the textbook database
 ```
 - Planned first town: `towns/topic-4-equation-valley/` (Grade 6 Topic 4: Equations & Inequalities).
-- Topic 3 ("Expression Town") already exists in the separate `tactics-math-arena` repo. Link out to it from
-  the Super Map for now. Do not move it unless the owner asks.
+- Topic 3 ("Expression Town") started in the separate `tactics-math-arena` repo. The owner has approved moving it
+  into this repo as `towns/topic-3-expression-town/` (copy, never edit the original repo). When copying: remove the
+  Supabase and Apps Script calls, stored passcodes and all hard-coded credentials (see Progress and unlocks below).
+- Towns 1 and 2 are not built yet. Town order is by textbook topic: 1 Decimal Docks, 2 Integer Highlands,
+  3 Expression Town, 4 Equation Valley, 5-8 to be decided.
+- Each town has its own biome (terrain, palette, landmark). The Super Map is a pixel-style overworld with 8 regions.
+- Write shared code once in `shared/`. Do not copy the map engine or audio code into each town.
+
+## Progress and unlocks (owner decisions)
+- Students use an anonymous code (no names). Progress is kept on the device (localStorage) and the active code is
+  remembered locally. Passcodes are never stored in the browser.
+- Towns unlock in order: town N+1 opens when the boss of town N is beaten. A teacher can open any town early.
+- Teacher unlocks and class progress live in one Google Sheet, "Game World: Unlocks & Progress", with tabs:
+  `Unlocks` (one row per anonymous student code plus an `ALL` row, one column per town, TRUE = open),
+  `Results` (one row per finished game: timestamp, student_code, town, lesson, game, score, problems_attempted,
+  problems_correct, accuracy, boss_defeated, practice_mode) and `Towns` (column-to-town key and instructions).
+- The game reads unlocks and writes results through a small Google Apps Script web app (it returns only one student's
+  row, never the whole table). Results are queued on the device and sent when the network is back.
+- No Supabase or other database unless the owner approves it. The name-to-code roster is never stored in this repo or
+  in that sheet.
+- Verify with a stand-in endpoint in tests: the build container cannot reach Google, so live sheet access needs a
+  manual check on a real network.
 - Write shared code once in `shared/`. Do not copy the map engine or audio code into each town.
 
 ## Reference projects (read-only, owned by the same teacher)
@@ -45,7 +65,9 @@ Games do NOT have to be a single HTML file. Choose whatever gives students the b
 maintainable by an LLM plus a novice owner. Guardrails:
 - Prefer plain HTML/CSS/JavaScript (ES modules). Add a framework or build step only with a clear reason, and explain it first.
 - Must run on low-spec school Chromebooks, load fast on locked-down school networks, and work offline once loaded.
-  Avoid runtime dependencies on third-party CDNs (vendor libraries locally instead).
+  Third-party CDNs (Tailwind, Google Fonts and similar) are allowed because they work on the owner's school network.
+  Pin an exact version in every CDN URL so an upstream release cannot change the games, and give fonts a system-font
+  fallback so a blocked CDN does not break the page.
 - Deployable as a static site (Render or GitHub Pages) with no server required. Use relative paths so it works from a subfolder.
 
 ## Design pillars
@@ -62,7 +84,8 @@ maintainable by an LLM plus a novice owner. Guardrails:
 
 ## Privacy (non-negotiable)
 - No student names or personal information, ever. No logins that collect names or emails.
-- Progress, if saved, is keyed to an anonymous code and kept on the device (localStorage) unless the owner approves a backend.
+- Progress is keyed to an anonymous code and kept on the device (localStorage). The only approved backend is the
+  owner's Google Sheet described under "Progress and unlocks". Anything else needs the owner's approval first.
 - Never commit secrets, API keys, passwords or teacher credentials. Use environment variables or placeholders.
 
 ## Testing

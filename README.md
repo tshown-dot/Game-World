@@ -7,7 +7,7 @@ Students pick a town on the **Super Map**. Each town is one textbook topic, with
 
 | Town | Topic | Status |
 |---|---|---|
-| Expression Town | Topic 3: Numeric & Algebraic Expressions | Built (separate site: `tactics-math-arena`) |
+| Expression Town | Topic 3: Numeric & Algebraic Expressions | Built (separate site: `tactics-math-arena`), moving into this repo |
 | Equation Valley | Topic 4: Equations & Inequalities | Planned. First game: Lesson 4-2 |
 | Six more towns | To be decided | Planned |
 
