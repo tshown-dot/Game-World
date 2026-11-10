@@ -5,6 +5,7 @@
 
 const SHEET_ID = 'PASTE_THE_SHEET_ID_HERE';
 const TOWNS = 8;
+const STUDENT_COUNT = 250;                      // how many student codes setupSheet() makes sure exist
 const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;          // 6 characters, no I, O, 0 or 1
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 characters
 const MAX_PROGRESS_CHARS = 8000;
@@ -106,10 +107,10 @@ function addResult_(code, d) {
 
 // ---------- One-time setup: run this from the Apps Script editor ----------
 
-// Creates the Progress tab and tops the Unlocks tab up to `count` student codes (default 200).
-// Existing codes are never changed. Run it again with a bigger number to add more students.
+// Creates the Progress tab and tops the Unlocks tab up to STUDENT_COUNT student codes.
+// Existing codes are never changed. To add more students later, raise STUDENT_COUNT and run it again.
 function setupSheet(count) {
-  const n = count || 200;
+  const n = count || STUDENT_COUNT;
   const book = book_();
   let progress = book.getSheetByName('Progress');
   if (!progress) {

@@ -79,21 +79,21 @@ let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('PASS', name); }
 
 // ---------- tests ----------
-test('setupSheet makes 200 unique valid codes, a Progress tab and checkboxes; rerun changes nothing', () => {
+test('setupSheet makes 250 unique valid codes, a Progress tab and checkboxes; rerun changes nothing', () => {
   const w = makeWorld();
   w.ctx.setupSheet();
   const codes = w.book.Unlocks.rows.slice(2).map(r => r[0]);
-  assert.equal(codes.length, 200);
-  assert.equal(new Set(codes).size, 200);
+  assert.equal(codes.length, 250);
+  assert.equal(new Set(codes).size, 250);
   assert.ok(codes.every(c => /^[A-HJ-NP-Z2-9]{6}$/.test(c)), 'codes use the safe alphabet');
   assert.deepEqual(w.book.Progress.rows[0], ['student_code', 'progress', 'updated_at']);
   assert.ok(w.book.Unlocks.rows.slice(1).every(r => r.slice(1, 9).every(v => v === false)), 'town cells are unchecked checkboxes');
   const before = JSON.stringify(w.book.Unlocks.rows);
   w.ctx.setupSheet();
   assert.equal(JSON.stringify(w.book.Unlocks.rows), before, 'second run adds nothing and keeps all codes');
-  w.ctx.setupSheet(205);
-  assert.equal(w.book.Unlocks.rows.length, 2 + 205);
-  assert.deepEqual(w.book.Unlocks.rows.slice(2, 202).map(r => r[0]), codes, 'old codes unchanged');
+  w.ctx.setupSheet(255);
+  assert.equal(w.book.Unlocks.rows.length, 2 + 255);
+  assert.deepEqual(w.book.Unlocks.rows.slice(2, 252).map(r => r[0]), codes, 'old codes unchanged');
 });
 
 test('load: valid code merges the ALL row; lowercase accepted', () => {

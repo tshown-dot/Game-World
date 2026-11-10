@@ -31,7 +31,7 @@ docs/lessons.md                    lesson lists from the textbook database
 - Write shared code once in `shared/`. Do not copy the map engine or audio code into each town.
 
 ## Progress and unlocks (owner decisions)
-- About 200 students, each with their own Chromebook. Progress must survive a browser clear and a device change,
+- Up to 250 students, each with their own Chromebook. Progress must survive a browser clear and a device change,
   so it is saved in the owner's Google Sheet, with the device keeping a local copy for speed and offline use.
 - Each student gets a teacher-issued code: 6 characters from `A-H J-N P-Z 2-9` (no I, O, 0 or 1), generated inside
   the owner's Google account and handed out on sticky notes. Codes are not case-sensitive in the game. Only codes that
