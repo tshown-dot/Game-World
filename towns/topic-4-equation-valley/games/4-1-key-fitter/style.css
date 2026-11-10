@@ -1,0 +1,28 @@
+/* Key Fitter (Lesson 4-1): only the vault scene and key controls. Everything else is in shared/game/game.css. */
+.key-g { cursor: pointer; transition: transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1); }
+.key-g:hover .key-bow { filter: brightness(1.12); }
+.key-g.inserted { pointer-events: none; }
+.rattle { animation: rattle 0.45s steps(6); transform-box: fill-box; transform-origin: center; }
+@keyframes rattle { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-6deg); } 40% { transform: rotate(5deg); } 60% { transform: rotate(-4deg); } 80% { transform: rotate(3deg); } }
+.door { transition: transform 0.9s ease; transform-box: fill-box; transform-origin: left center; }
+.door.open { transform: perspective(600px) rotateY(-70deg); }
+.glow { animation: glow 0.9s ease-out; }
+@keyframes glow { from { opacity: 0.9; } to { opacity: 0; } }
+.guard { animation: guardIn 0.9s ease-out; }
+@keyframes guardIn { from { transform: translateX(160px); } to { transform: translateX(0); } }
+
+.key-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.key-btn { height: 58px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink); font-size: 22px; font-weight: 900; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.key-btn small { font-family: 'Press Start 2P', monospace; font-size: 9px; color: #8a6d3b; }
+.key-btn.tried { background: #ffd9dc; text-decoration: line-through; }
+.none-btn { height: 50px; border: 3px solid var(--ink); border-radius: 12px; background: var(--night); color: var(--gold); box-shadow: 0 4px 0 var(--ink); font-size: 11px; }
+.lock-rows { display: flex; flex-direction: column; gap: 8px; }
+.lock-row { display: flex; align-items: center; gap: 10px; background: #fff; border: 3px solid var(--ink); border-radius: 12px; padding: 6px 10px; }
+.lock-row .eqt { flex: 1; font-family: ui-monospace, 'Courier New', monospace; font-size: 18px; font-weight: 900; }
+.lock-row .tog { width: 150px; height: 40px; border: 3px solid var(--ink); border-radius: 10px; font-size: 9px; background: #e9e2d0; }
+.lock-row .tog.on { background: #d9f7e3; color: #1f6b3e; }
+.lock-row.wrong { background: #ffe3cc; }
+.forge-row { display: flex; align-items: center; gap: 8px; font-size: 26px; font-weight: 900; font-family: ui-monospace, monospace; }
+.forge-row input { width: 92px; height: 50px; font-size: 22px; font-weight: 900; text-align: center; border: 3px solid var(--ink); border-radius: 10px; background: var(--night); color: var(--gold); }
+.forge-row input.focus { box-shadow: 0 0 0 3px var(--gold); }
+.forge-op { min-width: 44px; text-align: center; }
