@@ -12,7 +12,8 @@ const MAX_PROGRESS_CHARS = 8000;
 
 // ---------- Web app entry points ----------
 
-// GET ?action=load&code=ABC234  ->  { ok, open: [8 booleans], progress: "<json text>" | null }
+// GET ?action=load&code=ABC234  ->  { ok, open: [8 booleans], full_access: boolean, progress: "<json text>" | null }
+// full_access (a teacher or preview code) means every building in every town is open.
 function doGet(e) {
   try {
     const p = (e && e.parameter) || {};
@@ -20,8 +21,11 @@ function doGet(e) {
     const code = String(p.code || '').trim().toUpperCase();
     const table = unlockTable_();
     if (!CODE_RE.test(code) || !table.codes[code]) return json_({ ok: false, error: 'bad_code' });
-    const open = table.codes[code].map(function (v, i) { return v || table.all[i]; });
-    return json_({ ok: true, open: open, progress: readProgress_(code) });
+    const mine = table.codes[code];
+    const open = [];
+    for (let i = 0; i < TOWNS; i++) open.push(mine[i] || table.all[i]);
+    const fullAccess = mine[TOWNS] || table.all[TOWNS];
+    return json_({ ok: true, open: open, full_access: fullAccess, progress: readProgress_(code) });
   } catch (err) {
     return json_({ ok: false, error: 'server_error' });
   }
@@ -55,19 +59,20 @@ function doPost(e) {
 
 // ---------- Reading ----------
 
-// Unlocks tab as { all: [8 booleans], codes: { CODE: [8 booleans] } }, cached for 60 seconds.
+// Unlocks tab as { all: [9 booleans], codes: { CODE: [9 booleans] } }, cached for 60 seconds.
+// Booleans 0-7 are the town columns; boolean 8 is the full_access column.
 function unlockTable_() {
   const cache = CacheService.getScriptCache();
   const hit = cache.get('unlocks');
   if (hit) return JSON.parse(hit);
   const rows = book_().getSheetByName('Unlocks').getDataRange().getValues();
   const table = { all: [], codes: {} };
-  for (let t = 0; t < TOWNS; t++) table.all.push(false);
+  for (let t = 0; t <= TOWNS; t++) table.all.push(false);
   for (let r = 1; r < rows.length; r++) {
     const id = String(rows[r][0]).trim().toUpperCase();
     if (!id) continue;
     const flags = [];
-    for (let t = 0; t < TOWNS; t++) flags.push(isTrue_(rows[r][t + 1]));
+    for (let t = 0; t <= TOWNS; t++) flags.push(isTrue_(rows[r][t + 1]));
     if (id === 'ALL') table.all = flags; else table.codes[id] = flags;
   }
   try { cache.put('unlocks', JSON.stringify(table), 60); } catch (err) { /* too big to cache: fine */ }
@@ -107,7 +112,7 @@ function addResult_(code, d) {
 
 // ---------- One-time setup: run this from the Apps Script editor ----------
 
-// Creates the Progress tab and tops the Unlocks tab up to STUDENT_COUNT student codes.
+// Creates the Progress tab, adds the full_access column, and tops the Unlocks tab up to STUDENT_COUNT student codes.
 // Existing codes are never changed. To add more students later, raise STUDENT_COUNT and run it again.
 function setupSheet(count) {
   const n = count || STUDENT_COUNT;
@@ -131,8 +136,9 @@ function setupSheet(count) {
     if (!have[code]) { have[code] = true; fresh.push([code]); }
   }
   if (fresh.length) unlocks.getRange(unlocks.getLastRow() + 1, 1, fresh.length, 1).setValues(fresh);
+  unlocks.getRange(1, TOWNS + 2).setValue('full_access');      // extra column: tick to open every building everywhere
   const last = unlocks.getLastRow();
-  unlocks.getRange(2, 2, last - 1, TOWNS).insertCheckboxes();   // tick a box to open that town
+  unlocks.getRange(2, 2, last - 1, TOWNS + 1).insertCheckboxes();   // tick a box to open that town
   CacheService.getScriptCache().remove('unlocks');
   Logger.log('Student codes now in the Unlocks tab: ' + (students + fresh.length) + ' (added ' + fresh.length + ')');
 }

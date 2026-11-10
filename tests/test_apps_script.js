@@ -28,6 +28,7 @@ class Sheet {
     const row = a, col = b;
     const range = {
       getValue: () => (sheet.rows[row - 1] && sheet.rows[row - 1][col - 1] !== undefined ? sheet.rows[row - 1][col - 1] : ''),
+      setValue(v) { while (sheet.rows.length < row) sheet.rows.push([]); sheet.rows[row - 1][col - 1] = v; return range; },
       setNumberFormat(f) { if (f === '@') for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) sheet.textCells.add(`${row + i},${col + j}`); return range; },
       setValues(vals) {
         for (let i = 0; i < vals.length; i++) {
@@ -87,7 +88,8 @@ test('setupSheet makes 250 unique valid codes, a Progress tab and checkboxes; re
   assert.equal(new Set(codes).size, 250);
   assert.ok(codes.every(c => /^[A-HJ-NP-Z2-9]{6}$/.test(c)), 'codes use the safe alphabet');
   assert.deepEqual(w.book.Progress.rows[0], ['student_code', 'progress', 'updated_at']);
-  assert.ok(w.book.Unlocks.rows.slice(1).every(r => r.slice(1, 9).every(v => v === false)), 'town cells are unchecked checkboxes');
+  assert.equal(w.book.Unlocks.rows[0][9], 'full_access');
+  assert.ok(w.book.Unlocks.rows.slice(1).every(r => r.slice(1, 10).every(v => v === false)), 'town and full_access cells are unchecked checkboxes');
   const before = JSON.stringify(w.book.Unlocks.rows);
   w.ctx.setupSheet();
   assert.equal(JSON.stringify(w.book.Unlocks.rows), before, 'second run adds nothing and keeps all codes');
@@ -105,6 +107,7 @@ test('load: valid code merges the ALL row; lowercase accepted', () => {
   const res = w.call.get({ action: 'load', code: code.toLowerCase() });
   assert.equal(res.ok, true);
   assert.deepEqual(res.open, [false, false, true, false, true, false, false, false]);
+  assert.equal(res.full_access, false);
   assert.equal(res.progress, null);
 });
 
@@ -116,7 +119,19 @@ test('load: rejects unknown codes, bad shapes and missing action; never leaks ot
   assert.equal(w.call.get({ action: 'load', code: "' OR 1=1" }).error, 'bad_code');
   assert.equal(w.call.get({ code: w.book.Unlocks.rows[2][0] }).error, 'bad_request');
   const ok = w.call.get({ action: 'load', code: w.book.Unlocks.rows[2][0] });
-  assert.deepEqual(Object.keys(ok).sort(), ['ok', 'open', 'progress']);
+  assert.deepEqual(Object.keys(ok).sort(), ['full_access', 'ok', 'open', 'progress']);
+});
+
+test('load: full_access comes from the code row or the ALL row', () => {
+  const w = makeWorld(); w.ctx.setupSheet(3);
+  const a = w.book.Unlocks.rows[2][0], b = w.book.Unlocks.rows[3][0];
+  w.book.Unlocks.rows[2][9] = true;
+  w.cache.clear();
+  assert.equal(w.call.get({ action: 'load', code: a }).full_access, true);
+  assert.equal(w.call.get({ action: 'load', code: b }).full_access, false);
+  w.book.Unlocks.rows[1][9] = true;
+  w.cache.clear();
+  assert.equal(w.call.get({ action: 'load', code: b }).full_access, true, 'ALL row gives everyone full access');
 });
 
 test('save: creates then updates the same row (no duplicates); load returns it', () => {

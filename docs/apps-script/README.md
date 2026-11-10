@@ -8,7 +8,7 @@ student's unlocks and saved progress, and save progress and results. It is the o
 2. On the line `const SHEET_ID = ...` paste your sheet's ID (the long text between `/d/` and `/edit` in its address).
    Keep the real ID in Apps Script only, not in this repo.
 3. Run it once to set up: choose `setupSheet` in the function menu, press Run, and approve the permission screen.
-   It adds the `Progress` tab and fills the `Unlocks` tab with 250 student codes (`STUDENT_COUNT` at the top of the script) and a checkbox per town.
+   It adds the `Progress` tab, fills the `Unlocks` tab with 250 student codes (`STUDENT_COUNT` at the top of the script), and adds a checkbox per town plus a `full_access` checkbox column. Tick `full_access` for a teacher or preview code to open every building in every town.
    To add more students later, raise `STUDENT_COUNT`, paste the script again and run `setupSheet` again. Old codes never change.
 4. Publish the change: Deploy, then Manage deployments, then the pencil icon, then Version: New version, then Deploy.
    Edit the existing deployment so the web app address stays the same.
