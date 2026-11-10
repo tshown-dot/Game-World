@@ -1,0 +1,86 @@
+/* Shared town engine layout. Cards, buttons, chips and the pixel font come from shared/world.css. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; width: 100vw; height: 100vh; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; font-family: 'Nunito', system-ui, sans-serif; }
+#townApp { position: relative; width: 100%; height: 100%; max-width: 1366px; max-height: 768px; overflow: hidden; background: #e9a15c; border: 4px solid var(--ink); }
+.hidden { display: none !important; }
+button { font-family: inherit; }
+#townMap { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.town-sign { position: absolute; top: 12px; left: 14px; z-index: 20; display: flex; flex-direction: column; gap: 5px; text-align: left;
+  background: #fff4d6; color: var(--ink); border: 4px solid var(--ink); border-radius: 12px; box-shadow: 0 5px 0 var(--ink); padding: 8px 14px; cursor: pointer; }
+.town-sign .t1 { font-size: 7px; color: #8a6d3b; }
+.town-sign .t2 { font-size: 12px; }
+.town-sign .t3 { font-size: 11px; font-weight: 900; color: #8f3f22; }
+.town-top { position: absolute; top: 12px; right: 14px; z-index: 20; display: flex; gap: 8px; align-items: center; }
+.town-top .sys-btn { font-size: 9px; color: var(--ink); }
+.town-top .sys-exit { color: #fff; }
+
+.town-panel { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 20; width: 940px; max-width: 96%;
+  display: flex; align-items: center; gap: 14px; background: #fff4d6; color: var(--ink); border: 4px solid var(--ink); border-radius: 16px;
+  box-shadow: 0 6px 0 var(--ink); padding: 10px 14px; }
+.panel-badge { width: 54px; height: 48px; flex: none; display: flex; align-items: center; justify-content: center; background: var(--gold);
+  border: 3px solid var(--ink); border-radius: 12px; font-size: 11px; }
+.panel-text { flex: 1; min-width: 0; }
+.panel-name { font-size: 12px; }
+.panel-sub { margin-top: 5px; font-size: 13px; font-weight: 800; color: #5e4a26; }
+.panel-status { margin-top: 3px; font-size: 13px; font-weight: 900; }
+.panel-status.open { color: #1f8a4c; } .panel-status.locked { color: #b03a2e; } .panel-status.wip { color: #7b4bff; }
+.hud-stats { display: flex; gap: 10px; align-items: center; font-size: 12px; font-weight: 900; color: #5e4a26; }
+.arrow-btn { width: 42px; height: 42px; flex: none; border: 3px solid var(--ink); border-radius: 10px; background: #fffaf0; box-shadow: 0 4px 0 var(--ink); cursor: pointer; font-size: 12px; color: var(--ink); }
+.enter-btn { padding: 14px 18px; font-size: 12px; color: #fff; flex: none; }
+.enter-btn:disabled { background: #b9b2a0; color: #5e5640; cursor: not-allowed; }
+.toast { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); z-index: 30; background: var(--ink); color: var(--gold);
+  font-size: 10px; padding: 12px 18px; border-radius: 10px; border: 3px solid var(--gold); }
+
+/* modals */
+.town-modal { z-index: 40; }
+.brief-card { width: 640px; max-width: 94vw; padding: 20px; }
+.brief-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.brief-code { font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; color: #8a6d3b; }
+.brief-title { font-size: 15px; margin: 6px 0 0; }
+.brief-sub { font-size: 14px; font-weight: 900; color: #8f3f22; margin-top: 6px; }
+.brief-desc { font-size: 15px; font-weight: 700; line-height: 1.45; margin: 12px 0; }
+.brief-stars { font-size: 13px; font-weight: 900; color: #5e4a26; margin-bottom: 14px; }
+.brief-go { width: 100%; padding: 14px; font-size: 13px; color: #fff; justify-content: center; }
+.victory-card { width: 460px; padding: 22px; text-align: center; }
+.victory-title { font-size: 14px; color: var(--ink); }
+.victory-stars { font-size: 42px; color: #f5b301; -webkit-text-stroke: 2px var(--ink); margin: 10px 0; letter-spacing: 6px; }
+.victory-line { font-size: 15px; font-weight: 900; color: #5e4a26; margin: 4px 0; }
+.victory-open { margin: 10px 0; padding: 8px; border: 3px solid var(--ink); border-radius: 10px; background: #d9f7e3; font-weight: 900; }
+.progress-card { width: 620px; max-width: 94vw; padding: 18px; }
+.progress-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 3px dashed #d9c69c; }
+.progress-code { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; color: #8a6d3b; text-transform: uppercase; }
+.progress-title { font-size: 14px; margin: 6px 0 0; }
+.progress-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+.stat-label { font-size: 7px; color: #8a6d3b; } .stat-value { font-size: 13px; margin-top: 5px; color: var(--ink); }
+.progress-list { display: flex; flex-direction: column; gap: 4px; }
+.progress-list .progress-row { padding: 3px 10px; }
+.row-code { width: 44px; font-size: 8px; color: #8a6d3b; flex: none; }
+.row-main { flex: 1; min-width: 0; }
+.row-name { font-size: 8px; color: var(--ink); }
+.row-detail { font-size: 11px; font-weight: 800; color: #5e4a26; margin-top: 2px; }
+.row-stars { font-size: 13px; color: #f5b301; -webkit-text-stroke: 1px var(--ink); letter-spacing: 2px; }
+.progress-row.wip { opacity: 0.55; }
+.progress-sync { margin-top: 10px; text-align: center; font-size: 12px; font-weight: 800; color: #8a6d3b; }
+.locked-card { width: 520px; padding: 24px; text-align: center; }
+.locked-card p { font-size: 15px; font-weight: 800; color: #5e4a26; }
+
+/* game launcher (shared/cartridgeHarness.js uses these ids) */
+#cartridgeHarnessModal { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #000; }
+.harness-bar { height: 52px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: #1d1433; color: #fff; }
+.harness-bar .lesson { background: var(--gold); color: var(--ink); border: 3px solid var(--ink); border-radius: 8px; padding: 6px 8px; font-size: 9px; }
+.harness-bar .title { font-size: 14px; font-weight: 900; }
+.harness-bar .back { margin-left: auto; background: var(--red); color: #fff; border: 3px solid #fff; border-radius: 9px; padding: 7px 10px; font-size: 9px; cursor: pointer; }
+#cartridgeIframe { flex: 1; width: 100%; border: 0; background: #000; }
+
+/* map states */
+.stage-wip .bldg { filter: saturate(0.55); }
+.stage-locked .bldg { filter: grayscale(0.7) brightness(0.95); }
+#townHero.walking .hero-bob { animation: heroWalk 0.18s steps(2, jump-none) infinite alternate; }
+#townHero.walking .leg-a { animation: legA 0.18s steps(1) infinite; }
+#townHero.walking .leg-b { animation: legB 0.18s steps(1) infinite; }
+#townHero.walking .hero-marker { display: none; }
+.hero-facing { transform-box: fill-box; transform-origin: 50% 50%; }
+#townApp.leaving { animation: townFade 300ms ease forwards; }
+@keyframes townFade { to { opacity: 0; } }

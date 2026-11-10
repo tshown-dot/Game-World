@@ -17,17 +17,23 @@ direct instruction. These are not tutorials.
 index.html                         Super Map (sign in once, choose a town)
 world/                             Super Map code: superMap.js (behavior), superMapArt.js (art), superMap.css
 shared/                            code used by every town: progressStore.js (sign-in and saving), towns.js
-                                   (town list and unlock rules), audio.js (sound), config.js (sheet address)
+                                   (town list and unlock rules), audio.js (sound), config.js (sheet address),
+                                   world.css (shared look), art.js (trees, clouds, hero, nameplates),
+                                   cartridgeHarness.js (opens a game inside a town)
+shared/town/                       the shared town engine: townState.js (progress and unlock rules inside a
+                                   town), townHub.js (map, walking, briefings, victory, My Progress), town.css
 towns/<town-name>/index.html       a town map (one building per lesson)
 towns/<town-name>/games/<lesson>/  one folder per game
 tests/                             math-logic tests, runnable with plain `node`
 docs/lessons.md                    lesson lists from the textbook database
 ```
-- Planned first town: `towns/topic-4-equation-valley/` (Grade 6 Topic 4: Equations & Inequalities).
+- Equation Valley (`towns/topic-4-equation-valley/`, Topic 4) is built on the shared town engine. A town only supplies
+  its building list (`js/valley.js`) and art (`js/valleyArt.js`). Only 4-2 Counterweight is built; the other
+  buildings show "under construction" and are skipped in the unlock chain until they exist.
 - Topic 3 ("Expression Town") started in the separate `tactics-math-arena` repo and now lives here as
   `towns/topic-3-expression-town/`. It was copied (the original repo was never edited). The 8 games are unchanged;
-  the hub now signs in with a code and saves through `shared/progressStore.js`. Its hub still has its own world
-  selector and map; the Super Map and the shared map engine come later.
+  the hub signs in with a code and saves through `shared/progressStore.js`. Expression Town still runs its own
+  engine (`js/hub.js`, `js/state.js`, `js/worldArt.js`); moving it onto `shared/town/` is a planned follow-up.
 - `npm test` runs every test in the repo (the sheet script, the progress store, the Topic 3 hub and all its games).
 - Towns 1 and 2 are not built yet. Town order is by textbook topic: 1 Decimal Docks, 2 Integer Highlands,
   3 Expression Town, 4 Equation Valley, 5-8 to be decided.
@@ -36,8 +42,9 @@ docs/lessons.md                    lesson lists from the textbook database
   sky) until the owner names those towns. Town names, topics and biomes live in `shared/towns.js`.
 - Students sign in once on the Super Map; towns reuse the remembered code. A town's "world map" sign returns to the
   Super Map (`index.html?from=<town id>` puts the hero outside that town). EXIT anywhere signs out.
-- Known shortcut: the Super Map borrows Expression Town's `css/world.css` and the small props in `js/worldArt.js`
-  (trees, clouds, hero, nameplates). Move them into `shared/` when a second town needs them, instead of copying.
+- Inside a town, buildings unlock in order; unbuilt buildings are skipped; a full_access code opens every built one.
+  Only stage records are saved, and what is open is worked out from them, so adding buildings never locks anyone out.
+- Practice-mode runs still count as clearing a building (same as Expression Town). The owner may want to change this.
 - Write shared code once in `shared/`. Do not copy the map engine or audio code into each town.
 
 ## Progress and unlocks (owner decisions)

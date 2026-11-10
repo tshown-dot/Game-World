@@ -13,22 +13,25 @@ test('there are 8 towns, numbered 1-8, with unique ids', () => {
   assert.ok(TOWNS.filter((t) => t.built).every((t) => t.url && t.bossId), 'built towns have a page and a boss');
 });
 
-test('a brand-new student: Expression Town (first built town) is open, unbuilt towns are coming soon', () => {
+test('a brand-new student: Expression Town is open, Equation Valley is locked, unbuilt towns are coming soon', () => {
   const s = townStates({});
   assert.equal(stateOf(s, 3), 'open');
-  for (const n of [1, 2, 4, 5, 6, 7, 8]) assert.equal(stateOf(s, n), 'soon', `town ${n}`);
+  assert.equal(stateOf(s, 4), 'locked');
+  for (const n of [1, 2, 5, 6, 7, 8]) assert.equal(stateOf(s, n), 'soon', `town ${n}`);
 });
 
 test('a teacher tick cannot open a town that is not built', () => {
   const s = townStates({ open: [true, true, true, true, true, true, true, true] });
   assert.equal(stateOf(s, 1), 'soon');
-  assert.equal(stateOf(s, 4), 'soon');
+  assert.equal(stateOf(s, 5), 'soon');
+  assert.equal(stateOf(s, 4), 'open');
 });
 
 test('full access opens every built town but not unbuilt ones', () => {
   const s = townStates({ fullAccess: true });
   assert.equal(stateOf(s, 3), 'open');
-  assert.equal(stateOf(s, 4), 'soon');
+  assert.equal(stateOf(s, 4), 'open');
+  assert.equal(stateOf(s, 5), 'soon');
 });
 
 test('summary counts stages, stars and the boss', () => {
@@ -42,21 +45,15 @@ test('summary counts stages, stars and the boss', () => {
   assert.deepEqual(townSummary(town, null), { cleared: 0, stars: 0, bossBeaten: false, played: false });
 });
 
-// The rules for later towns, checked with a pretend future where Town 4 is built.
-test('future: Town 4 stays locked until the Town 3 boss is beaten, then opens; unbuilt towns are skipped', () => {
-  const t4 = TOWNS[3];
-  const saved = { built: t4.built, bossId: t4.bossId };
-  t4.built = true; t4.bossId = 'node_4_boss';
-  try {
-    const before = townStates({ progress: { towns: { topic_3: { nodeRecords: { node_3_1: { cleared: true } } } } } });
-    assert.equal(stateOf(before, 4), 'locked');
-    assert.match(before[3].reason, /Expression Town boss/);
-    const after = townStates({ progress: { towns: { topic_3: { nodeRecords: { node_apex: { cleared: true } } } } } });
-    assert.equal(stateOf(after, 4), 'open');
-    assert.equal(stateOf(townStates({ open: [false, false, false, true] }), 4), 'open', 'a teacher tick opens it early');
-  } finally {
-    t4.built = saved.built; t4.bossId = saved.bossId;
-  }
+test('Equation Valley stays locked until the Expression Town boss is beaten, then opens', () => {
+  const before = townStates({ progress: { towns: { topic_3: { nodeRecords: { node_3_1: { cleared: true } } } } } });
+  assert.equal(stateOf(before, 4), 'locked');
+  assert.match(before[3].reason, /Expression Town boss/);
+  const after = townStates({ progress: { towns: { topic_3: { nodeRecords: { node_apex: { cleared: true } } } } } });
+  assert.equal(stateOf(after, 4), 'open');
+  assert.equal(stateOf(townStates({ open: [false, false, false, true] }), 4), 'open', 'a teacher tick opens it early');
+  const played = townStates({ progress: { towns: { topic_4: { nodeRecords: { node_4_2: { cleared: true } } } } } });
+  assert.equal(stateOf(played, 4), 'open', 'once played, it never locks again');
 });
 
 test('future: building Town 1 later never locks a student out of a town they already played', () => {

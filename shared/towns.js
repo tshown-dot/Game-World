@@ -28,7 +28,10 @@ export const TOWNS = [
   },
   {
     number: 4, id: 'topic_4', name: 'Equation Valley', topic: 'Topic 4: Equations & Inequalities',
-    biome: 'canyon', built: false,
+    biome: 'canyon', built: true,
+    url: 'towns/topic-4-equation-valley/index.html',
+    stageCount: 11,
+    bossId: 'node_4_boss', bossName: 'The Equation Golem',
   },
   { number: 5, id: 'topic_5', name: 'Town 5', topic: 'To be decided', biome: 'swamp', built: false },
   { number: 6, id: 'topic_6', name: 'Town 6', topic: 'To be decided', biome: 'volcano', built: false },
