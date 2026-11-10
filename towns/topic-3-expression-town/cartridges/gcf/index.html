@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Vault Breaker: The GCF Heist (enVision 2.0 Math Companion)</title>
+
+  <!-- Tailwind CSS CDN (Zero build tools) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800;900&display=swap');
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      background: radial-gradient(ellipse at top, #1c1408 0%, #030712 60%);
+      color: #f3f4f6;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+    .font-mono-math { font-family: 'JetBrains Mono', monospace; }
+
+    .glow-amber { box-shadow: 0 0 25px -4px rgba(245, 158, 11, 0.55), 0 0 10px rgba(245, 158, 11, 0.35); }
+    .glow-emerald { box-shadow: 0 0 25px -4px rgba(16, 185, 129, 0.6), 0 0 10px rgba(16, 185, 129, 0.35); }
+    .glow-rose { box-shadow: 0 0 25px -4px rgba(244, 63, 94, 0.65), 0 0 12px rgba(244, 63, 94, 0.4); }
+    .glow-cyan { box-shadow: 0 0 25px -4px rgba(6, 182, 212, 0.55), 0 0 10px rgba(6, 182, 212, 0.35); }
+
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      15% { transform: translate(-8px, 5px); }
+      30% { transform: translate(8px, -5px); }
+      45% { transform: translate(-6px, 3px); }
+      60% { transform: translate(6px, -3px); }
+      75% { transform: translate(-3px, 1px); }
+    }
+    .shake-active { animation: screenShake 0.42s ease-in-out; }
+
+    @keyframes pulseUrgent { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+    .animate-urgent { animation: pulseUrgent 0.6s ease-in-out infinite; }
+
+    /* Vault dial ring spin */
+    @keyframes dialSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .dial-ring { animation: dialSpin 18s linear infinite; }
+    .dial-ring.fast { animation-duration: 0.9s; }
+
+    /* Pop-in for new stage content */
+    @keyframes popIn { 0% { transform: scale(0.85); opacity: 0; } 70% { transform: scale(1.04); opacity: 1; } 100% { transform: scale(1); } }
+    .pop-in { animation: popIn 0.32s ease-out both; }
+
+    /* CRACKED! stamp */
+    @keyframes stamp {
+      0% { transform: translate(-50%, -50%) scale(2.6) rotate(-14deg); opacity: 0; }
+      45% { transform: translate(-50%, -50%) scale(0.95) rotate(-8deg); opacity: 1; }
+      60% { transform: translate(-50%, -50%) scale(1.05) rotate(-8deg); }
+      85% { transform: translate(-50%, -50%) scale(1) rotate(-8deg); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1) rotate(-8deg); opacity: 0; }
+    }
+    .stamp-active { animation: stamp 1.05s ease-out both; }
+
+    /* Floating score text */
+    @keyframes floatUp { 0% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, -70px); opacity: 0; } }
+    .float-text { position: fixed; pointer-events: none; z-index: 60; animation: floatUp 1s ease-out forwards; }
+
+    /* Golem hit */
+    @keyframes golemHit {
+      0%, 100% { transform: translateX(0) scale(1); filter: none; }
+      20% { transform: translateX(-10px) scale(0.94); filter: brightness(2.2) saturate(0); }
+      50% { transform: translateX(8px) scale(0.97); }
+    }
+    .golem-hit { animation: golemHit 0.45s ease-out; }
+    @keyframes golemSlam { 0%, 100% { transform: translateY(0) scale(1); } 40% { transform: translateY(-14px) scale(1.12); } 60% { transform: translateY(6px) scale(1.18); } }
+    .golem-slam { animation: golemSlam 0.5s ease-in; }
+    @keyframes golemIdle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    .golem-idle { animation: golemIdle 2.4s ease-in-out infinite; }
+
+    /* Loot drop into bags */
+    @keyframes bagDrop { 0% { transform: translateY(-18px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+    .bag-drop { animation: bagDrop 0.28s ease-out both; }
+
+    /* Combo flame */
+    @keyframes flame { 0%, 100% { transform: scale(1) rotate(-3deg); } 50% { transform: scale(1.15) rotate(3deg); } }
+    .combo-hot { animation: flame 0.5s ease-in-out infinite; }
+
+    /* Heat vignette */
+    #heat-vignette {
+      pointer-events: none;
+      box-shadow: inset 0 0 120px 30px rgba(244, 63, 94, 0.9);
+      transition: opacity 0.4s;
+    }
+
+    .key-btn { transition: transform 0.08s, background-color 0.15s; }
+    .key-btn:active { transform: scale(0.93); }
+    .slot-active { border-color: #fbbf24 !important; background: rgba(120, 53, 15, 0.45) !important; box-shadow: 0 0 18px -2px rgba(245, 158, 11, 0.7); }
+  </style>
+</head>
+<body class="flex flex-col">
+
+  <canvas id="fx-canvas" class="fixed inset-0 pointer-events-none z-40"></canvas>
+  <div id="heat-vignette" class="fixed inset-0 z-30" style="opacity: 0"></div>
+  <div id="stamp" class="hidden fixed left-1/2 top-1/2 z-50 pointer-events-none px-8 py-3 border-[6px] border-emerald-400 rounded-2xl text-5xl font-black uppercase tracking-widest text-emerald-300 bg-emerald-950/70">CRACKED!</div>
+
+  <div id="game-root" class="flex flex-col h-full w-full p-3 gap-3">
+
+    <!-- ============ HUD ============ -->
+    <header class="flex items-center justify-between gap-3 bg-slate-950/90 border border-amber-900/50 rounded-2xl px-4 py-2 shrink-0">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-xl shadow-lg">🏦</div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-black tracking-wider uppercase text-amber-300">Vault Breaker</h1>
+            <span id="sector-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono-math font-black bg-amber-950 border border-amber-700 text-amber-300">FLOOR-1</span>
+          </div>
+          <p id="sector-title" class="text-[11px] font-bold text-slate-400 truncate">Floor 1: The Lobby</p>
+        </div>
+      </div>
+
+      <div id="wave-pips" class="flex items-center gap-1.5"></div>
+
+      <div class="flex items-center gap-2">
+        <div id="practice-badge" class="hidden items-center gap-1.5 bg-emerald-950/70 border border-emerald-600/70 px-3 py-1.5 rounded-xl">
+          <span class="text-xs">🧪</span><span class="text-[11px] font-black uppercase text-emerald-300">Practice: no timer, no heat</span>
+        </div>
+
+        <div id="stakes-timer" class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
+          <span class="text-[10px] font-black uppercase text-slate-500">Time</span>
+          <span id="timer-display" class="text-sm w-9 text-right font-mono-math font-black text-amber-300">40s</span>
+          <div class="w-16 h-2 bg-slate-800 rounded-full overflow-hidden"><div id="timer-bar" class="h-full bg-amber-400 rounded-full transition-all duration-300" style="width:100%"></div></div>
+        </div>
+
+        <div id="stakes-heat" class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl" title="Wrong answers raise the heat. At 100% you use a smoke bomb.">
+          <span class="text-[10px] font-black uppercase text-slate-500">Heat</span>
+          <div class="w-20 h-2 bg-slate-800 rounded-full overflow-hidden"><div id="heat-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width:0%"></div></div>
+          <span id="heat-display" class="text-xs w-9 font-mono-math font-bold text-emerald-400">0%</span>
+        </div>
+
+        <div id="stakes-bombs" class="flex items-center gap-1 bg-slate-900/90 border border-slate-800 px-2.5 py-1.5 rounded-xl" title="Smoke bombs: each one clears the heat once">
+          <span id="bombs-display" class="text-sm tracking-tight">💨💨💨</span>
+        </div>
+
+        <div id="combo-box" class="flex items-center gap-1 bg-indigo-950/60 border border-indigo-700/60 px-2.5 py-1.5 rounded-xl">
+          <span id="combo-flame" class="text-sm">⚡</span>
+          <span id="combo-display" class="text-xs font-mono-math font-black text-indigo-200">x1</span>
+        </div>
+
+        <div class="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
+          <span class="text-[10px] font-black uppercase text-slate-500">Loot</span>
+          <span id="score-display" class="text-sm font-mono-math font-black text-amber-300">$0</span>
+        </div>
+
+        <button id="audio-toggle-btn" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-600 flex items-center justify-center cursor-pointer" title="Sound on/off"><span id="audio-icon">🔊</span></button>
+        <button id="briefing-btn" class="px-2.5 py-1.5 text-xs font-bold text-amber-400 bg-amber-950/50 border border-amber-800/60 rounded-lg hover:bg-amber-900/60 cursor-pointer" title="Mission briefing">📋 Briefing</button>
+        <button id="field-guide-btn" class="px-2.5 py-1.5 text-xs font-bold text-cyan-400 bg-cyan-950/50 border border-cyan-800/60 rounded-lg hover:bg-cyan-900/60 cursor-pointer" title="Field guide">? Guide</button>
+      </div>
+    </header>
+
+    <!-- ============ MAIN ============ -->
+    <main class="flex-1 min-h-0 grid grid-cols-12 gap-3">
+
+      <!-- Stage -->
+      <section class="col-span-7 flex flex-col min-h-0 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 relative overflow-hidden">
+        <div class="flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2">
+            <span id="mode-icon" class="text-xl">🔐</span>
+            <span id="mode-label" class="text-xs font-black uppercase tracking-widest text-amber-300">Crack the Dial</span>
+            <span id="followup-tag" class="hidden text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-950 border border-indigo-500 text-indigo-300">Follow-up</span>
+          </div>
+          <button id="hint-btn" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-cyan-900/60 rounded-xl text-xs font-bold text-cyan-300 cursor-pointer">💡 Hint (H)</button>
+        </div>
+
+        <!-- Boss panel -->
+        <div id="boss-panel" class="hidden shrink-0 mt-2 flex items-center gap-4 bg-rose-950/30 border border-rose-800/60 rounded-2xl px-4 py-2">
+          <div id="golem" class="text-6xl golem-idle leading-none">🗿</div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase tracking-widest text-rose-300">The Vault Golem</span>
+              <span id="boss-hp-text" class="text-[11px] font-mono-math font-bold text-rose-300">8 / 8 armor</span>
+            </div>
+            <div id="boss-hp-plates" class="flex gap-1 mt-1.5"></div>
+            <p id="boss-taunt" class="text-[11px] text-rose-200/80 italic mt-1">"No one cracks my vault."</p>
+          </div>
+        </div>
+
+        <p id="prompt-text" class="shrink-0 mt-3 text-lg font-bold text-white leading-snug">Dial in GCF(12, 18)</p>
+        <div id="hint-strip" class="hidden shrink-0 mt-2 bg-cyan-950/50 border border-cyan-800/70 rounded-xl px-3 py-1.5 text-xs text-cyan-200">💡 <span id="hint-text"></span></div>
+
+        <div id="stage-visual" class="flex-1 min-h-0 mt-3 flex items-center justify-center"></div>
+      </section>
+
+      <!-- Console -->
+      <section class="col-span-5 flex flex-col min-h-0 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 gap-3">
+        <div class="flex items-center justify-between shrink-0">
+          <span id="console-label" class="text-xs font-black uppercase tracking-wider text-amber-400">Your Answer</span>
+          <span id="console-keys" class="text-[10px] font-mono-math text-slate-500 font-bold">Type digits · Enter = Crack</span>
+        </div>
+
+        <!-- Number entry -->
+        <div id="number-panel" class="flex flex-col gap-3">
+          <div id="answer-display" class="h-16 rounded-2xl border-2 border-amber-500/60 bg-slate-900 flex items-center justify-center font-mono-math font-black text-4xl text-amber-200 glow-amber">_</div>
+        </div>
+
+        <!-- Factor-out slots (shown in the console too, so the keypad target is obvious) -->
+        <div id="factor-panel" class="hidden flex items-center justify-center gap-1.5 font-mono-math font-black text-2xl text-slate-200">
+          <span id="factor-sum">24 + 36</span><span class="text-slate-500">=</span>
+          <button data-slot="0" class="factor-slot min-w-[3.2rem] h-14 px-2 rounded-xl border-2 border-slate-700 bg-slate-900 text-amber-200 cursor-pointer">_</button>
+          <span class="text-slate-400">(</span>
+          <button data-slot="1" class="factor-slot min-w-[3.2rem] h-14 px-2 rounded-xl border-2 border-slate-700 bg-slate-900 text-cyan-200 cursor-pointer">_</button>
+          <span class="text-slate-400">+</span>
+          <button data-slot="2" class="factor-slot min-w-[3.2rem] h-14 px-2 rounded-xl border-2 border-slate-700 bg-slate-900 text-cyan-200 cursor-pointer">_</button>
+          <span class="text-slate-400">)</span>
+        </div>
+
+        <!-- Keypad -->
+        <div id="keypad" class="grid grid-cols-3 gap-2"></div>
+
+        <!-- Scan choices -->
+        <div id="scan-panel" class="hidden grid grid-cols-2 gap-3"></div>
+
+        <!-- Feedback -->
+        <div id="feedback" class="flex-1 min-h-[72px] rounded-xl border border-slate-800 bg-slate-900/70 p-3 overflow-hidden">
+          <div class="flex items-center gap-2">
+            <span id="feedback-icon" class="text-base">🕶️</span>
+            <span id="feedback-title" class="text-xs font-black uppercase tracking-wider text-slate-300">Ready</span>
+          </div>
+          <p id="feedback-text" class="text-[13px] leading-snug text-slate-300 mt-1">Crack the code before the timer runs out.</p>
+        </div>
+
+        <button id="fire-btn" class="shrink-0 w-full py-3.5 rounded-2xl font-black uppercase tracking-widest text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 active:scale-[0.98] transition-all shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+          🔓 Crack It (Enter)
+        </button>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ MISSION BRIEFING ============ -->
+  <div id="modal-briefing" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-amber-600/60 rounded-3xl max-w-3xl w-full p-6 glow-amber relative">
+      <button id="briefing-close-btn" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg font-bold cursor-pointer">✕</button>
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-2xl">🏦</div>
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.3em] text-amber-500">Mission Briefing · Lesson 3-2</p>
+          <h2 class="text-2xl font-black text-white">Vault Breaker: The GCF Heist</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 mt-5 text-xs">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black uppercase text-amber-300 mb-1">🎯 Objective</p>
+          <p class="text-slate-300">Rob all 4 floors of the Town Bank, then beat <b>The Vault Golem</b>. Every lock opens with a <b>Greatest Common Factor</b>.</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black uppercase text-amber-300 mb-1">🎮 Controls</p>
+          <p class="text-slate-300">Type numbers or click the keypad. <b>Enter</b> = crack. <b>Tab</b> = next box. <b>1–4</b> = pick a key. <b>H</b> = hint.</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black uppercase text-rose-300 mb-1">🚨 Stakes</p>
+          <p class="text-slate-300">Wrong answers raise the <b>heat</b>. At 100% you burn a <b>smoke bomb</b> 💨. Out of bombs = busted. Beat the timer for bonus loot.</p>
+        </div>
+      </div>
+
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-5 mb-2">Five kinds of jobs</p>
+      <div class="grid grid-cols-5 gap-2 text-[11px]">
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="text-lg">🔐</p><p class="font-black text-white">Crack the Dial</p><p class="text-slate-400">Type the GCF.</p></div>
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="text-lg">💰</p><p class="font-black text-white">Split the Loot</p><p class="text-slate-400">Most identical bags, nothing left over.</p></div>
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="text-lg">🟨</p><p class="font-black text-white">Tile the Floor</p><p class="text-slate-400">Biggest square tile, no cuts.</p></div>
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="text-lg">🧮</p><p class="font-black text-white">Override Code</p><p class="text-slate-400">24 + 36 = 12(2 + 3)</p></div>
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="text-lg">🗝️</p><p class="font-black text-white">Spot the Key</p><p class="text-slate-400">Pick the GCF, dodge the traps.</p></div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 mt-5">
+        <button id="briefing-start-btn" class="col-span-2 py-3.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 text-slate-950 rounded-2xl font-black uppercase tracking-widest cursor-pointer">
+          <span id="briefing-start-label">🔓 Start the Heist (Enter)</span>
+        </button>
+        <button id="briefing-practice-btn" class="py-3.5 bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-600/70 text-emerald-300 rounded-2xl font-black uppercase text-xs tracking-wider cursor-pointer">
+          🧪 Practice (P)<br><span class="text-[10px] font-bold normal-case text-emerald-400/80">No timer · no heat · doesn't count</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FLOOR CLEARED ============ -->
+  <div id="modal-sector-clear" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-emerald-600/60 rounded-3xl max-w-md w-full p-6 text-center glow-emerald pop-in">
+      <p class="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400">Floor Cleared</p>
+      <h2 id="sector-clear-title" class="text-lg font-black uppercase text-white mt-1">Floor 1: The Lobby</h2>
+      <div id="sector-clear-stars" class="text-5xl my-3 tracking-widest text-amber-300">★★★</div>
+      <div id="sector-clear-stats" class="text-xs text-slate-300">0 misses · 0 hints</div>
+      <div class="mt-4 bg-slate-900/80 border border-slate-800 rounded-2xl p-3 text-left">
+        <div class="text-[10px] font-black uppercase tracking-widest text-slate-500">Up next</div>
+        <div id="sector-clear-next" class="text-sm font-black text-amber-300 mt-0.5">Floor 2</div>
+        <div id="sector-clear-next-desc" class="text-[11px] text-slate-400 mt-0.5"></div>
+      </div>
+      <button id="sector-clear-continue-btn" class="w-full mt-4 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:brightness-110 text-slate-950 rounded-2xl font-black uppercase tracking-widest cursor-pointer">Keep Going (Enter)</button>
+    </div>
+  </div>
+
+  <!-- ============ SMOKE BOMB ============ -->
+  <div id="smoke-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-300/30 backdrop-blur-lg pointer-events-none">
+    <div class="text-center pop-in">
+      <div class="text-8xl">💨</div>
+      <p class="text-3xl font-black uppercase tracking-widest text-white drop-shadow-lg">Smoke Bomb!</p>
+      <p id="smoke-text" class="text-sm font-bold text-slate-100">Heat cleared. 2 left.</p>
+    </div>
+  </div>
+
+  <!-- ============ DEBRIEF ============ -->
+  <div id="modal-debrief" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-amber-600/60 rounded-3xl max-w-2xl w-full p-6 pop-in">
+      <div class="flex items-center gap-4">
+        <div id="debrief-icon" class="w-16 h-16 rounded-3xl bg-amber-950 border-2 border-amber-500/60 flex items-center justify-center text-3xl glow-amber">🏆</div>
+        <div>
+          <h2 id="debrief-title" class="text-xl font-black uppercase text-white">Heist Complete!</h2>
+          <p id="debrief-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
+          <p id="debrief-stars" class="text-sm font-black text-amber-300 mt-1"></p>
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-2 mt-4 text-center">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2"><div class="text-[10px] uppercase font-black text-slate-500">Loot</div><div id="debrief-score" class="text-lg font-black font-mono-math text-amber-300">$0</div></div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2"><div class="text-[10px] uppercase font-black text-slate-500">First try</div><div id="debrief-accuracy" class="text-lg font-black font-mono-math text-emerald-300">0/0</div></div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2"><div class="text-[10px] uppercase font-black text-slate-500">Best combo</div><div id="debrief-combo" class="text-lg font-black font-mono-math text-indigo-300">x1</div></div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2"><div class="text-[10px] uppercase font-black text-slate-500">Time</div><div id="debrief-time" class="text-lg font-black font-mono-math text-white">0:00</div></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mt-3">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+          <div class="text-[10px] uppercase font-black text-slate-500 mb-1.5">Skills</div>
+          <div id="debrief-skills" class="space-y-1 text-xs"></div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+          <div class="text-[10px] uppercase font-black text-slate-500 mb-1.5">Review these</div>
+          <div id="debrief-mistakes" class="text-[11px] text-slate-300 space-y-0.5 max-h-36 overflow-hidden"></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mt-4">
+        <button id="debrief-retry-btn" class="py-3 bg-gradient-to-r from-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 rounded-2xl font-black uppercase tracking-widest cursor-pointer">↻ Retry Floor (Enter)</button>
+        <button id="debrief-restart-btn" class="py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-2xl font-black uppercase tracking-widest cursor-pointer">New Heist</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FIELD GUIDE ============ -->
+  <div id="modal-field-guide" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-cyan-700/60 rounded-3xl max-w-3xl w-full p-6 glow-cyan">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-black text-cyan-300 uppercase tracking-wider">Field Guide: Greatest Common Factor</h3>
+        <button id="close-field-guide-btn" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">✕</button>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mt-4 text-xs text-slate-300">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black text-white mb-1">1. List and match</p>
+          <p>18: <span class="font-mono-math">1, 2, 3, <b class="text-amber-300">6</b>, 9, 18</span></p>
+          <p>24: <span class="font-mono-math">1, 2, 3, 4, <b class="text-amber-300">6</b>, 8, 12, 24</span></p>
+          <p class="mt-1">The biggest number in <b>both</b> lists is the GCF: <b class="text-amber-300">6</b>.</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black text-white mb-1">2. The "split again" check</p>
+          <p>Think 2 is the GCF of 24 and 36? Divide: 24 ÷ 2 = 12, 36 ÷ 2 = 18.</p>
+          <p class="mt-1">12 and 18 <b>still</b> share 6, so 2 wasn't the greatest. When the leftovers share only 1, you've got it.</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black text-white mb-1">3. Quick rules</p>
+          <p>• If the smaller number divides the bigger one, the smaller one <b>is</b> the GCF (GCF(6, 18) = 6).</p>
+          <p>• The GCF is never bigger than the smaller number.</p>
+          <p>• Numbers next to each other (20, 21) only share 1.</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black text-white mb-1">4. Real-world jobs</p>
+          <p>• <b>Most identical groups</b> with nothing left over → GCF.</p>
+          <p>• <b>Largest square tile</b> that fits a rectangle → GCF of length and width.</p>
+          <p>• <b>Factor a sum:</b> 24 + 36 = <b class="text-amber-300">12</b>(2 + 3), since 12 × 2 = 24 and 12 × 3 = 36.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/game.js"></script>
+</body>
+</html>

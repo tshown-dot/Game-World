@@ -22,9 +22,11 @@ tests/                             math-logic tests, runnable with plain `node`
 docs/lessons.md                    lesson lists from the textbook database
 ```
 - Planned first town: `towns/topic-4-equation-valley/` (Grade 6 Topic 4: Equations & Inequalities).
-- Topic 3 ("Expression Town") started in the separate `tactics-math-arena` repo. The owner has approved moving it
-  into this repo as `towns/topic-3-expression-town/` (copy, never edit the original repo). When copying: remove the
-  Supabase and Apps Script calls, stored passcodes and all hard-coded credentials (see Progress and unlocks below).
+- Topic 3 ("Expression Town") started in the separate `tactics-math-arena` repo and now lives here as
+  `towns/topic-3-expression-town/`. It was copied (the original repo was never edited). The 8 games are unchanged;
+  the hub now signs in with a code and saves through `shared/progressStore.js`. Its hub still has its own world
+  selector and map; the Super Map and the shared map engine come later.
+- `npm test` runs every test in the repo (the sheet script, the progress store, the Topic 3 hub and all its games).
 - Towns 1 and 2 are not built yet. Town order is by textbook topic: 1 Decimal Docks, 2 Integer Highlands,
   3 Expression Town, 4 Equation Valley, 5-8 to be decided.
 - Each town has its own biome (terrain, palette, landmark). The Super Map is a pixel-style overworld with 8 regions.
@@ -36,23 +38,32 @@ docs/lessons.md                    lesson lists from the textbook database
 - Each student gets a teacher-issued code: 6 characters from `A-H J-N P-Z 2-9` (no I, O, 0 or 1), generated inside
   the owner's Google account and handed out on sticky notes. Codes are not case-sensitive in the game. Only codes that
   exist in the sheet are accepted. No names anywhere, and no passcode or stored password.
-- Towns unlock in order: town N+1 opens when the boss of town N is beaten. A teacher can open any town early, and
-  opening a town also opens every building inside it.
+- Towns unlock in order: town N+1 opens when the boss of town N is beaten. A teacher can open a town early by ticking
+  that town's box for a student or for the `ALL` row. That opens the town only; buildings inside still unlock in order.
+- `full_access` (a checkbox column, for a teacher or preview code) opens every building in every town, like the old
+  teacher mode. It shows a TEACHER banner and never rewrites the student's real saved unlocks.
 - One Google Sheet, "Game World: Unlocks & Progress", has tabs: `Unlocks` (one row per student code plus an `ALL` row,
-  one checkbox column per town), `Progress` (student_code, progress JSON, updated_at; one row per student),
+  one checkbox column per town plus a `full_access` checkbox), `Progress` (student_code, progress JSON, updated_at; one row per student),
   `Results` (one row per finished game: timestamp, student_code, town, lesson, game, score, problems_attempted,
   problems_correct, accuracy, boss_defeated, practice_mode) and `Towns` (column-to-town key and instructions).
 - A Google Apps Script web app is the only backend. `GET ?action=load&code=` returns that student's open towns and
-  saved progress, never other rows. `POST` with `type: "save"` or `type: "result"` writes progress or a result row.
+  saved progress and `full_access`, never other rows. `POST` with `type: "save"` or `type: "result"` writes progress
+  or a result row. Saved progress is one JSON object: `{v, level, xp, coins, savedAt, towns: {topic_3: {...}}}`, where
+  each town keeps its own slice and unknown slices are passed through untouched.
   The game saves at milestones (finished game, boss, new building), not on every click, retries with a short random
   delay if the script says `busy`, and queues writes on the device while offline.
-- Fallback: a short "save code" the student can copy and paste to restore progress if the sheet is unreachable.
-- Students see their own progress in-game (a "My Progress" screen with stars and badges). No printing. A screenshot is
-  how a student shares progress with the teacher.
+- Signing in on a device that has never seen the code needs the internet once. After that, play works offline and
+  saves wait in a queue on the device until the network is back.
+- Planned, not built yet: a short "save code" the student can copy and paste to restore progress if the sheet is
+  unreachable.
+- Students see their own progress in-game (the "MY STARS" button opens a "My Progress" screen with stars, badges and
+  save status). Every town gets the same screen. No printing. A screenshot is how a student shares progress with the
+  teacher.
 - No Supabase or other database unless the owner approves it. The name-to-code roster is never stored in this repo or
   in that sheet. Treat codes like passwords: never commit them.
-- The build container cannot reach Google. Test the game against a stand-in endpoint, and give the owner a manual
-  checklist for the real sheet.
+- Test the game against a stand-in endpoint so tests never write to the owner's real sheet. The build environment
+  may be allowed to reach `script.google.com`, so read-only checks against the live script are possible, but never
+  write test rows to the real sheet without asking.
 
 ## Reference projects (read-only, owned by the same teacher)
 - `tshown-dot/tactics-math-arena`: Topic 3 hub ("Expression Town") with 8 cartridge games. Source of the design pillars and test pattern.

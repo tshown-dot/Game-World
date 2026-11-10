@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drone Drop · The Distributive Property</title>
+<meta name="description" content="A delivery-drone game for enVision 2.0 Grade 6, Lesson 3-6: Generate Equivalent Expressions (the Distributive Property).">
+<style>
+:root{
+  --ink:#1b2747; --muted:#5b6a90; --line:#cfdaf0; --card:#ffffff;
+  --orange:#ff7a2f; --orange2:#ffb347; --green:#18a964; --red:#e5484d; --purple:#6c5ce7; --yellow:#ffd23f; --blue:#2f80ed;
+  --math:"Cambria Math","Cambria","Times New Roman",Georgia,serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;color:var(--ink);font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,system-ui,sans-serif}
+body{background:linear-gradient(180deg,#bfe8ff 0%,#e9f7ff 55%,#f6fbff 100%) fixed;overflow-x:hidden}
+.hidden{display:none!important}
+button{font:inherit;cursor:pointer;border:0;color:inherit}
+.btn{background:linear-gradient(180deg,var(--orange2),var(--orange));color:#fff;font-weight:800;padding:.75rem 1.35rem;font-size:1.06rem;border-radius:14px;
+  letter-spacing:.4px;box-shadow:0 4px 0 #c4501a,0 10px 22px rgba(255,122,47,.25);text-shadow:0 1px 0 rgba(0,0,0,.18);transition:transform .08s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #c4501a}
+.btn.green{background:linear-gradient(180deg,#3ad48a,var(--green));box-shadow:0 4px 0 #0d7a46,0 10px 22px rgba(24,169,100,.22)}
+.btn.red{background:linear-gradient(180deg,#ff7b7f,var(--red));box-shadow:0 4px 0 #a52a2e,0 10px 22px rgba(229,72,77,.22)}
+.btn.plain{background:#fff;color:var(--ink);border:2px solid var(--line);box-shadow:none;text-shadow:none;font-weight:700}
+.btn:disabled{filter:grayscale(1) opacity(.5);cursor:not-allowed}
+.screen{max-width:1220px;margin:0 auto;padding:12px 16px 18px;min-height:100vh;display:flex;flex-direction:column}
+.center{align-items:center;justify-content:center;text-align:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 12px 30px rgba(27,39,71,.10)}
+.label{font-size:.7rem;letter-spacing:.16em;font-weight:800;color:var(--muted);text-transform:uppercase;margin:.1rem 0 .35rem}
+i.v,.m i,.sign i,.pkg i,.st i{font-style:italic;color:var(--purple)}
+.m{font-family:var(--math)}
+
+/* ---------- Title ---------- */
+.lesson-tag{display:inline-block;font-size:.8rem;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);background:#fff;padding:.35rem .8rem;border-radius:999px}
+.logo{font-size:clamp(3rem,8.5vw,5.6rem);margin:.2rem 0 0;line-height:.92;font-weight:900;letter-spacing:.02em;color:var(--ink)}
+.logo span{color:var(--orange);display:inline-block;transform:rotate(-3deg)}
+.tag{color:var(--muted);font-size:1.15rem;margin:.5rem 0 1.1rem}
+.title-drone{width:190px;height:120px;margin:1rem auto 0;position:relative;animation:hover 2.6s ease-in-out infinite}
+@keyframes hover{50%{transform:translateY(-10px)}}
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-width:840px;margin:0 auto 1.2rem}
+.how .card{padding:14px;text-align:left}
+.how b{display:block;color:var(--orange);margin-bottom:.2rem}
+.how small{color:var(--muted);font-size:.92rem;line-height:1.35}
+.how .n{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--orange);color:#fff;font-weight:900;margin-bottom:.35rem}
+.start-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center}
+.start-row input,.start-row select{font:inherit;font-size:1.05rem;padding:.7rem .9rem;border-radius:12px;border:2px solid var(--line);background:#fff;color:var(--ink);min-width:230px}
+.start-row select{min-width:0}
+.best{margin-top:.9rem;color:var(--muted);font-size:.9rem}
+
+/* ---------- Strip / briefing ---------- */
+.strip{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:.2rem 0 .9rem}
+.chip{display:flex;align-items:center;gap:.4rem;padding:.38rem .75rem;border-radius:999px;border:1px solid var(--line);font-size:.82rem;color:var(--muted);background:#fff}
+.chip .dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;background:#e7edf9}
+.chip.done{color:var(--green);border-color:#9fe0bf} .chip.done .dot{background:var(--green);color:#fff}
+.chip.now{color:var(--orange);border-color:var(--orange);background:#fff5ec} .chip.now .dot{background:var(--orange);color:#fff}
+.brief{max-width:880px;margin:0 auto;padding:22px 26px;width:100%}
+.kicker{color:var(--orange);font-weight:800;letter-spacing:.14em;font-size:.8rem}
+.brief h2{font-size:2.2rem;margin:.15rem 0 .45rem}
+.intel{font-size:1.12rem;line-height:1.5;margin:.2rem 0 .6rem}
+.intel .m{font-size:1.2em;white-space:nowrap;background:#f1f4ff;padding:0 .35em;border-radius:6px}
+.tipbox{background:#effbf5;border:1px solid #a7e3c4;border-radius:14px;padding:.7rem 1rem;margin:.6rem 0 1rem;font-size:1.02rem;line-height:1.45}
+.tipbox b{color:var(--green)}
+.tipbox.warn{background:#fff6ea;border-color:#ffcf99} .tipbox.warn b{color:#d4600f}
+.demo{background:#f7f9ff;border:1px solid var(--line);border-radius:16px;padding:12px 16px;margin-bottom:1.1rem}
+.brief .go{display:flex;justify-content:flex-end;gap:10px}
+.steps{font-family:var(--math);font-size:1.5rem;line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:14px;padding:.5rem 1rem;margin-top:.4rem}
+.st{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}
+.st .note{font-family:"Segoe UI",Roboto,sans-serif;font-size:.74rem;color:var(--muted);letter-spacing:.05em;margin-left:auto;padding-left:.8rem;text-transform:uppercase}
+.st.final{color:var(--green);font-weight:700}
+.st .txt{font-family:"Segoe UI",Roboto,sans-serif;font-size:1rem;color:var(--muted)}
+.hl{background:#fff1c9;border-radius:6px;padding:0 .12em;box-shadow:0 0 0 2px #ffd36b}
+
+/* ---------- HUD ---------- */
+.hud{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 12px;border-radius:16px;margin-bottom:10px}
+.hud .zt{flex:1;min-width:230px;font-size:.95rem;color:var(--muted)} .hud .zt b{color:var(--ink);font-size:1.06rem}
+.stat{background:#f4f7ff;border:1px solid var(--line);border-radius:12px;padding:.32rem .7rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat.tips{color:#0d8a52} .stat.fire{color:#e8601c}
+.iconbtn{background:#f4f7ff;border:1px solid var(--line);border-radius:12px;padding:.32rem .6rem}
+.lights{display:flex;gap:6px}
+.light{width:15px;height:15px;border-radius:50%;background:#e3e9f6;border:2px solid #c3cee6}
+.light.on{background:var(--green);border-color:#bdf3d7;box-shadow:0 0 8px rgba(24,169,100,.7)}
+.light.half{background:var(--yellow);border-color:#fff1b8}
+.light.bust{background:var(--red);border-color:#ffc9cb}
+.light.cur{border-color:var(--orange);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 4px rgba(255,122,47,.25)}}
+
+/* ---------- Stage (street) ---------- */
+.stage{position:relative;border-radius:22px;overflow:hidden;border:1px solid #a9d6f5;
+  background:linear-gradient(180deg,#7cc8ff 0%,#bfe6ff 58%,#dff3ff 58%,#dff3ff 100%);min-height:318px;padding:96px 12px 10px;user-select:none}
+.sun{position:absolute;right:46px;top:18px;width:54px;height:54px;border-radius:50%;background:radial-gradient(circle,#fff6b0,#ffd23f);box-shadow:0 0 40px #ffe680}
+.cloud{position:absolute;background:#fff;border-radius:40px;opacity:.85;height:22px}
+.cloud::before,.cloud::after{content:"";position:absolute;background:#fff;border-radius:50%}
+.cloud::before{width:30px;height:30px;left:12px;top:-14px}.cloud::after{width:22px;height:22px;left:36px;top:-9px}
+.c1{width:80px;left:16%;top:30px;animation:drift 40s linear infinite}.c2{width:100px;left:58%;top:52px;animation:drift 55s linear infinite reverse}
+@keyframes drift{50%{transform:translateX(60px)}}
+.road{position:absolute;left:0;right:0;top:calc(96px + 118px);height:14px;background:#6b7795;border-top:3px solid #4f5a77}
+.road::after{content:"";position:absolute;left:0;right:0;top:5px;height:3px;background:repeating-linear-gradient(90deg,#ffe27a 0 22px,transparent 22px 44px)}
+.claimtag{position:absolute;left:14px;top:12px;background:#fff;border:2px solid var(--purple);color:var(--purple);border-radius:999px;padding:.25rem .8rem;font-weight:800;font-size:.85rem}
+.row{position:relative;display:flex;justify-content:center;align-items:flex-end;gap:4px;z-index:2}
+.col{display:flex;flex-direction:column;align-items:center}
+.cell-top{height:118px;display:flex;align-items:flex-end;justify-content:center}
+.cell-bot{height:72px;display:flex;align-items:center;justify-content:center;padding-top:18px}
+.paren{font-family:var(--math);font-size:6.2rem;line-height:1;color:#1b2747;transform:translateY(-4px);font-weight:300}
+.opc{font-family:var(--math);font-size:2.2rem;width:34px;text-align:center}
+.cell-top .opc{padding-bottom:30px}
+.coefslot{width:104px;height:100px}
+.eqsign{font-family:var(--math);font-size:2.2rem;color:var(--ink)}
+
+.house{width:124px;height:112px;position:relative;cursor:default;transition:transform .15s}
+.house .roof{position:absolute;top:0;left:-6px;right:-6px;height:46px;clip-path:polygon(50% 0,100% 100%,0 100%);background:var(--rc,#e4572e)}
+.house .chim{position:absolute;top:10px;right:18px;width:12px;height:22px;background:#7a4b2a}
+.house .body{position:absolute;top:44px;left:7px;right:7px;bottom:0;background:#fff4dc;border:3px solid #8a5a35;border-radius:3px}
+.house .win{position:absolute;bottom:8px;width:18px;height:18px;background:#9bb3cf;border:2px solid #8a5a35;transition:background .3s,box-shadow .3s}
+.house .w1{left:8px}.house .w2{right:8px}
+.house .door{position:absolute;bottom:0;left:50%;width:22px;height:30px;margin-left:-11px;background:#8a5a35;border-radius:10px 10px 0 0}
+.house .sign{position:absolute;top:30px;left:50%;transform:translateX(-50%);min-width:64px;text-align:center;background:#1b2747;color:#fff;font-family:var(--math);
+  font-size:1.75rem;line-height:1.25;padding:0 .35em;border-radius:9px;z-index:3;white-space:nowrap;box-shadow:0 3px 0 rgba(0,0,0,.2)}
+.house .sign i{color:#c9bcff}
+.house .badge{position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:.72rem;font-weight:900;letter-spacing:.06em;padding:.15rem .5rem;border-radius:999px;white-space:nowrap;z-index:4}
+.house.lit .win{background:var(--yellow);box-shadow:0 0 14px var(--yellow)}
+.house.lit .badge{background:var(--green);color:#fff}
+.house.missed .badge{background:var(--red);color:#fff;animation:blinkb .5s 4}
+.house.wrong .badge{background:var(--red);color:#fff}
+.house.missed .body{filter:grayscale(.6) brightness(.85)}
+@keyframes blinkb{50%{opacity:.3}}
+.house.pickable{cursor:pointer}
+.house.pickable:hover{transform:translateY(-4px)}
+.house.pickable .sign{box-shadow:0 0 0 3px var(--orange),0 3px 0 rgba(0,0,0,.2)}
+.house.target .sign{box-shadow:0 0 0 4px var(--yellow),0 3px 0 rgba(0,0,0,.2)}
+.house.over{transform:scale(1.06)}
+.house.spot{cursor:pointer}.house.spot .sign{box-shadow:0 0 0 3px var(--purple)}
+.house.unknown .sign{background:#8a95b3}
+
+.pkg{min-width:96px;height:52px;padding:0 .5rem;border:3px dashed #9fb2d4;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--math);font-size:1.75rem;
+  background:rgba(255,255,255,.55);color:#9fb2d4;white-space:nowrap;transition:background .2s}
+.pkg.full{border-style:solid;border-color:#c99a5b;background:linear-gradient(180deg,#f3d29b,#e2b26c);color:#3b2410;animation:pop .3s;box-shadow:0 3px 0 #a87a3f}
+.pkg.full i{color:#5a2fd0}
+.pkg.ok{border-color:var(--green);box-shadow:0 0 0 3px rgba(24,169,100,.35),0 3px 0 #a87a3f}
+.pkg.bad{border-color:var(--red);background:linear-gradient(180deg,#ffd6d7,#ffb3b5);box-shadow:0 0 0 3px rgba(229,72,77,.35)}
+.pkg.empty.bad{background:#ffe9ea;color:var(--red);font-family:"Segoe UI",sans-serif;font-size:.85rem;font-weight:900}
+.pkg.spot{cursor:pointer;box-shadow:0 0 0 3px var(--purple)}
+.pkg.total{border-color:var(--green);background:#dcf7e9;color:#0d6b40}
+@keyframes pop{0%{transform:scale(1.3)}100%{transform:scale(1)}}
+
+.drone{position:absolute;width:104px;height:96px;left:0;top:0;z-index:6;transition:left .45s cubic-bezier(.4,.1,.3,1),top .45s cubic-bezier(.4,.1,.3,1);touch-action:none}
+.drone.drag{transition:none;cursor:grabbing}
+.drone.grab{cursor:grab}
+.drone .rot{position:absolute;top:2px;width:40px;height:9px;border-radius:50%;background:rgba(40,50,80,.55);animation:spin .12s linear infinite}
+.drone .r1{left:0}.drone .r2{right:0}
+@keyframes spin{50%{transform:scaleX(.25)}}
+.drone .arm{position:absolute;top:9px;width:6px;height:16px;background:#3c4566}.drone .a1{left:17px}.drone .a2{right:17px}
+.drone .dbody{position:absolute;top:18px;left:10px;right:10px;height:46px;border-radius:16px;background:linear-gradient(180deg,#ffa25c,var(--orange));
+  box-shadow:0 4px 0 #c4501a;display:grid;place-items:center;color:#fff;font-family:var(--math);font-size:2.3rem;font-weight:700;text-shadow:0 2px 0 rgba(0,0,0,.2)}
+.drone .eye{position:absolute;top:28px;left:22px;width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:inset -2px -2px 0 #1b2747}
+.drone .line{position:absolute;top:64px;left:50%;width:2px;height:12px;background:#3c4566}
+.drone .box{position:absolute;top:74px;left:50%;margin-left:-13px;width:26px;height:20px;background:#e2b26c;border:2px solid #a87a3f;border-radius:3px}
+.drone.unknown .dbody{background:linear-gradient(180deg,#b9c3dc,#8a95b3);box-shadow:0 4px 0 #66718f}
+.drone.bob{animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{margin-top:-6px}}
+.parcel{position:absolute;width:26px;height:20px;background:#e2b26c;border:2px solid #a87a3f;border-radius:3px;z-index:7;transition:left .4s ease-in,top .4s ease-in,transform .4s}
+
+/* ---------- Algebra strip ---------- */
+.board{margin-top:10px;padding:6px 14px;display:flex;align-items:center;gap:12px;min-height:60px}
+.board .tag{font-size:.7rem;letter-spacing:.14em;font-weight:900;color:var(--muted);white-space:nowrap;line-height:1.3}
+.board .alg{font-family:var(--math);font-size:1.7rem;white-space:nowrap;overflow-x:auto;flex:1;text-align:center;padding:4px 0}
+.board .eq{color:var(--muted);margin:0 .2em}
+.pc{border-bottom:4px solid var(--c);padding:0 .12em;border-radius:4px;transition:background .2s}
+.pc.now{background:#fff1c9;box-shadow:0 0 0 2px #ffd36b}
+.pc.ok{color:#0d7a46}
+.pc.bad{color:var(--red);background:#ffe9ea}
+.pc.new{animation:pop .35s}
+.pc.plain{border-bottom-color:transparent}
+.blank{display:inline-block;min-width:1.3em;color:#b4c0da;border-bottom:3px dashed #c9d4ea;text-align:center}
+.alg .verd{font-family:"Segoe UI",Roboto,sans-serif;font-size:.85rem;font-weight:900;margin-left:.6rem;padding:.15rem .55rem;border-radius:999px;vertical-align:middle}
+.alg .verd.y{background:#dcf7e9;color:#0d7a46}.alg .verd.n{background:#ffe9ea;color:var(--red)}
+
+/* ---------- Controls ---------- */
+.controls{display:grid;grid-template-columns:300px 1fr 330px;gap:12px;margin-top:10px;align-items:stretch}
+.radio{background:#1b2747;color:#e8eeff;border-radius:18px;padding:10px 14px;font-size:1rem;line-height:1.42;min-height:150px;border:3px solid #1b2747}
+.radio .who{font-size:.72rem;letter-spacing:.16em;font-weight:900;color:var(--yellow);margin-bottom:.25rem}
+.radio i{color:#c9bcff}
+.radio.good{border-color:var(--green)} .radio.good .who{color:#5ff0a8}
+.radio.warn{border-color:var(--orange)} .radio.warn .who{color:var(--orange2)}
+.radio.bad{border-color:var(--red);background:#3a1622} .radio.bad .who{color:#ff8a8d}
+.radio .m{font-size:1.1em}
+.inbox{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.prompt{font-size:1.15rem;font-weight:700;min-height:2.6rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.prompt .m{font-size:1.45rem;font-weight:400}
+.lcdrow{display:flex;gap:10px}
+.lcd{flex:1;font-family:"Consolas","Courier New",monospace;font-size:2rem;font-weight:700;letter-spacing:.06em;color:#1b2747;background:#f4f7ff;border:3px solid var(--line);
+  border-radius:12px;padding:.3rem .8rem;min-height:3.3rem;display:flex;align-items:center;overflow:hidden;white-space:pre}
+.lcd.live{border-color:var(--orange);background:#fff}
+.lcd .cur{display:inline-block;width:.5em;height:1.05em;background:var(--orange);margin-left:2px;animation:blink 1s steps(1) infinite;vertical-align:middle}
+@keyframes blink{50%{opacity:0}}
+.lcd.err{border-color:var(--red);background:#fff0f0;color:var(--red)}
+.tries{font-size:.85rem;color:var(--muted)}
+.keypad{padding:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:7px;align-content:start}
+.key{background:linear-gradient(180deg,#fff,#eef2fb);border:1px solid #c6d2ea;border-radius:11px;padding:.55rem 0;font-size:1.25rem;font-weight:800;box-shadow:0 3px 0 #c6d2ea}
+.key:active{transform:translateY(2px);box-shadow:none}
+.key.var{font-family:var(--math);font-style:italic;color:var(--purple);font-size:1.45rem;background:linear-gradient(180deg,#f6f2ff,#e9e2ff);border-color:#cfc3ff;box-shadow:0 3px 0 #cfc3ff}
+.key.op{color:var(--orange)}
+.key.s{font-size:.8rem}
+.key:disabled{opacity:.35;cursor:not-allowed}
+.verdict{display:flex;gap:12px;flex-wrap:wrap}
+.verdict .btn{flex:1;font-size:1.15rem;padding:1rem}
+
+/* ---------- Modal ---------- */
+.modal{position:fixed;inset:0;background:rgba(20,30,60,.45);backdrop-filter:blur(3px);display:grid;place-items:center;z-index:40;padding:16px}
+.mbox{max-width:680px;width:100%;max-height:92vh;overflow:auto;padding:22px 24px;animation:rise .3s}
+@keyframes rise{from{transform:translateY(20px);opacity:0}}
+.mbox h3{margin:.1rem 0 .4rem;font-size:1.85rem}
+.mbox h3.good{color:var(--green)} .mbox h3.bad{color:var(--red)} .mbox h3.gold{color:var(--orange)}
+.mbox .btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.pts{font-size:1.25rem;font-weight:900;color:#0d8a52}
+details summary{cursor:pointer;color:var(--muted);margin-top:.6rem}
+.stars{font-size:2.5rem;letter-spacing:.1em;margin:.2rem 0}
+.stars .off{opacity:.2;filter:grayscale(1)}
+
+/* ---------- Report ---------- */
+.report{max-width:840px;margin:0 auto;padding:24px 28px;width:100%}
+.rank{font-size:2.3rem;font-weight:900;color:var(--orange);margin:.1rem 0}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:1rem 0}
+.big{background:#f4f7ff;border:1px solid var(--line);border-radius:14px;padding:.7rem;text-align:center}
+.big b{display:block;font-size:1.65rem} .big small{color:var(--muted);font-size:.76rem;letter-spacing:.1em;text-transform:uppercase}
+.vrow{display:flex;justify-content:space-between;align-items:center;padding:.45rem .2rem;border-bottom:1px solid var(--line);font-size:1.02rem}
+.vrow:last-child{border:0}
+.vrow .s{font-size:1.15rem;letter-spacing:.06em}
+.review{margin-top:1rem;background:#fff6ea;border:1px solid #ffcf99;border-radius:14px;padding:.7rem 1rem;line-height:1.5}
+
+#flash{position:fixed;inset:0;pointer-events:none;z-index:30;background:radial-gradient(circle,transparent 35%,rgba(229,72,77,.45));opacity:0}
+#flash.on{animation:alarm .8s}
+@keyframes alarm{0%,50%{opacity:1}25%,75%,100%{opacity:0}}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:45;width:100%;height:100%}
+
+@media (max-width:1050px){
+  .controls{grid-template-columns:1fr 1fr}
+  .radio{grid-column:1 / -1;min-height:0}
+  .house{width:108px}.coefslot{width:96px}
+}
+@media (max-width:760px){
+  .controls{grid-template-columns:1fr}
+  .how{grid-template-columns:1fr}
+  .grid4{grid-template-columns:repeat(2,1fr)}
+  .stage{overflow-x:auto}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="flash"></div>
+<canvas id="fx"></canvas>
+<div id="modal" class="modal hidden"><div class="mbox card" id="mbox"></div></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   DRONE DROP · enVision 2.0 Grade 6 · Lesson 3-6
+   Generate Equivalent Expressions with the Distributive Property
+   ===================================================================== */
+
+/* ---------------- Helpers ---------------- */
+const gcd=(a,b)=>{a=Math.abs(a);b=Math.abs(b);while(b){const t=a%b;a=b;b=t;}return a;};
+const gcdAll=arr=>arr.reduce((g,x)=>gcd(g,x));
+const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const VARS=['x','y','n','m','p','k','t','a','b','c','w','h','r','d'];
+const V1=()=>pick(VARS), V2=()=>shuffle(VARS).slice(0,2);
+
+/* A term is {c: positive integer, v: variable letter or null, s: +1 or -1} */
+const T=(c,v=null,s=1)=>({c,v,s});
+function tHTML(t){ if(!t.v) return String(t.c); const v=`<i>${t.v}</i>`; return t.c===1?v:t.c+v; }
+function tText(t){ if(!t.v) return String(t.c); return (t.c===1?'':t.c)+t.v; }
+const opSym=t=>t.s<0?'−':'+';
+function exprHTML(ts){return ts.map((t,i)=>(i?` ${opSym(t)} `:(t.s<0?'−':''))+tHTML(t)).join('');}
+function exprText(ts){return ts.map((t,i)=>(i?` ${t.s<0?'−':'+'} `:(t.s<0?'−':''))+tText(t)).join('');}
+const expand=(a,ts)=>ts.map(t=>({...t,c:a*t.c}));
+function toMap(ts){const m={};ts.forEach(t=>{const k=t.v||'#';m[k]=(m[k]||0)+t.s*t.c;});return m;}
+function mapEq(a,b){for(const k of new Set([...Object.keys(a),...Object.keys(b)]))if((a[k]||0)!==(b[k]||0))return false;return true;}
+const total=ts=>ts.reduce((s,t)=>s+t.s*t.c,0);
+const varsOf=ts=>[...new Set(ts.filter(t=>t.v).map(t=>t.v))];
+
+function parseTerm(s){
+  s=String(s).replace(/\s/g,'');
+  const m=s.match(/^(\d*)([a-z]?)$/); if(!m||(!m[1]&&!m[2]))return null;
+  return {c:m[1]?parseInt(m[1],10):1,v:m[2]||null};
+}
+function parseExpr(s){
+  s=String(s).replace(/\s/g,'').replace(/−/g,'-'); if(!s)return null;
+  const re=/([+-]?)(\d*)([a-z]?)/y; const out=[]; let i=0;
+  while(i<s.length){
+    re.lastIndex=i; const m=re.exec(s);
+    if(!m||!m[0]||(!m[2]&&!m[3])||(i>0&&!m[1]))return null;
+    out.push({c:m[2]?parseInt(m[2],10):1,v:m[3]||null,s:m[1]==='-'?-1:1});
+    i=re.lastIndex;
+  }
+  return out;
+}
+
+/* ---------------- Problem generators ---------------- */
+function genNumbers(){ // a(b + c) mental math
+  const a=ri(3,9);
+  if(Math.random()<.7) return {a,terms:[T(10*ri(1,9)),T(ri(1,9))]};
+  return {a,terms:[T(10*ri(2,9)),T(ri(1,4),null,-1)]};
+}
+function genOneVar(){
+  const a=ri(2,9),x=V1(),f=ri(0,3);
+  if(f===0)return{a,terms:[T(1,x),T(ri(1,9))]};
+  if(f===1)return{a,terms:[T(ri(2,6),x),T(ri(1,9))]};
+  if(f===2)return{a,terms:[T(ri(2,6),x),T(ri(1,9),null,-1)]};
+  return{a,terms:[T(ri(1,9)),T(ri(2,6),x)]};
+}
+function genLong(){
+  const a=ri(2,6),[x,y]=V2(),f=ri(0,3);
+  if(f===0)return{a,terms:[T(ri(1,5),x),T(ri(1,5),y)]};
+  if(f===1)return{a,terms:[T(ri(2,5),x),T(ri(1,5),y),T(ri(1,9))]};
+  if(f===2)return{a,terms:[T(ri(1,5),x),T(ri(2,5),y),T(ri(1,9),null,-1)]};
+  return{a,terms:[T(ri(2,5),x),T(ri(1,9)),T(ri(1,4),y)]};
+}
+function genFactor(){
+  for(let k=0;k<999;k++){
+    const g=ri(2,9),[x,y]=V2(),f=ri(0,3); let inner;
+    if(f===0)inner=[T(ri(2,12)),T(ri(2,12))];
+    else if(f===1)inner=[T(ri(1,6),x),T(ri(1,9))];
+    else if(f===2)inner=[T(ri(1,6),x),T(ri(1,6),y)];
+    else inner=[T(ri(2,6),x),T(ri(1,9),null,-1)];
+    if(gcdAll(inner.map(t=>t.c))!==1)continue;
+    if(f===0&&inner[0].c===inner[1].c)continue;
+    if(expand(g,inner).some(t=>t.c>99))continue;
+    return {a:g,terms:inner};
+  }
+}
+const divisorsBetween=g=>{const d=[];for(let i=2;i<g;i++)if(g%i===0)d.push(i);return d;};
+function genInspect(){
+  for(let k=0;k<999;k++){
+    let drone,houses,answer,err,bad=null,kind,trueA,trueInner;
+    if(Math.random()<.6){
+      kind='expand';
+      const b=Math.random()<.6?genOneVar():genLong();
+      trueA=b.a; trueInner=b.terms; drone=b.a;
+      houses=b.terms.map(t=>({...t})); answer=expand(b.a,b.terms);
+      err=pick(['ok','ok','missed','added','sign']);
+      const i=ri(0,houses.length-1);
+      if(err==='missed'){answer[i].c=houses[i].c;bad={where:'ans',i};}
+      if(err==='added'){answer[i].c=drone+houses[i].c;bad={where:'ans',i};}
+      if(err==='sign'){const j=ri(1,houses.length-1);answer[j].s*=-1;bad={where:'ans',i:j};}
+    } else {
+      kind='factor';
+      const b=genFactor(); trueA=b.a; trueInner=b.terms;
+      answer=expand(b.a,b.terms); drone=b.a; houses=b.terms.map(t=>({...t}));
+      err=pick(['ok','notgcf','undivided','wronginner']);
+      const i=ri(0,houses.length-1);
+      if(err==='notgcf'){const ds=divisorsBetween(b.a); if(!ds.length)continue; const d=pick(ds); drone=d; houses=b.terms.map(t=>({...t,c:t.c*b.a/d}));}
+      if(err==='undivided'){houses[i].c=answer[i].c;bad={where:'house',i};}
+      if(err==='wronginner'){houses[i].c+=pick([1,2]);bad={where:'house',i};}
+    }
+    const equiv=mapEq(toMap(expand(drone,houses)),toMap(answer));
+    if((err==='ok'||err==='notgcf')!==equiv)continue;
+    return {a:drone,terms:houses,answer,err,bad,equiv,kind,trueA,trueInner};
+  }
+}
+
+/* ---------------- Mistake diagnosis ---------------- */
+// For one house: student's product vs expected
+function diagnoseTerm(a,house,given){
+  const want={c:a*house.c,v:house.v};
+  if(given.c===want.c&&given.v===want.v)return 'ok';
+  if(house.v&&!given.v&&given.c===want.c)return 'lostvar';
+  if(!house.v&&given.v)return 'extravar';
+  if(given.v!==want.v)return 'wrongvar';
+  if(a!==1&&given.c===house.c)return 'missed';
+  if(given.c===a+house.c)return 'added';
+  if(house.c>1&&given.c===Number(`${a}${house.c}`))return 'concat';
+  return 'other';
+}
+// For express answers: status per house
+function checkExpress(p,student){
+  const sm=toMap(student), E=expand(p.a,p.terms);
+  const res=p.terms.map((t,i)=>{
+    const k=t.v||'#', e=E[i].s*E[i].c, sv=sm[k]||0;
+    if(sv===e)return 'ok';
+    if(sv===0)return 'empty';
+    if(sv===t.s*t.c)return 'missed';
+    if(sv===t.s*(p.a+t.c))return 'added';
+    if(sv===-e)return 'sign';
+    return 'other';
+  });
+  const keys=new Set(p.terms.map(t=>t.v||'#'));
+  const extra=Object.keys(sm).some(k=>!keys.has(k)&&sm[k]!==0);
+  return {res,extra,sm};
+}
+const MISTAKE_TXT={
+  missed:'Missed deliveries: multiply the outside number by EVERY term',
+  added:'Adding instead of multiplying (3 · 2x = 6x, not 5x)',
+  sign:'Keeping the sign: 2(x − 3) = 2x − 6',
+  lostvar:'Keeping the variable (4 · 2x = 8x, not 8)',
+  concat:'Multiplying, not gluing digits (3 · 2x = 6x, not 32x)',
+  notgcf:'Finding the GREATEST common factor',
+  notfactor:'Picking a number that divides every term',
+  divide:'Dividing each term by the GCF',
+  judge:'Deciding if two expressions are equivalent',
+  other:'Careful multiplication facts'
+};
+
+/* ---------------- Zones ---------------- */
+const ZONES=[
+  {name:'Number Town',icon:'🏙️',skill:'Distribute for mental math',routes:3,gen:genNumbers,
+   intel:'The <b>Distributive Property</b>: multiply the number outside the parentheses by <b>every</b> term inside. <span class="m">a(b + c) = ab + ac</span>',
+   tip:'<b>Mental-math trick:</b> 7 × 23 is tough, but 7(20 + 3) = 140 + 21 = 161 is easy!'},
+  {name:'Variable Village',icon:'🏡',skill:'Expand with a variable',routes:3,gen:genOneVar,
+   intel:'Variables get packages too. The drone multiplies its number by each term: 4 · 2<i class="v">x</i> = 8<i class="v">x</i>.',
+   tip:'<b>#1 mistake:</b> 3(<i class="v">x</i> + 4) is <u>not</u> 3<i class="v">x</i> + 4. The drone must reach EVERY house: 3<i class="v">x</i> + 12. After route 1 you\'ll type whole answers on your own: <b>Express Delivery!</b>'},
+  {name:'Long Street',icon:'🛣️',skill:'Expand with 3 terms & 2 variables',routes:3,gen:genLong,
+   intel:'Longer streets, same rule: every house gets a package. Keep each sign where it is: 2(3<i class="v">a</i> − 1) = 6<i class="v">a</i> − 2.',
+   tip:'<b>Express tip:</b> type answers like <b>6a+4b−2</b> using the + and − keys (or your keyboard).'},
+  {name:'Reverse Route',icon:'🔄',skill:'Factor using the GCF',routes:3,gen:genFactor,
+   intel:'Now go <b>backwards</b>. The packages are already delivered. Find the drone! Its number is the <b>greatest common factor (GCF)</b>. Then divide to find what each house started with.',
+   tip:'<b>Example:</b> 12<i class="v">x</i> + 18. The GCF of 12 and 18 is 6, so it\'s 6(2<i class="v">x</i> + 3). Check by distributing: 6 · 2<i class="v">x</i> = 12<i class="v">x</i> ✓ and 6 · 3 = 18 ✓'},
+  {name:"Inspector's Office",icon:'🕵️',skill:'Equivalent or not?',routes:5,gen:genInspect,
+   intel:'A rookie drone made some deliveries. Are the two expressions <b>equivalent</b> (equal for <u>every</u> value of the variable)? If not, find the bad package!',
+   tip:'<b>Watch for:</b> missed houses, adding instead of multiplying, flipped signs, and "drones" that don\'t really divide. Careful: a factor that isn\'t the GCF can still be equivalent!'},
+];
+function modeFor(z,route){
+  if(z===0)return 'guided';
+  if(z===1||z===2)return route===0?'guided':'express';
+  if(z===3)return 'factor';
+  return 'inspect';
+}
+function newProblem(z,route){
+  const g=ZONES[z].gen(); const p={...g,zone:z,mode:modeFor(z,route)};
+  if(p.mode!=='inspect')p.E=expand(p.a,p.terms);
+  return p;
+}
+
+/* ---------------- Worked steps ---------------- */
+function line(html,note,cls=''){return `<div class="st ${cls}"><span>${html}</span>${note?`<span class="note">${note}</span>`:''}</div>`;}
+function expandSteps(a,terms,numeric){
+  const E=expand(a,terms);
+  let h=line(`${a}(${exprHTML(terms)})`,'start');
+  h+=line('= '+terms.map((t,i)=>(i?` ${opSym(t)} `:'')+`<span class="hl">${a} · ${tHTML(t)}</span>`).join(''),'every house gets '+a);
+  h+=line('= '+exprHTML(E),'multiply',numeric?'':'final');
+  if(numeric)h+=line('= '+total(E),'add','final');
+  return `<div class="steps">${h}</div>`;
+}
+function factorSteps(g,inner){
+  const E=expand(g,inner);
+  let h=line(exprHTML(E),'start');
+  h+=line(`<span class="txt">GCF of ${E.map(t=>t.c).join(' and ')} is <b>${g}</b></span>`,'find the drone');
+  h+=line('= '+E.map((t,i)=>(i?` ${opSym(t)} `:'')+`<span class="hl">${g} · ${tHTML(inner[i])}</span>`).join(''),'divide each by '+g);
+  h+=line(`= ${g}(${exprHTML(inner)})`,'factored','final');
+  return `<div class="steps">${h}</div>`;
+}
+function inspectExplain(p){
+  const A=p.trueA, I=p.trueInner;
+  if(p.kind==='expand'){
+    if(p.err==='ok')return `<b>Equivalent ✓</b> Every house got ${A} times its term.`;
+    const i=p.bad.i, h=p.terms[i], want=expand(A,[h])[0];
+    if(p.err==='missed')return `<b>Missed delivery!</b> The drone skipped a house: ${A} · ${tHTML(h)} = <b>${tHTML(want)}</b>, not ${tHTML(h)}.`;
+    if(p.err==='added')return `<b>Added instead of multiplied!</b> ${A} · ${tHTML(h)} = <b>${tHTML(want)}</b>, not ${tHTML({...h,c:A+h.c})}.`;
+    if(p.err==='sign')return `<b>Sign flip!</b> The house had <b>${opSym(h)} ${tHTML(h)}</b>, so its package is <b>${opSym(h)} ${tHTML(want)}</b>.`;
+  } else {
+    if(p.err==='ok')return `<b>Equivalent ✓</b> ${A} is the GCF, and ${A} times each house gives each package.`;
+    if(p.err==='notgcf')return `<b>Equivalent ✓, but not fully factored.</b> ${p.a} is a common factor, but the GCF is <b>${A}</b>: ${A}(${exprHTML(I)}).`;
+    const i=p.bad.i, h=p.terms[i], pk=p.answer[i];
+    if(p.err==='undivided')return `<b>That house was never divided!</b> ${tHTML(pk)} ÷ ${A} = <b>${tHTML(I[i])}</b>. Check: ${A} · ${tHTML(h)} = ${tHTML(expand(A,[h])[0])}, not ${tHTML(pk)}.`;
+    if(p.err==='wronginner')return `<b>Check by distributing:</b> ${A} · ${tHTML(h)} = ${tHTML(expand(A,[h])[0])}, not ${tHTML(pk)}. That house should hold <b>${tHTML(I[i])}</b>.`;
+  }
+  return '';
+}
+
+/* =====================================================================
+   GAME (browser only)
+   ===================================================================== */
+if(typeof window!=='undefined'){
+
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+};
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const app=$('#app');
+const S={muted:store.get('dd_muted',false)};
+window.__dd=S; // handy for debugging in the browser console
+const IN_TOWN=(()=>{try{return window.parent&&window.parent!==window;}catch(e){return true;}})(); // embedded in Expression Town?
+const toTown=msg=>{try{window.parent.postMessage(msg,'*');}catch(e){console.warn(e);}};
+try{localStorage.removeItem('dd_name');}catch(e){} // no student identifiers are kept
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'$'+n.toLocaleString();
+const clock=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const elapsed=()=>Math.floor((Date.now()-S.t0)/1000);
+const ROOFS=['#e4572e','#2f80ed','#18a964','#9b51e0','#f2994a'];
+
+/* ---------------- Sound ---------------- */
+let AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,dur,type='sine',vol=.13,when=0,f2){
+  if(S.muted)return;const c=ac();if(!c)return;
+  const t=c.currentTime+when,o=c.createOscillator(),g=c.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.03);
+}
+const SFX={
+  key:()=>tone(1100,.035,'square',.035),
+  whir:()=>tone(180,.4,'sawtooth',.035,0,320),
+  drop:()=>{tone(300,.12,'triangle',.12,0,120);tone(880,.15,'sine',.1,.12);tone(1320,.2,'sine',.08,.2);},
+  miss:()=>tone(160,.25,'square',.08),
+  alarm:()=>{for(let i=0;i<4;i++)tone(i%2?600:850,.15,'square',.05,i*.15);},
+  win:()=>{[523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,.3,'triangle',.12,i*.1));},
+  done:()=>{[659,784,1047].forEach((f,i)=>tone(f,.22,'triangle',.12,i*.08));},
+};
+
+/* ---------------- FX / modal ---------------- */
+function flash(){const f=$('#flash');f.classList.remove('on');void f.offsetWidth;f.classList.add('on');}
+function confetti(big){
+  const cv=$('#fx'),cx=cv.getContext('2d');cv.width=innerWidth;cv.height=innerHeight;
+  const cols=['#ff7a2f','#18a964','#2f80ed','#ffd23f','#6c5ce7','#ff5fa2'];
+  const P=Array.from({length:big?220:90},()=>({x:innerWidth/2+(Math.random()-.5)*innerWidth*.5,y:innerHeight*.35,vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,
+    s:5+Math.random()*7,c:pick(cols),r:Math.random()*6,vr:(Math.random()-.5)*.4,box:Math.random()<.2}));
+  const t0=performance.now();
+  (function fr(t){cx.clearRect(0,0,cv.width,cv.height);
+    P.forEach(p=>{p.vy+=.35;p.x+=p.vx;p.y+=p.vy;p.vx*=.99;p.r+=p.vr;cx.save();cx.translate(p.x,p.y);cx.rotate(p.r);
+      if(p.box){cx.fillStyle='#e2b26c';cx.fillRect(-p.s,-p.s*.75,p.s*2,p.s*1.5);cx.strokeStyle='#a87a3f';cx.lineWidth=2;cx.strokeRect(-p.s,-p.s*.75,p.s*2,p.s*1.5);}
+      else{cx.fillStyle=p.c;cx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);}cx.restore();});
+    if(t-t0<(big?3200:1800))requestAnimationFrame(fr);else cx.clearRect(0,0,cv.width,cv.height);})(t0);
+}
+let modalBtns=[];
+function showModal(html,btns){
+  modalBtns=btns;
+  $('#mbox').innerHTML=html+`<div class="btns">${btns.map((b,i)=>`<button class="btn ${b.cls||''}" data-b="${i}">${b.label}</button>`).join('')}</div>`;
+  $('#modal').classList.remove('hidden');
+  $$('#mbox [data-b]').forEach(el=>el.onclick=()=>{hideModal();btns[+el.dataset.b].fn();});
+  setTimeout(()=>{const b=$('#mbox [data-b="0"]');b&&b.focus();},50);
+}
+function hideModal(){$('#modal').classList.add('hidden');modalBtns=[];}
+function radio(html,kind=''){const r=$('#radio');if(!r)return;r.className='radio '+kind;r.innerHTML=`<div class="who">📻 DISPATCH</div>${html}`;}
+
+/* ---------------- Drone graphic ---------------- */
+function droneHTML(label,id='drone',extra=''){
+  return `<div class="drone ${extra}" ${id?`id="${id}"`:''}><div class="rot r1"></div><div class="rot r2"></div><div class="arm a1"></div><div class="arm a2"></div>
+    <div class="dbody"><span class="dnum">${label}</span></div><div class="eye"></div><div class="line"></div><div class="box"></div></div>`;
+}
+
+/* ================= TITLE ================= */
+function showTitle(){
+  clearInterval(S.timer);
+  const best=store.get('dd_best',0);
+  app.innerHTML=`<div class="screen center">
+    <div class="lesson-tag">enVision 2.0 · Topic 3 · Lesson 3-6 · Generate Equivalent Expressions</div>
+    <div class="title-drone">${droneHTML('3',null).replace('class="drone ','class="drone bob ')}</div>
+    <h1 class="logo">DRONE <span>DROP</span></h1>
+    <p class="tag">Deliver to <b>every</b> house. Master the Distributive Property.</p>
+    <div class="how">
+      <div class="card"><span class="n">1</span><b>The drone is the multiplier</b><small>In 3(<i class="v">x</i> + 4), the 3 is your drone and every term inside is a house.</small></div>
+      <div class="card"><span class="n">2</span><b>Deliver to every house</b><small>Fly to each house and multiply: 3 · <i class="v">x</i> = 3<i class="v">x</i>, then 3 · 4 = 12.</small></div>
+      <div class="card"><span class="n">3</span><b>Then reverse it</b><small>Find the drone (the GCF) and inspect a rookie's deliveries.</small></div>
+    </div>
+    <div class="start-row">
+      <select id="sz" aria-label="Starting zone">${ZONES.map((z,i)=>`<option value="${i}">Start: Zone ${i+1}</option>`).join('')}</select>
+      <button class="btn" id="go">TAKE OFF ▶</button>
+      ${IN_TOWN?'<button class="btn plain" id="townExit" title="Exit to Expression Town">⬅ RETURN TO TOWN</button>':''}
+    </div>
+    <div class="best">${best?`Best tips on this device: <b style="color:#0d8a52">${money(best)}</b>`:'5 zones · 17 routes · about 10 minutes'}</div>
+  </div>`;
+  const td=$('.title-drone .drone');td.style.position='relative';
+  $('#go').onclick=()=>{ac();startGame(+$('#sz').value);};
+  const te=$('#townExit');if(te)te.onclick=()=>toTown({type:'CARTRIDGE_EXIT_REQUEST'});
+}
+function startGame(start){
+  Object.assign(S,{start,zone:start,score:0,streak:0,bestStreak:0,checks:0,correct:0,
+    mistakes:Object.fromEntries(Object.keys(MISTAKE_TXT).map(k=>[k,0])),zstats:ZONES.map(()=>({res:[],tips:0})),t0:Date.now()});
+  clearInterval(S.timer);
+  S.timer=setInterval(()=>{const el=$('#clock');if(el)el.textContent='⏱ '+clock(elapsed());},1000);
+  showBrief();
+}
+function strip(){
+  return `<div class="strip">${ZONES.map((z,i)=>{const cls=i<S.zone&&i>=S.start?'done':i===S.zone?'now':'';
+    return `<div class="chip ${cls}"><span class="dot">${cls==='done'?'✓':i+1}</span>${z.name}</div>`;}).join('')}</div>`;
+}
+
+/* ================= BRIEFING ================= */
+function showBrief(){
+  const z=ZONES[S.zone]; let demo='';
+  if(S.zone<=2){const p=z.gen();demo=`<div class="label">Flight demo</div>${expandSteps(p.a,p.terms,S.zone===0)}`;}
+  else if(S.zone===3){const p=genFactor();demo=`<div class="label">Flight demo · reverse it</div>${factorSteps(p.a,p.terms)}`;}
+  else demo=`<div class="label">Example inspection</div><div class="steps">${line(`3(<i>x</i> + 4) = 3<i>x</i> + 4`,'claim')}${line('<span class="txt">❌ <b>Not equivalent.</b> The drone skipped a house: 3 · 4 = 12</span>','')}${line('3(<i>x</i> + 4) = 3<i>x</i> + 12','fixed','final')}${line('<span class="txt">Test it with <i>x</i> = 1: 3(1 + 4) = 15, but 3(1) + 4 = 7. Not equal!</span>','')}</div>`;
+  app.innerHTML=`<div class="screen">${strip()}
+    <div class="brief card">
+      <div class="kicker">${z.icon} ZONE ${S.zone+1} OF 5 · ${z.skill.toUpperCase()}</div>
+      <h2>${z.name}</h2>
+      <p class="intel">${z.intel}</p>
+      <div class="tipbox">${z.tip}</div>
+      <div class="demo">${demo}</div>
+      <div class="go"><button class="btn plain" id="quit">Quit</button><button class="btn" id="fly">START ROUTES ▶</button></div>
+    </div></div>`;
+  $('#fly').onclick=()=>{S.route=0;newRoute(false);};
+  $('#quit').onclick=showTitle;
+  setTimeout(()=>$('#fly')&&$('#fly').focus(),50);
+}
+
+/* ================= ROUTES ================= */
+function newRoute(backup){
+  const p=newProblem(S.zone,S.route);
+  Object.assign(S,{p,backup,phase:'busy',cur:null,code:'',strikes:0,routeMiss:0,autofilled:false,
+    done:p.terms.map(()=>false),miss:p.terms.map(()=>0),vis:p.terms.map(()=>false),exVals:p.terms.map(()=>null),sumDone:false,seen:new Set(),droneKnown:p.mode!=='factor',unpacked:p.terms.map(()=>false)});
+  renderRoute();
+}
+function lightsHTML(){
+  const res=S.zstats[S.zone].res,n=ZONES[S.zone].routes;
+  return Array.from({length:n},(_,i)=>{const r=res[i];const cls=r==='first'?'on':r==='later'?'half':r==='bust'?'bust':i===S.route?'cur':'';
+    return `<span class="light ${cls}"></span>`;}).join('');
+}
+function hudHTML(){
+  const z=ZONES[S.zone],m=S.p.mode;
+  const modeTag={guided:'Guided',express:'⚡ Express Delivery',factor:'Reverse',inspect:'Inspection'}[m];
+  return `<div class="hud card">
+    <div class="zt">${z.icon} ZONE ${S.zone+1}/5 · <b>${z.name}</b> · Route ${S.route+1} of ${z.routes} · <span style="color:var(--orange);font-weight:700">${modeTag}</span>${S.backup?' <span style="color:var(--purple)">(backup)</span>':''}</div>
+    <div class="lights" id="lights">${lightsHTML()}</div>
+    <div class="stat tips" id="tips">💵 ${money(S.score)}</div>
+    <div class="stat fire" id="streak">🔥 ${S.streak}</div>
+    <div class="stat" id="clock">⏱ ${clock(elapsed())}</div>
+    <button class="iconbtn" id="mute" aria-label="Toggle sound">${S.muted?'🔇':'🔊'}</button></div>`;
+}
+function houseSign(i){
+  const p=S.p,t=p.terms[i];
+  if(p.mode==='factor'&&!S.unpacked[i])return '?';
+  return tHTML(t);
+}
+function stageHTML(){
+  const p=S.p,n=p.terms.length,m=p.mode;
+  let top=`<div class="col"><div class="cell-top"><div class="coefslot" id="home"></div></div><div class="cell-bot"><span class="eqsign">=</span></div></div>`;
+  top+=`<div class="col"><div class="cell-top"><span class="paren">(</span></div><div class="cell-bot"></div></div>`;
+  p.terms.forEach((t,i)=>{
+    if(i){
+      const ansOp=m==='inspect'?opSym(p.answer[i]):m==='factor'?opSym(p.E[i]):opSym(t);
+      top+=`<div class="col"><div class="cell-top"><span class="opc">${opSym(t)}</span></div><div class="cell-bot"><span class="opc" id="aop${i}">${ansOp}</span></div></div>`;
+    }
+    const pk=m==='inspect'?`<div class="pkg full" data-i="${i}" id="pkg${i}">${tHTML(p.answer[i])}</div>`
+            :m==='factor'?`<div class="pkg full" id="pkg${i}">${tHTML(p.E[i])}</div>`
+            :`<div class="pkg" id="pkg${i}">?</div>`;
+    const lit=(m==='factor'||m==='inspect')?' lit':'';
+    top+=`<div class="col"><div class="cell-top"><div class="house${lit}${m==='factor'?' unknown':''}" data-i="${i}" id="h${i}" style="--rc:${ROOFS[i%ROOFS.length]}">
+        <div class="chim"></div><div class="roof"></div><div class="body"><div class="win w1"></div><div class="win w2"></div><div class="door"></div></div>
+        <div class="sign" id="sg${i}">${houseSign(i)}</div><div class="badge" id="bd${i}"></div></div></div>
+      <div class="cell-bot">${pk}</div></div>`;
+  });
+  top+=`<div class="col"><div class="cell-top"><span class="paren">)</span></div><div class="cell-bot"></div></div>`;
+  if(p.zone===0)top+=`<div class="col hidden" id="totcol"><div class="cell-top"></div><div class="cell-bot"><span class="opc">=</span><div class="pkg total" id="tot"></div></div></div>`;
+  const tag=m==='inspect'?`<div class="claimtag">🕵️ Rookie's claim: is the top equivalent to the bottom?</div>`:m==='factor'?`<div class="claimtag" style="border-color:var(--orange);color:var(--orange)">🔄 Packages delivered. Find the drone!</div>`:'';
+  return `<div class="stage" id="stage"><div class="sun"></div><div class="cloud c1"></div><div class="cloud c2"></div><div class="road"></div>${tag}
+    <div class="row" id="row">${top}</div>${droneHTML(S.droneKnown?String(p.a):'?','drone',S.droneKnown?'':'unknown')}</div>`;
+}
+function controlsHTML(){
+  const p=S.p;
+  if(p.mode==='inspect'){
+    return `<div class="controls"><div class="radio" id="radio"></div>
+      <div class="card inbox" style="grid-column:span 2"><div class="prompt" id="prompt"></div>
+      <div class="verdict" id="verdict"><button class="btn green" id="yes">✅ EQUIVALENT</button><button class="btn red" id="no">❌ NOT EQUIVALENT</button></div>
+      <div class="tries" id="tries"></div></div></div>`;
+  }
+  const vars=varsOf(p.terms), express=p.mode==='express';
+  const keys=['1','2','3','4','5','6','7','8','9','0',...vars.map(v=>['var',v]),...(express?[['op','+'],['op','−']]:[]),['s','⌫','back'],['s','CLR','clr']];
+  return `<div class="controls"><div class="radio" id="radio"></div>
+    <div class="card inbox"><div class="prompt" id="prompt"></div>
+      <div class="lcdrow"><div class="lcd" id="lcd"></div><button class="btn green" id="send">SEND</button></div>
+      <div class="tries" id="tries"></div></div>
+    <div class="card keypad">${keys.map(k=>Array.isArray(k)
+      ?`<button class="key ${k[0]}" data-k="${k[2]||k[1]}">${k[1]}</button>`
+      :`<button class="key" data-k="${k}">${k}</button>`).join('')}</div></div>`;
+}
+function renderRoute(){
+  app.innerHTML=`<div class="screen">${hudHTML()}${stageHTML()}<div class="board card" id="board"><div class="tag">📝 THE<br>ALGEBRA</div><div class="alg" id="alg"></div></div>${controlsHTML()}</div>`;
+  $('#mute').onclick=()=>{S.muted=!S.muted;store.set('dd_muted',S.muted);$('#mute').textContent=S.muted?'🔇':'🔊';};
+  $$('.key').forEach(k=>k.onclick=()=>pressKey(k.dataset.k));
+  const send=$('#send');if(send)send.onclick=submit;
+  $$('.house').forEach(h=>h.addEventListener('click',()=>onHouse(+h.dataset.i)));
+  $$('.pkg[data-i]').forEach(el=>el.addEventListener('click',()=>onSpot('ans',+el.dataset.i)));
+  const dr=$('#drone');dr.addEventListener('pointerdown',droneDown);
+  requestAnimationFrame(()=>{droneHome(true);startPhase();});
+}
+window.addEventListener('resize',()=>{if($('#drone')&&S.p){if(S.cur===null)droneHome(true);else droneOver(S.cur,true);}});
+
+/* ---- drone movement ---- */
+function stagePos(el){const s=$('#stage').getBoundingClientRect(),r=el.getBoundingClientRect();return {x:r.left-s.left+$('#stage').scrollLeft,y:r.top-s.top,w:r.width,h:r.height};}
+function placeDrone(x,y,instant){const d=$('#drone');if(!d)return;if(instant){d.style.transition='none';}d.style.left=x+'px';d.style.top=y+'px';if(instant){void d.offsetWidth;d.style.transition='';}}
+function droneHome(instant){const h=$('#home');if(!h)return;const p=stagePos(h);placeDrone(p.x,p.y+4,instant);}
+function droneOver(i,instant){const h=$('#h'+i);if(!h)return;const p=stagePos(h);placeDrone(p.x+p.w/2-52,p.y-86,instant);}
+async function flyTo(i){S.cur=i;if(S.p.mode!=='inspect')S.vis[i]=true;updateBoard();SFX.whir();droneOver(i);await wait(470);}
+async function flyHome(){S.cur=null;updateBoard();SFX.whir();droneHome();await wait(470);}
+async function dropParcel(i){
+  const d=$('#drone'),st=$('#stage'),pk=$('#pkg'+i);if(!d||!pk)return;
+  const dp=stagePos(d),tp=stagePos(pk);
+  const el=document.createElement('div');el.className='parcel';el.style.left=(dp.x+39)+'px';el.style.top=(dp.y+74)+'px';st.appendChild(el);
+  void el.offsetWidth;el.style.left=(tp.x+tp.w/2-13)+'px';el.style.top=(tp.y+tp.h/2-10)+'px';el.style.transform='rotate(200deg)';
+  await wait(420);el.remove();
+}
+
+/* ---- drag the drone onto a house ---- */
+let drag=null;
+function droneDown(e){
+  if(S.phase!=='pick'&&S.phase!=='deliver')return;
+  if(S.p.mode!=='guided'&&!(S.p.mode==='factor'&&S.droneKnown))return;
+  e.preventDefault();ac();
+  const d=$('#drone'),p=stagePos(d);
+  drag={x0:e.clientX,y0:e.clientY,px:p.x,py:p.y,moved:false};
+  window.addEventListener('pointermove',droneMove);
+  window.addEventListener('pointerup',droneUp,{once:true});
+}
+function droneMove(e){
+  if(!drag)return;const dx=e.clientX-drag.x0,dy=e.clientY-drag.y0;
+  if(!drag.moved&&Math.hypot(dx,dy)>5){drag.moved=true;$('#drone').classList.add('drag');}
+  if(drag.moved){placeDrone(drag.px+dx,drag.py+dy,false);
+    $$('.house.over').forEach(h=>h.classList.remove('over'));
+    const h=houseAt(e.clientX,e.clientY);if(h)h.classList.add('over');}
+}
+function houseAt(x,y){
+  const els=document.elementsFromPoint(x,y+60).concat(document.elementsFromPoint(x,y));
+  for(const el of els){const h=el.closest&&el.closest('.house');if(h)return h;}return null;
+}
+function droneUp(e){
+  window.removeEventListener('pointermove',droneMove);
+  const d=drag;drag=null;const dr=$('#drone');if(!dr)return;dr.classList.remove('drag');
+  $$('.house.over').forEach(h=>h.classList.remove('over'));
+  if(!d||!d.moved)return;
+  const h=houseAt(e.clientX,e.clientY);
+  if(h)onHouse(+h.dataset.i,true);
+  else{if(S.cur===null)droneHome();else droneOver(S.cur);}
+}
+
+/* ---- live algebra strip ---- */
+function pc(line,i,html,cls=''){
+  const key=line+'|'+i+'|'+html;let n='';
+  if(!S.seen.has(key)){S.seen.add(key);n=' new';}
+  return `<span class="pc ${cls}${n}" style="--c:${ROOFS[i%ROOFS.length]}">${html}</span>`;
+}
+const BLANK='<span class="blank">?</span>';
+function joinPieces(pieces,signs){
+  return pieces.map((h,i)=>(i?` ${signs[i]<0?'−':'+'} `:(signs[i]<0?'−':''))+h).join('');
+}
+function updateBoard(){
+  const b=$('#alg');if(!b||!S.p)return;
+  const p=S.p,m=p.mode,sg=p.terms.map(t=>t.s),now=i=>S.cur===i&&S.phase!=='done'?'now':'';
+  const segs=[];
+  if(m==='guided'||m==='express'){
+    segs.push(`${p.a}(${joinPieces(p.terms.map((t,i)=>pc('L0',i,tHTML(t),now(i))),sg)})`);
+    if(S.vis.some(Boolean))segs.push(joinPieces(p.terms.map((t,i)=>S.vis[i]?pc('L1',i,`${p.a} · ${tHTML(t)}`,now(i)):BLANK),sg));
+    if(m==='guided'&&S.done.some(Boolean))segs.push(joinPieces(p.E.map((t,i)=>S.done[i]?pc('L2',i,tHTML(t),'ok'):BLANK),sg));
+    if(m==='express'&&S.exVals.some(Boolean))segs.push(joinPieces(S.exVals.map((v,i)=>v?pc('L2',i,v.html,v.ok?'ok':'bad'):BLANK),S.exVals.map((v,i)=>v?v.s:sg[i])));
+    if(p.zone===0&&S.sumDone)segs.push(`<span class="pc ok plain new">${total(p.E)}</span>`);
+    b.innerHTML=segs.join('<span class="eq">=</span>');
+  } else if(m==='factor'){
+    const es=p.E.map(t=>t.s);
+    segs.push(joinPieces(p.E.map((t,i)=>pc('F0',i,tHTML(t),now(i))),es));
+    if(!S.droneKnown)segs.push(`${BLANK} <span style="font-family:Segoe UI,sans-serif;font-size:.9rem;color:var(--muted)">(find the GCF first)</span>`);
+    else{
+      segs.push(joinPieces(p.terms.map((t,i)=>pc('F1',i,`${p.a} · ${S.unpacked[i]?tHTML(t):BLANK}`,now(i))),es));
+      if(S.unpacked.every(Boolean))segs.push(`${p.a}(${joinPieces(p.terms.map((t,i)=>pc('F2',i,tHTML(t),'ok')),sg)})`);
+    }
+    b.innerHTML=segs.join('<span class="eq">=</span>');
+  } else {
+    const fin=S.phase==='done',bad=p.bad||{};
+    const left=`${p.a}(${joinPieces(p.terms.map((t,i)=>pc('I0',i,tHTML(t),fin&&bad.where==='house'&&bad.i===i?'bad':'')),sg)})`;
+    const right=joinPieces(p.answer.map((t,i)=>pc('I1',i,tHTML(t),fin&&bad.where==='ans'&&bad.i===i?'bad':'')),p.answer.map(t=>t.s));
+    const rel=fin?(p.equiv?'=':'≠'):'≟';
+    b.innerHTML=`${left}<span class="eq">${rel}</span>${right}`+(fin?`<span class="verd ${p.equiv?'y':'n'}">${p.equiv?'EQUIVALENT':'NOT EQUIVALENT'}</span>`:'');
+  }
+}
+
+/* ---- phases ---- */
+function setPickable(){
+  const m=S.p.mode;updateBoard();
+  $$('.house').forEach(h=>{const i=+h.dataset.i;
+    const can=(m==='guided'&&!S.done[i]&&(S.phase==='pick'||S.phase==='deliver'))||(m==='factor'&&S.droneKnown&&!S.unpacked[i]&&(S.phase==='pick'||S.phase==='deliver'));
+    h.classList.toggle('pickable',can);h.classList.toggle('target',S.cur===i&&S.phase==='deliver');
+    h.classList.toggle('spot',S.phase==='spot');});
+  $$('.pkg[data-i]').forEach(el=>el.classList.toggle('spot',S.phase==='spot'));
+  const d=$('#drone');if(d)d.classList.toggle('grab',(m==='guided'||(m==='factor'&&S.droneKnown))&&(S.phase==='pick'||S.phase==='deliver'));
+}
+function setPrompt(html){const p=$('#prompt');if(p)p.innerHTML=html;}
+function startPhase(){
+  const p=S.p;
+  if(p.mode==='guided'){
+    S.phase='pick';
+    setPrompt('👆 Tap a house (or drag the drone onto it).');
+    radio(S.zone===S.start&&S.route===0&&!S.backup
+      ?`Welcome, pilot! The <b>${p.a}</b> outside the parentheses is your drone. Every term inside is a house, and <b>every house needs a package</b>.`
+      :pick(['New route! Deliver to every house.','Each house gets the drone\'s number times its term.','Tap a house to fly there.']));
+  } else if(p.mode==='express'){
+    S.phase='express';
+    setPrompt(`⚡ Type the whole expanded expression for <span class="m">${p.a}(${exprHTML(p.terms)})</span>`);
+    radio(S.route===1&&!S.backup?`<b>Express Delivery!</b> No more help house by house. Type the <b>whole</b> answer in one line, like <b>8x+20</b>. The drone will fly your packages and we\'ll see if every house got the right one.`
+      :pick(['Express route. Every house, every time.','Type the full expanded expression, then SEND.','Remember the signs between terms!']));
+  } else if(p.mode==='factor'){
+    S.phase='gcf';
+    setPrompt(`🔢 What number is the drone? Find the <b>GCF</b> of ${p.E.map(t=>t.c).join(' and ')}.`);
+    radio(S.route===0&&!S.backup?'Reverse Route! The packages below were already delivered. Find the <b>greatest</b> number that divides every package. That\'s the drone.'
+      :'Find the GCF of the package numbers. That\'s your drone.');
+  } else {
+    S.phase='verdict';
+    setPrompt(`Is <span class="m">${p.a}(${exprHTML(p.terms)})</span> equivalent to <span class="m">${exprHTML(p.answer)}</span>?`);
+    radio(pick(['Check each delivery: drone number × house term = package?','A rookie made this delivery. Trust, but verify.','Tip: test a value. Plug in 1 for the variable on both sides.']));
+    $('#yes').onclick=()=>verdict(true);$('#no').onclick=()=>verdict(false);
+  }
+  setPickable();updateLCD();
+}
+function updateLCD(){
+  const l=$('#lcd');if(!l)return;
+  const live=['deliver','express','gcf','sum'].includes(S.phase);
+  l.classList.toggle('live',live);
+  l.innerHTML=esc(S.code.replace(/-/g,'−'))+(live?'<span class="cur"></span>':'');
+  const t=$('#tries');
+  if(t)t.textContent=S.p.mode==='express'||S.phase==='gcf'?(live?(S.strikes===0?'2 tries for this route':'⚠️ 1 try left!'):''):'';
+  const s=$('#send');if(s)s.disabled=!live;
+  $$('.key').forEach(k=>k.disabled=!live);
+}
+function pressKey(k){
+  if(!['deliver','express','gcf','sum'].includes(S.phase))return;
+  SFX.key();const c=S.code;
+  if(k==='back')S.code=c.slice(0,-1);
+  else if(k==='clr')S.code='';
+  else if(k==='−'||k==='-'){if(S.p.mode==='express')S.code=c+'-';}
+  else if(k==='+'){if(S.p.mode==='express')S.code=c+'+';}
+  else if(/^[a-z]$/.test(k)){if(S.phase!=='gcf'&&S.phase!=='sum')S.code=c+k;}
+  else if(c.length<18)S.code=c+k;
+  $('#lcd')&&$('#lcd').classList.remove('err');updateLCD();
+}
+
+/* ---- guided & factor: choosing a house ---- */
+async function onHouse(i,dragged){
+  const p=S.p;
+  if(S.phase==='spot'){onSpot('house',i);return;}
+  if(p.mode==='guided'){
+    if(S.phase!=='pick'&&S.phase!=='deliver')return;
+    if(S.done[i]){radio('That house already has its package. Pick another!','warn');if(dragged)droneOver(S.cur??i);return;}
+    S.phase='busy';S.code='';updateLCD();await flyTo(i);
+    S.phase='deliver';
+    setPrompt(`📦 <span class="m">${p.a} · ${tHTML(p.terms[i])}</span> = ?`);
+    radio(`Multiply the drone's <b>${p.a}</b> by this house's <b>${tHTML(p.terms[i])}</b>.`+(p.terms[i].v?` Keep the variable: tap <b><i>${p.terms[i].v}</i></b> on the keypad.`:''));
+  } else if(p.mode==='factor'){
+    if(!S.droneKnown){radio('First figure out the drone\'s number: the GCF.','warn');return;}
+    if(S.phase!=='pick'&&S.phase!=='deliver')return;
+    if(S.unpacked[i]){radio('Already solved that house!','warn');return;}
+    S.phase='busy';S.code='';updateLCD();await flyTo(i);
+    S.phase='deliver';
+    setPrompt(`🔍 <span class="m">${tHTML(p.E[i])} ÷ ${p.a}</span> = ? (what did this house have?)`);
+    radio(`Divide the package <b>${tHTML(p.E[i])}</b> by the drone's <b>${p.a}</b>.`+(p.terms[i].v?' The variable stays!':''));
+  }
+  setPickable();updateLCD();
+}
+
+/* ---- submit dispatcher ---- */
+function submit(){
+  if(!S.code.trim()&&S.phase!=='busy'){radio('Type your answer first.','warn');return;}
+  if(S.phase==='deliver')(S.p.mode==='factor'?submitUnpack:submitDeliver)();
+  else if(S.phase==='sum')submitSum();
+  else if(S.phase==='express')submitExpress();
+  else if(S.phase==='gcf')submitGCF();
+}
+function hintTerm(kind,a,h,factor){
+  const want=factor?h:expand(a,[h])[0];
+  const prod=factor?`${tHTML(expand(a,[h])[0])} ÷ ${a}`:`${a} · ${tHTML(h)}`;
+  return {
+    lostvar:`<b>Don't drop the variable!</b> ${prod} still has <i>${h.v}</i> in it.`,
+    extravar:`<b>No variable here.</b> This house is just a number.`,
+    wrongvar:`<b>Wrong variable.</b> This house uses <i>${h.v}</i>.`,
+    missed:factor?`<b>Divide by ${a}!</b> That's the package itself.`:`<b>That's what the house already had.</b> Multiply it by the drone's ${a}.`,
+    added:`<b>Multiply, don't add!</b> ${a} · ${h.c} means ${a} times ${h.c}.`,
+    concat:`<b>Multiply the numbers.</b> ${a} · ${h.c} isn't ${a}${h.c}; it's ${a} times ${h.c}.`,
+    other:factor?`<b>Not quite.</b> What times ${a} gives ${tHTML(expand(a,[h])[0])}?`:`<b>Not quite.</b> What is ${a} × ${h.c}?`,
+  }[kind];
+}
+function tally(k){S.mistakes[k]=(S.mistakes[k]||0)+1;}
+function wrongFX(){flash();SFX.miss();const l=$('#lcd');if(l)l.classList.add('err');S.streak=0;updateHud();}
+
+async function submitDeliver(){
+  const p=S.p,i=S.cur,t=parseTerm(S.code);
+  if(!t){radio('Type one term, like <b>12</b> or <b>6x</b>.','warn');SFX.miss();return;}
+  S.checks++;
+  const d=diagnoseTerm(p.a,p.terms[i],t);
+  if(d==='ok'){S.correct++;await deliverOK(i);return;}
+  S.miss[i]++;S.routeMiss++;tally(d==='other'?'other':d==='wrongvar'||d==='extravar'?'lostvar':d);wrongFX();
+  if(S.miss[i]>=2){
+    S.autofilled=true;S.phase='busy';
+    radio(`📦 Dispatch auto-delivered this one: <span class="m">${p.a} · ${tHTML(p.terms[i])} = <b>${tHTML(p.E[i])}</b></span>. Study it!`,'bad');
+    await wait(900);await deliverOK(i,true);
+  } else {
+    radio(`🚫 <b>Wrong package!</b> ${hintTerm(d,p.a,p.terms[i])} Try again.`,'bad');S.code='';
+    setTimeout(()=>{$('#lcd')&&$('#lcd').classList.remove('err');updateLCD();},600);updateLCD();
+  }
+}
+async function deliverOK(i,auto){
+  const p=S.p;S.phase='busy';S.code='';updateLCD();
+  await dropParcel(i);SFX.drop();
+  const pk=$('#pkg'+i);pk.className='pkg full ok';pk.innerHTML=tHTML(p.E[i]);
+  $('#h'+i).classList.add('lit');$('#bd'+i).textContent='✓ DELIVERED';
+  S.done[i]=true;updateBoard();
+  if(!auto)radio(pick(['📦 Delivered!','Package dropped. Nice!','Right on target!']),'good');
+  if(S.done.every(Boolean)){
+    await flyHome();
+    if(p.zone===0){
+      S.phase='sum';S.code='';
+      setPrompt(`➕ Now combine the packages: <span class="m">${exprHTML(p.E)}</span> = ?`);
+      radio('All houses served! That\'s the mental-math trick: now finish the calculation.','good');
+      setPickable();updateLCD();return;
+    }
+    routeDone();
+  } else {S.phase='pick';setPrompt('👆 Pick the next house.');setPickable();updateLCD();}
+}
+async function submitSum(){
+  const p=S.p,v=/^\d+$/.test(S.code)?+S.code:null;
+  if(v===null){radio('Type a whole number.','warn');return;}
+  S.checks++;
+  const want=total(p.E);
+  if(v===want){S.correct++;showTotal();routeDone();return;}
+  S.routeMiss++;S.miss[0]++;tally('other');wrongFX();
+  if(S.miss[0]>=3){S.autofilled=true;radio(`The total is <b>${want}</b>: ${exprText(p.E)} = ${want}.`,'bad');showTotal();await wait(900);routeDone();}
+  else{radio(`🚫 Not quite. ${p.E[1].s<0?'Subtract':'Add'}: <span class="m">${exprHTML(p.E)}</span>.`,'bad');S.code='';setTimeout(()=>{$('#lcd')&&$('#lcd').classList.remove('err');updateLCD();},600);updateLCD();}
+}
+function showTotal(){S.sumDone=true;updateBoard();const c=$('#totcol');if(c){c.classList.remove('hidden');$('#tot').textContent=total(S.p.E);}}
+
+/* ---- express ---- */
+async function submitExpress(){
+  const p=S.p,st=parseExpr(S.code);
+  if(!st){radio('That expression can\'t be read. Use terms and signs, like <b>6x+12</b> or <b>4a+2b−3</b>.','warn');SFX.miss();return;}
+  if(st.some(t=>t.v&&!varsOf(p.terms).includes(t.v))){radio('Use only the variables in this problem.','warn');SFX.miss();return;}
+  S.checks++;S.phase='busy';updateLCD();
+  const chk=checkExpress(p,st);
+  // animate the drone delivering the student's packages
+  for(let i=0;i<p.terms.length;i++){
+    await flyTo(i);
+    const k=p.terms[i].v||'#',sv=chk.sm[k]||0,pk=$('#pkg'+i),h=$('#h'+i),bd=$('#bd'+i),r=chk.res[i];
+    if(sv!==0){await dropParcel(i);pk.className='pkg full '+(r==='ok'?'ok':'bad');pk.innerHTML=tHTML({c:Math.abs(sv),v:p.terms[i].v});
+      if(i>0){$('#aop'+i).textContent=sv<0?'−':'+';}else if(sv<0)pk.innerHTML='−'+pk.innerHTML;}
+    else{pk.className='pkg empty bad';pk.textContent='EMPTY';}
+    S.exVals[i]=sv!==0?{html:tHTML({c:Math.abs(sv),v:p.terms[i].v}),s:sv<0?-1:1,ok:r==='ok'}:{html:'∅',s:p.terms[i].s,ok:false};updateBoard();
+    if(r==='ok'){h.classList.add('lit');bd.textContent='✓ DELIVERED';SFX.drop();}
+    else if(r==='empty'||r==='missed'){h.classList.add('missed');bd.textContent=r==='empty'?'NO PACKAGE!':'MISSED!';SFX.miss();}
+    else{h.classList.add('wrong');bd.textContent='WRONG PACKAGE';SFX.miss();}
+    await wait(260);
+  }
+  await flyHome();
+  if(chk.res.every(r=>r==='ok')&&!chk.extra){S.correct++;routeDone();return;}
+  S.strikes++;S.routeMiss++;wrongFX();
+  const msgs=[];
+  chk.res.forEach((r,i)=>{const h=p.terms[i],w=p.E[i];
+    if(r==='ok')return;
+    tally(r==='empty'?'missed':r);
+    const lead=`House <b>${tHTML(h)}</b>:`;
+    if(r==='empty'||r==='missed')msgs.push(`${lead} <b>missed delivery!</b> ${p.a} · ${tHTML(h)} = ${tHTML(w)}`);
+    else if(r==='added')msgs.push(`${lead} multiply, don't add. ${p.a} · ${tHTML(h)} = ${tHTML(w)}`);
+    else if(r==='sign')msgs.push(`${lead} check the sign. It should be <b>${opSym(w)} ${tHTML(w)}</b>`);
+    else msgs.push(`${lead} wrong package. What is ${p.a} · ${tHTML(h)}?`);
+  });
+  if(chk.extra){msgs.push('You delivered something that doesn\'t belong to any house.');tally('other');}
+  if(S.strikes<2){
+    radio(`🚨 <b>Delivery failed.</b><br>${msgs.slice(0,2).join('<br>')}<div style="margin-top:.3rem;color:var(--orange2)">One more try!</div>`,'bad');
+    await wait(1400);
+    resetStreetForRetry();S.code='';S.phase='express';updateLCD();
+  } else {
+    S.phase='done';
+    radio('🚨 <b>Route failed.</b> Study the replay.','bad');
+    const can=!S.backup;
+    setTimeout(()=>showModal(`<h3 class="bad">📦 Delivery failed</h3>
+      <p style="margin:.2rem 0">The correct expansion is <b class="m" style="font-size:1.3rem;color:var(--green)">${exprHTML(p.E)}</b>. Here's the route:</p>
+      ${expandSteps(p.a,p.terms,false)}
+      <div class="tipbox warn" style="margin:.8rem 0 0">${msgs.slice(0,2).join('<br>')}</div>
+      ${can?'<p style="color:var(--muted);margin:.6rem 0 0">Dispatch is sending you a <b>backup route</b> of the same type.</p>':''}`,
+      [{label:can?'FLY THE BACKUP ROUTE ▶':'NEXT ROUTE ▶',fn:can?()=>newRoute(true):()=>{S.zstats[S.zone].res[S.route]='bust';advance();}}]),700);
+  }
+}
+function resetStreetForRetry(){
+  const p=S.p;S.vis=p.terms.map(()=>false);S.exVals=p.terms.map(()=>null);S.cur=null;updateBoard();
+  p.terms.forEach((t,i)=>{const pk=$('#pkg'+i);pk.className='pkg';pk.textContent='?';
+    $('#h'+i).classList.remove('lit','missed','wrong');$('#bd'+i).textContent='';if(i)$('#aop'+i).textContent=opSym(t);});
+}
+
+/* ---- factor ---- */
+async function submitGCF(){
+  const p=S.p;
+  if(!/^\d+$/.test(S.code)){radio('The drone\'s number is a whole number.','warn');return;}
+  const g=+S.code,G=p.a,nums=p.E.map(t=>t.c);S.checks++;
+  if(g===G){
+    S.correct++;S.droneKnown=true;S.phase='busy';S.code='';updateLCD();
+    const d=$('#drone');d.classList.remove('unknown');d.querySelector('.dnum').textContent=G;SFX.drop();
+    radio(`✅ <b>${G}</b> is the GCF of ${nums.join(' and ')}. Now tap each house and find what it started with.`,'good');
+    S.phase='pick';setPrompt('👆 Tap a house to unpack it.');setPickable();updateLCD();return;
+  }
+  const divides=g>0&&nums.every(n=>n%g===0);
+  if(divides){
+    tally('notgcf');S.routeMiss++;SFX.miss();
+    radio(`🤏 ${g} divides every package, so it works, but it's not the <b>GREATEST</b>. A bigger drone can carry more. Try again!`,'warn');
+    S.code='';updateLCD();return;
+  }
+  tally('notfactor');S.strikes++;S.routeMiss++;wrongFX();
+  const bad=nums.find(n=>g===0||n%g!==0);
+  if(S.strikes<2){radio(`🚫 ${g} doesn't divide <b>${bad}</b> evenly, so it can't be the drone. List the factors of ${nums.join(' and ')}.`,'bad');S.code='';setTimeout(()=>{$('#lcd')&&$('#lcd').classList.remove('err');updateLCD();},600);updateLCD();}
+  else{
+    S.autofilled=true;S.droneKnown=true;S.phase='busy';S.code='';updateLCD();
+    radio(`The GCF is <b>${G}</b>: it's the biggest number that divides ${nums.join(' and ')}. Now unpack each house.`,'bad');
+    const d=$('#drone');d.classList.remove('unknown');d.querySelector('.dnum').textContent=G;
+    await wait(600);S.phase='pick';setPrompt('👆 Tap a house to unpack it.');setPickable();updateLCD();
+  }
+}
+async function submitUnpack(){
+  const p=S.p,i=S.cur,t=parseTerm(S.code);
+  if(!t){radio('Type one term, like <b>3</b> or <b>2x</b>.','warn');return;}
+  S.checks++;
+  const h=p.terms[i];
+  let d='ok';
+  if(!(t.c===h.c&&t.v===h.v)){
+    if(h.v&&!t.v&&t.c===h.c)d='lostvar';else if(!h.v&&t.v)d='extravar';else if(t.v!==h.v)d='wrongvar';
+    else if(t.c===p.E[i].c)d='missed';else d='other';
+  }
+  if(d==='ok'){S.correct++;await unpackOK(i);return;}
+  S.miss[i]++;S.routeMiss++;tally(d==='missed'||d==='other'?'divide':'lostvar');wrongFX();
+  if(S.miss[i]>=2){S.autofilled=true;radio(`Unpacked: <span class="m">${tHTML(p.E[i])} ÷ ${p.a} = <b>${tHTML(h)}</b></span>`,'bad');await wait(900);await unpackOK(i,true);}
+  else{radio(`🚫 ${hintTerm(d,p.a,h,true)}`,'bad');S.code='';setTimeout(()=>{$('#lcd')&&$('#lcd').classList.remove('err');updateLCD();},600);updateLCD();}
+}
+async function unpackOK(i,auto){
+  const p=S.p;S.phase='busy';S.code='';updateLCD();
+  S.unpacked[i]=true;updateBoard();SFX.drop();
+  const h=$('#h'+i);h.classList.remove('unknown');$('#sg'+i).innerHTML=tHTML(p.terms[i]);$('#bd'+i).textContent='✓ FOUND';
+  $('#pkg'+i).classList.add('ok');
+  if(!auto)radio(pick(['🔍 Unpacked!','That\'s what it had!','Correct. Check: multiply back and you get the package.']),'good');
+  if(S.unpacked.every(Boolean)){await flyHome();routeDone();}
+  else{S.phase='pick';setPrompt('👆 Tap the next house.');setPickable();updateLCD();}
+}
+
+/* ---- inspector ---- */
+function verdict(saidEquiv){
+  if(S.phase!=='verdict')return;
+  const p=S.p;S.checks++;$('#verdict').style.pointerEvents='none';
+  if(saidEquiv===p.equiv){
+    S.correct++;
+    if(p.equiv){S.inspectPts=100;finishInspect(true);}
+    else{S.phase='spot';setPrompt('🎯 Right, NOT equivalent! Now <b>tap the bad package or house</b>.');
+      radio('Good eye! Which one is wrong? Tap it (a house or a package).','good');setPickable();$('#verdict').classList.add('hidden');}
+  } else {
+    tally('judge');S.inspectPts=0;wrongFX();finishInspect(false);
+  }
+}
+function onSpot(where,i){
+  if(S.phase!=='spot')return;
+  const p=S.p,ok=p.bad.where===where&&p.bad.i===i;
+  S.checks++;if(ok)S.correct++;else tally('judge');
+  S.inspectPts=ok?100:60;
+  if(!ok){SFX.miss();}
+  finishInspect(true,ok);
+}
+function finishInspect(verdictRight,spotRight){
+  const p=S.p;S.phase='done';setPickable();
+  if(p.bad){const el=p.bad.where==='ans'?$('#pkg'+p.bad.i):$('#h'+p.bad.i);
+    if(p.bad.where==='ans'){el.classList.add('bad');}else{el.classList.add('wrong');$('#bd'+p.bad.i).textContent='BAD';}}
+  const res=verdictRight&&spotRight!==false?'first':verdictRight?'later':'bust';
+  const pts=S.inspectPts+(res==='first'?Math.min(S.streak,5)*20:0);
+  S.zstats[S.zone].res[S.route]=res;
+  if(res==='bust'){S.streak=0;}else{S.streak++;S.bestStreak=Math.max(S.bestStreak,S.streak);}
+  S.score+=pts;S.zstats[S.zone].tips+=pts;updateHud();
+  if(res!=='bust'){SFX.done();confetti(false);}
+  const title=res==='first'?'<h3 class="good">🕵️ Case closed!</h3>':res==='later'?'<h3 class="gold">🕵️ Right call, wrong suspect</h3>':'<h3 class="bad">🚨 Missed it, inspector</h3>';
+  const correct=p.kind==='expand'?expandSteps(p.trueA,p.trueInner,false):factorSteps(p.trueA,p.trueInner);
+  setTimeout(()=>showModal(`${title}
+    <p style="margin:.2rem 0">${p.equiv?'These expressions <b>ARE equivalent</b>.':'These expressions are <b>NOT equivalent</b>.'}${!verdictRight?` You said they ${p.equiv?'weren\'t':'were'}.`:''}${verdictRight&&spotRight===false?' But the bad spot was somewhere else (now marked in red).':''}</p>
+    <div class="tipbox ${p.equiv?'':'warn'}">${inspectExplain(p)}</div>
+    ${pts?`<div class="pts">+${money(pts)} tips</div>`:''}
+    <details ${res==='bust'?'open':''}><summary>See the correct work</summary>${correct}</details>`,
+    [{label:S.route===ZONES[S.zone].routes-1?'FINISH ZONE ▶':'NEXT CASE ▶',fn:advance}]),res==='bust'?700:500);
+}
+
+/* ---- route & zone completion ---- */
+function updateHud(){
+  const t=$('#tips');if(t)t.textContent='💵 '+money(S.score);
+  const s=$('#streak');if(s)s.textContent='🔥 '+S.streak;
+  const l=$('#lights');if(l)l.innerHTML=lightsHTML();
+}
+function routeDone(){
+  const p=S.p;S.phase='done';updateLCD();setPickable();
+  const clean=S.routeMiss===0&&!S.autofilled;
+  const res=clean&&!S.backup?'first':S.autofilled&&p.mode!=='guided'?'bust':'later';
+  let pts=S.backup?(clean?40:20):(clean?100:50);
+  const bonus=res==='first'?Math.min(S.streak,5)*20:0;pts+=bonus;
+  if(clean){S.streak++;S.bestStreak=Math.max(S.bestStreak,S.streak);}else S.streak=0;
+  S.score+=pts;S.zstats[S.zone].tips+=pts;S.zstats[S.zone].res[S.route]=res;updateHud();
+  SFX.done();confetti(false);
+  radio(pick(['Route complete! 🎉','Every house served!','That\'s a five-star delivery.']),'good');
+  const work=p.mode==='factor'?factorSteps(p.a,p.terms):expandSteps(p.a,p.terms,p.zone===0);
+  const result=p.mode==='factor'?`<span class="m" style="font-size:1.4rem">${exprHTML(p.E)} = ${p.a}(${exprHTML(p.terms)})</span>`
+    :`<span class="m" style="font-size:1.4rem">${p.a}(${exprHTML(p.terms)}) = ${exprHTML(p.E)}${p.zone===0?' = '+total(p.E):''}</span>`;
+  setTimeout(()=>showModal(`<h3 class="good">✅ Route complete!</h3>
+    <div style="margin:.2rem 0 .5rem">${result}</div>
+    <div class="pts">+${money(pts)} tips${bonus?` <span style="color:#e8601c;font-size:.9rem">(includes 🔥 streak bonus +${bonus})</span>`:''}</div>
+    <details><summary>See the route, step by step</summary>${work}</details>`,
+    [{label:S.route===ZONES[S.zone].routes-1?'FINISH ZONE ▶':'NEXT ROUTE ▶',fn:advance}]),900);
+}
+function advance(){
+  S.route++;
+  if(S.route<ZONES[S.zone].routes){newRoute(false);return;}
+  const z=ZONES[S.zone],zs=S.zstats[S.zone],n=z.routes,firsts=zs.res.filter(r=>r==='first').length;
+  const stars=firsts>=n?3:firsts>=n-1?2:firsts>=1?1:0;zs.stars=stars;
+  confetti(true);SFX.win();
+  const last=S.zone===ZONES.length-1;
+  showModal(`<div style="text-align:center"><div style="font-size:3rem">${z.icon}</div>
+    <h3 class="gold">ZONE ${S.zone+1} COMPLETE!</h3><div style="color:var(--muted)">${z.name}</div>
+    <div class="stars">${[0,1,2].map(i=>`<span class="${i<stars?'':'off'}">⭐</span>`).join('')}</div>
+    <div style="color:var(--muted);font-size:.9rem;margin-bottom:.4rem">${firsts} of ${n} routes perfect on the first try</div>
+    <div class="pts">${money(zs.tips)} in tips from this zone</div></div>`,
+    [{label:last?'SEE DELIVERY REPORT ▶':'NEXT ZONE ▶',fn:()=>{S.zone++;if(S.zone>=ZONES.length)showReport();else showBrief();}}]);
+}
+
+/* ================= REPORT ================= */
+function showReport(){
+  clearInterval(S.timer);
+  const time=elapsed(),acc=S.checks?Math.round(100*S.correct/S.checks):0;
+  const played=ZONES.map((z,i)=>i).filter(i=>i>=S.start);
+  const stars=played.reduce((s,i)=>s+(S.zstats[i].stars||0),0),maxStars=played.length*3;
+  const rank=acc>=90&&stars>=maxStars*.8?['🏆','ACE PILOT']:acc>=75?['🚁','SENIOR PILOT']:acc>=55?['📦','DELIVERY PILOT']:['🎒','PILOT IN TRAINING'];
+  const best=store.get('dd_best',0),newBest=S.score>best;if(newBest)store.set('dd_best',S.score);
+  const rev=Object.entries(S.mistakes).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
+  const icon=r=>r==='first'?'⭐':r==='later'?'📦':r==='bust'?'🚨':'·';
+  app.innerHTML=`<div class="screen"><div class="report card">
+    <div class="kicker">DELIVERY REPORT · LESSON 3-6 · THE DISTRIBUTIVE PROPERTY</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px">
+      <div><div style="color:var(--muted)">${new Date().toLocaleDateString()}</div>
+      <div class="rank">${rank[0]} ${rank[1]}</div></div>
+      ${newBest?'<div class="stat tips">🏆 New best on this device!</div>':''}
+    </div>
+    <div class="grid4">
+      <div class="big"><b style="color:#0d8a52">${money(S.score)}</b><small>Total tips</small></div>
+      <div class="big"><b>${acc}%</b><small>Answer accuracy</small></div>
+      <div class="big"><b>${stars}/${maxStars}</b><small>Zone stars</small></div>
+      <div class="big"><b>${clock(time)}</b><small>Flight time</small></div>
+    </div>
+    <div class="label">Zones</div>
+    ${played.map(i=>`<div class="vrow"><span>${ZONES[i].icon} ${ZONES[i].name} <span style="color:var(--muted);font-size:.85rem">· ${ZONES[i].skill}</span></span>
+      <span class="s">${Array.from({length:ZONES[i].routes},(_,k)=>icon(S.zstats[i].res[k])).join(' ')}</span></div>`).join('')}
+    <div style="color:var(--muted);font-size:.82rem;margin-top:.4rem">⭐ perfect first try · 📦 completed with a fix · 🚨 failed</div>
+    ${rev.length?`<div class="review"><b style="color:#d4600f">🎯 Skills to sharpen:</b><br>${rev.map(([k,n])=>`• ${MISTAKE_TXT[k]} <span style="color:var(--muted)">(${n}×)</span>`).join('<br>')}</div>`
+      :'<div class="review" style="background:#effbf5;border-color:#a7e3c4"><b style="color:var(--green)">Flawless flying!</b> Not a single missed delivery.</div>'}
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:1rem"><button class="btn plain" id="home">Home</button><button class="btn${IN_TOWN?' plain':''}" id="again">FLY AGAIN ▶</button>${IN_TOWN?'<button class="btn" id="townDone">SAVE &amp; RETURN TO TOWN ▶</button>':''}</div>
+  </div></div>`;
+  confetti(true);SFX.win();
+  $('#again').onclick=()=>startGame(S.start);$('#home').onclick=showTitle;
+  const td=$('#townDone');
+  if(td)td.onclick=()=>toTown({type:'CARTRIDGE_COMPLETE',payload:{
+    lessonId:'G06_U03_L06',
+    score:Math.max(1,S.correct||0), // hub stars come from score/total (answer accuracy)
+    total:Math.max(1,S.checks||0),
+    stars:maxStars?Math.max(1,Math.min(3,Math.round(stars/maxStars*3))):1,
+    accuracy:acc,
+    bossDefeated:true, // the report only appears after the Inspector's Office
+  }});
+}
+
+/* ---------------- Keyboard ---------------- */
+document.addEventListener('keydown',e=>{
+  if(!$('#modal').classList.contains('hidden')){
+    if(e.key==='Enter'&&modalBtns[0]){e.preventDefault();const b=modalBtns[0];hideModal();b.fn();}return;
+  }
+  if(e.target&&e.target.tagName==='INPUT')return;
+  if(!['deliver','express','gcf','sum'].includes(S.phase))return;
+  const k=e.key;
+  if(/^[0-9]$/.test(k))pressKey(k);
+  else if(/^[a-z]$/i.test(k)&&S.p&&varsOf(S.p.terms).includes(k.toLowerCase()))pressKey(k.toLowerCase());
+  else if(k==='+'||k==='-')pressKey(k);
+  else if(k==='Backspace'){e.preventDefault();pressKey('back');}
+  else if(k==='Escape')pressKey('clr');
+  else if(k==='Enter'){e.preventDefault();submit();}
+});
+
+showTitle();
+
+// Expression Town handshake: announce readiness, then follow the hub's mute setting
+if(IN_TOWN)toTown({type:'CARTRIDGE_READY'});
+window.addEventListener('message',ev=>{
+  const d=ev.data;if(!d||typeof d!=='object'||d.type!=='HUB_INIT')return;
+  const p=d.payload||{};
+  if(typeof p.isMuted==='boolean'){S.muted=p.isMuted;const m=$('#mute');if(m)m.textContent=S.muted?'🔇':'🔊';}
+});
+}
+</script>
+</body>
+</html>

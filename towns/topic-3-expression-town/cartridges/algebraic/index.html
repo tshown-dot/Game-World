@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Galactic Translator · Write Algebraic Expressions</title>
+<meta name="description" content="An alien-translation game for enVision 2.0 Grade 6, Lesson 3-4: Write Algebraic Expressions.">
+<style>
+:root{
+  --bg:#0c0720; --panel:#17103a; --panel2:#201752; --line:#3a2d7d; --text:#efeaff; --muted:#a79fd6;
+  --green:#7cff6b; --pink:#ff5fd2; --cyan:#5ad1ff; --yellow:#ffd24a; --red:#ff5470;
+  --math:"Cambria Math","Cambria","Times New Roman",Georgia,serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;color:var(--text);font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,system-ui,sans-serif;background:var(--bg)}
+body{background:
+  radial-gradient(2px 2px at 12% 18%,#fff 50%,transparent 51%),radial-gradient(1.5px 1.5px at 78% 12%,#fff 50%,transparent 51%),
+  radial-gradient(2px 2px at 63% 71%,#cfe 50%,transparent 51%),radial-gradient(1.5px 1.5px at 28% 82%,#fff 50%,transparent 51%),
+  radial-gradient(1.5px 1.5px at 91% 55%,#fff 50%,transparent 51%),radial-gradient(1.5px 1.5px at 44% 36%,#ddf 50%,transparent 51%),
+  radial-gradient(900px 600px at 80% -10%,#3a1a7a 0%,transparent 60%),radial-gradient(800px 600px at 0% 110%,#0f3a5a 0%,transparent 60%),var(--bg);
+  background-attachment:fixed;overflow-x:hidden}
+.hidden{display:none!important}
+button{font:inherit;cursor:pointer;border:0;color:inherit}
+.btn{background:linear-gradient(180deg,#a8ff9c,#43d833);color:#062a03;font-weight:800;padding:.75rem 1.35rem;font-size:1.06rem;border-radius:14px;letter-spacing:.4px;
+  box-shadow:0 4px 0 #1f8a14,0 10px 24px rgba(124,255,107,.22);transition:transform .08s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #1f8a14}
+.btn.plain{background:transparent;color:var(--text);border:2px solid var(--line);box-shadow:none;font-weight:700}
+.btn:disabled{filter:grayscale(1) opacity(.45);cursor:not-allowed}
+.screen{max-width:1220px;margin:0 auto;padding:12px 16px 18px;min-height:100vh;display:flex;flex-direction:column}
+.center{align-items:center;justify-content:center;text-align:center}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:20px;box-shadow:0 16px 40px rgba(0,0,0,.4)}
+.label{font-size:.7rem;letter-spacing:.16em;font-weight:800;color:var(--muted);text-transform:uppercase;margin:.1rem 0 .35rem}
+i.v,.msg i,.m i,.disp i,.steps i,.opt i,.beam i{font-style:italic;font-family:var(--math);color:var(--yellow)}
+.m{font-family:var(--math)}
+.pc{border-bottom:4px solid var(--c);padding:0 .1em;border-radius:3px}
+.fr{display:inline-flex;flex-direction:column;vertical-align:middle;font-size:.62em;line-height:1.05;text-align:center;margin:0 .06em}
+.fr>span:first-child{border-bottom:2px solid currentColor;padding:0 .12em}
+.op{margin:0 .08em}
+
+/* ---------- Title ---------- */
+.lesson-tag{display:inline-block;font-size:.8rem;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);padding:.35rem .8rem;border-radius:999px;background:rgba(255,255,255,.04)}
+.logo{font-size:clamp(2.6rem,7.5vw,5rem);margin:.3rem 0 0;line-height:.95;font-weight:900;letter-spacing:.03em;
+  background:linear-gradient(180deg,#fff,#b9a8ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo span{display:block;background:linear-gradient(180deg,#c8ffbf,#43d833);-webkit-background-clip:text;background-clip:text;letter-spacing:.12em}
+.tag{color:var(--muted);font-size:1.12rem;margin:.5rem 0 1.1rem}
+.title-alien{width:130px;margin:.8rem auto 0;animation:float 3.5s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-9px)}}
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-width:860px;margin:0 auto 1.2rem}
+.how .card{padding:14px;text-align:left}
+.how b{display:block;color:var(--green);margin-bottom:.2rem}
+.how small{color:var(--muted);font-size:.92rem;line-height:1.35}
+.how .n{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--green);color:#062a03;font-weight:900;margin-bottom:.35rem}
+.start-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center}
+.start-row select{font:inherit;font-size:1.05rem;padding:.7rem .9rem;border-radius:12px;border:2px solid var(--line);background:#120b30;color:var(--text)}
+.best{margin-top:.9rem;color:var(--muted);font-size:.9rem}
+
+/* ---------- Strip / briefing ---------- */
+.strip{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin:.2rem 0 .9rem}
+.chip{display:flex;align-items:center;gap:.4rem;padding:.36rem .7rem;border-radius:999px;border:1px solid var(--line);font-size:.8rem;color:var(--muted);background:rgba(255,255,255,.03)}
+.chip .dot{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;font-size:.72rem;font-weight:900;background:#2a2060}
+.chip.done{color:var(--green);border-color:rgba(124,255,107,.45)} .chip.done .dot{background:var(--green);color:#062a03}
+.chip.now{color:var(--yellow);border-color:var(--yellow);background:rgba(255,210,74,.08)} .chip.now .dot{background:var(--yellow);color:#2a1d00}
+.brief{max-width:900px;margin:0 auto;padding:22px 26px;width:100%}
+.kicker{color:var(--yellow);font-weight:800;letter-spacing:.14em;font-size:.8rem}
+.brief h2{font-size:2.1rem;margin:.15rem 0 .45rem}
+.intel{font-size:1.1rem;line-height:1.5;margin:.2rem 0 .6rem}
+.tipbox{background:rgba(124,255,107,.08);border:1px solid rgba(124,255,107,.4);border-radius:14px;padding:.7rem 1rem;margin:.6rem 0 1rem;font-size:1.02rem;line-height:1.45}
+.tipbox b{color:var(--green)}
+.tipbox.warn{background:rgba(255,84,112,.08);border-color:rgba(255,84,112,.45)} .tipbox.warn b{color:#ff9aac}
+.demo{background:#0f0929;border:1px solid var(--line);border-radius:16px;padding:12px 16px;margin-bottom:1.1rem}
+.kw{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kw div{background:#17103a;border:1px solid var(--line);border-radius:12px;padding:.5rem .7rem;font-size:.92rem;line-height:1.4}
+.kw b{display:block;font-family:var(--math);font-size:1.5rem;color:var(--yellow)}
+.pair{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.35rem 0;font-size:1.12rem}
+.pair .m{font-size:1.5rem}
+.pair .arrow{color:var(--muted)}
+.brief .go{display:flex;justify-content:flex-end;gap:10px}
+
+/* ---------- HUD ---------- */
+.hud{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 12px;border-radius:16px;margin-bottom:10px}
+.hud .zt{flex:1;min-width:230px;font-size:.95rem;color:var(--muted)} .hud .zt b{color:var(--text);font-size:1.06rem}
+.stat{background:#120b30;border:1px solid var(--line);border-radius:12px;padding:.32rem .7rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat.pts{color:var(--green)} .stat.fire{color:#ff9a4d}
+.iconbtn{background:#120b30;border:1px solid var(--line);border-radius:12px;padding:.32rem .6rem}
+.lights{display:flex;gap:6px}
+.light{width:15px;height:15px;border-radius:50%;background:#2a2060;border:2px solid #45388f}
+.light.on{background:var(--green);border-color:#d9ffd4;box-shadow:0 0 9px var(--green)}
+.light.half{background:var(--yellow);border-color:#fff1c2}
+.light.bust{background:var(--red);border-color:#ffc2cd}
+.light.cur{border-color:var(--yellow);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 4px rgba(255,210,74,.25)}}
+
+/* ---------- Viewscreen ---------- */
+.view{display:grid;grid-template-columns:150px 1fr;gap:14px;padding:14px 18px;align-items:center;min-height:190px;position:relative;overflow:hidden}
+.view::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 2px,transparent 2px 5px);pointer-events:none}
+.alien{width:130px;margin:0 auto;transition:transform .2s}
+.alien svg{width:100%;display:block}
+.alien .smile,.alien .frown{display:none}
+.alien.happy .smile{display:block}.alien.happy .flat{display:none}.alien.happy{animation:hop .5s 2}
+.alien.mad .frown{display:block}.alien.mad .flat{display:none}.alien.mad{animation:shake .45s}
+.alien.mad .skin{fill:#ff8a5c}
+@keyframes hop{50%{transform:translateY(-12px)}}
+@keyframes shake{20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+.bubble{position:relative;background:#0f0929;border:2px solid var(--line);border-radius:18px;padding:12px 18px;min-height:130px;display:flex;flex-direction:column;justify-content:center}
+.bubble::before{content:"";position:absolute;left:-12px;top:50%;margin-top:-10px;border:10px solid transparent;border-right-color:var(--line);border-left:0}
+.sig{font-size:.7rem;letter-spacing:.18em;font-weight:900;color:var(--green);margin-bottom:.3rem}
+.msg{font-size:1.75rem;line-height:1.45;font-weight:600}
+.msg.story{font-size:1.25rem;font-weight:500}
+.msg.expr{font-family:var(--math);font-size:2.6rem;font-weight:400;text-align:center}
+.msg .pc{padding-bottom:1px}
+
+/* ---------- Console ---------- */
+.console{display:grid;grid-template-columns:290px 1fr 372px;gap:12px;margin-top:10px;align-items:stretch}
+.console.wide{grid-template-columns:290px 1fr}
+.comms{background:#0a061c;border:2px solid var(--line);border-radius:18px;padding:10px 14px;font-size:1rem;line-height:1.42;min-height:170px}
+.comms .who{font-size:.72rem;letter-spacing:.16em;font-weight:900;color:var(--cyan);margin-bottom:.25rem}
+.comms.good{border-color:var(--green)} .comms.good .who{color:var(--green)}
+.comms.warn{border-color:var(--yellow)} .comms.warn .who{color:var(--yellow)}
+.comms.bad{border-color:var(--red);background:#22081a} .comms.bad .who{color:#ff9aac}
+.work{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.disprow{display:flex;gap:10px;align-items:stretch}
+.disp{flex:1;font-family:var(--math);font-size:2.3rem;min-height:3.9rem;background:#050312;border:2px solid #2c7a24;border-radius:14px;padding:.25rem .9rem;display:flex;align-items:center;
+  color:#c8ffbf;text-shadow:0 0 12px rgba(124,255,107,.45);overflow-x:auto;white-space:nowrap}
+.disp .cur{display:inline-block;width:3px;height:1.1em;background:var(--green);margin-left:4px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.disp.err{border-color:var(--red);color:#ffb3c0;text-shadow:0 0 12px rgba(255,84,112,.5)}
+.disp.ok{border-color:var(--green);box-shadow:0 0 0 3px rgba(124,255,107,.25)}
+.tries{font-size:.85rem;color:var(--muted)}
+.beam{background:#0f0929;border:1px dashed var(--cyan);border-radius:12px;padding:.5rem .8rem;font-size:1rem;line-height:1.55}
+.beam .m{font-size:1.25rem}
+.beam b.g{color:var(--green)} .beam b.r{color:#ff9aac}
+.official{font-size:1rem;color:var(--muted)}
+.official .m{font-size:1.5rem;color:var(--text)}
+.keypad{padding:10px;display:grid;grid-template-columns:repeat(6,1fr);gap:7px;align-content:start}
+.key{background:linear-gradient(180deg,#2c2270,#1e1650);border:1px solid #4a3ca0;border-radius:11px;padding:.6rem 0;font-size:1.25rem;font-weight:800;box-shadow:0 3px 0 #0c0720}
+.key:active{transform:translateY(2px);box-shadow:none}
+.key.var{font-family:var(--math);font-style:italic;color:var(--yellow);font-size:1.5rem;grid-column:span 2;background:linear-gradient(180deg,#4a3a12,#33270a);border-color:#8a6d1c}
+.key.opk{color:var(--cyan);font-size:1.4rem}
+.key.s{font-size:.8rem;color:#ffb3c0}
+.key:disabled{opacity:.35;cursor:not-allowed}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{background:linear-gradient(180deg,#2c2270,#1e1650);border:2px solid #4a3ca0;border-radius:14px;padding:.8rem 1rem;font-size:1.12rem;text-align:left;line-height:1.35;box-shadow:0 3px 0 #0c0720}
+.opt:hover{border-color:var(--cyan)}
+.opt.wrong{border-color:var(--red);opacity:.5;text-decoration:line-through;pointer-events:none}
+.opt.right{border-color:var(--green);background:linear-gradient(180deg,#1d5a17,#134010)}
+.choices{display:flex;gap:10px;flex-wrap:wrap}
+.choices .opt{min-width:74px;text-align:center;font-size:1.4rem;font-weight:800}
+.pexpr{font-family:var(--math);font-size:3rem;text-align:center;background:#050312;border:2px solid var(--line);border-radius:16px;padding:.5rem 1rem;user-select:none}
+.pt{display:inline-block;padding:0 .03em;border-radius:10px;border:2px solid transparent;cursor:pointer;transition:background .15s,transform .15s}
+.pt:hover{background:rgba(90,209,255,.18);border-color:var(--cyan);transform:translateY(-2px)}
+.pt.good{background:rgba(124,255,107,.22);border-color:var(--green)}
+.pt.bad{background:rgba(255,84,112,.22);border-color:var(--red);animation:shake .4s}
+.qdots{display:flex;gap:6px;margin-top:.4rem}
+.qdots span{width:26px;height:6px;border-radius:3px;background:#2a2060}
+.qdots span.d{background:var(--green)}.qdots span.c{background:var(--yellow)}
+
+/* ---------- Modal ---------- */
+.modal{position:fixed;inset:0;background:rgba(5,3,16,.75);backdrop-filter:blur(3px);display:grid;place-items:center;z-index:40;padding:16px}
+.mbox{max-width:700px;width:100%;max-height:92vh;overflow:auto;padding:22px 24px;animation:rise .3s}
+@keyframes rise{from{transform:translateY(20px);opacity:0}}
+.mbox h3{margin:.1rem 0 .4rem;font-size:1.85rem}
+.mbox h3.good{color:var(--green)} .mbox h3.bad{color:var(--red)} .mbox h3.gold{color:var(--yellow)}
+.mbox .btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.ptsline{font-size:1.25rem;font-weight:900;color:var(--green)}
+.map{background:#0f0929;border:1px solid var(--line);border-radius:14px;padding:.7rem 1rem;margin:.5rem 0;text-align:center}
+.map .ph{font-size:1.3rem;line-height:1.6}
+.map .ar{color:var(--muted);font-size:1.2rem}
+.map .ex{font-family:var(--math);font-size:2.2rem}
+.stars{font-size:2.5rem;letter-spacing:.1em;margin:.2rem 0}
+.stars .off{opacity:.2;filter:grayscale(1)}
+
+/* ---------- Report ---------- */
+.report{max-width:860px;margin:0 auto;padding:24px 28px;width:100%}
+.rank{font-size:2.2rem;font-weight:900;color:var(--green);margin:.1rem 0}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:1rem 0}
+.big{background:#0f0929;border:1px solid var(--line);border-radius:14px;padding:.7rem;text-align:center}
+.big b{display:block;font-size:1.65rem} .big small{color:var(--muted);font-size:.76rem;letter-spacing:.1em;text-transform:uppercase}
+.vrow{display:flex;justify-content:space-between;align-items:center;padding:.42rem .2rem;border-bottom:1px solid var(--line);font-size:1.02rem}
+.vrow:last-child{border:0}
+.vrow .s{font-size:1.1rem;letter-spacing:.05em}
+.review{margin-top:1rem;background:rgba(255,210,74,.07);border:1px solid rgba(255,210,74,.4);border-radius:14px;padding:.7rem 1rem;line-height:1.5}
+
+#flash{position:fixed;inset:0;pointer-events:none;z-index:30;background:radial-gradient(circle,transparent 35%,rgba(255,84,112,.5));opacity:0}
+#flash.on{animation:alarm .8s}
+@keyframes alarm{0%,50%{opacity:1}25%,75%,100%{opacity:0}}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:45;width:100%;height:100%}
+
+@media (max-width:1050px){.console,.console.wide{grid-template-columns:1fr 1fr}.comms{grid-column:1 / -1;min-height:0}.kw{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:760px){.console,.console.wide{grid-template-columns:1fr}.how{grid-template-columns:1fr}.grid4{grid-template-columns:repeat(2,1fr)}.view{grid-template-columns:90px 1fr}.alien{width:84px}.opts{grid-template-columns:1fr}.msg{font-size:1.35rem}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="flash"></div>
+<canvas id="fx"></canvas>
+<div id="modal" class="modal hidden"><div class="mbox card" id="mbox"></div></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   GALACTIC TRANSLATOR · enVision 2.0 Grade 6 · Lesson 3-4
+   Write Algebraic Expressions (+ parts of an expression)
+   ===================================================================== */
+
+/* ---------------- Exact rational numbers ---------------- */
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){const t=a%b;a=b;b=t;}return a||1;}
+class Q{
+  constructor(n,d=1){ if(d===0) throw new Error('divide by zero'); if(d<0){n=-n;d=-d;} const g=gcd(n,d); this.n=n/g; this.d=d/g; }
+  add(o){return new Q(this.n*o.d+o.n*this.d,this.d*o.d);}
+  sub(o){return new Q(this.n*o.d-o.n*this.d,this.d*o.d);}
+  mul(o){return new Q(this.n*o.n,this.d*o.d);}
+  div(o){return new Q(this.n*o.d,this.d*o.n);}
+  eq(o){return this.n===o.n&&this.d===o.d;}
+}
+const q=(n,d=1)=>new Q(n,d);
+const dq=s=>{s=String(s);const [i,f='']=s.split('.');return new Q(parseInt((i||'0')+f,10),Math.pow(10,f.length));};
+function qText(x){
+  if(x.n<0)return '−'+qText(new Q(-x.n,x.d));
+  if(x.d===1)return String(x.n);
+  const w=Math.floor(x.n/x.d),r=x.n-w*x.d;return w>0?`${w} ${r}/${x.d}`:`${r}/${x.d}`;
+}
+function qHTML(x){
+  if(x.n<0)return '−'+qHTML(new Q(-x.n,x.d));
+  if(x.d===1)return String(x.n);
+  const w=Math.floor(x.n/x.d),r=x.n-w*x.d;const fr=`<span class="fr"><span>${r}</span><span>${x.d}</span></span>`;return w>0?`${w}${fr}`:fr;
+}
+
+/* ---------------- Expression trees ---------------- */
+const N=v=>({t:'num',v:(v instanceof Q)?v:q(v)});
+const V=name=>({t:'var',name});
+const G=x=>({t:'grp',x});
+const wrapN=x=>(typeof x==='number'||x instanceof Q)?N(x):x;
+const B=(op,a,b,imp=false)=>({t:'bin',op,a:wrapN(a),b:wrapN(b),imp});
+const add=(a,b)=>B('+',a,b),sub=(a,b)=>B('-',a,b),imul=(a,b)=>B('*',a,b,true),dvd=(a,b)=>B('/',a,b);
+const K=(node,id)=>{node.cid=id;return node;};   // tag a node with a color id (links words to algebra)
+function apply(op,a,b){switch(op){case '+':return a.add(b);case '-':return a.sub(b);case '*':return a.mul(b);case '/':return a.div(b);}}
+function evq(n,x){switch(n.t){case 'num':return n.v;case 'var':return x;case 'grp':return evq(n.x,x);case 'bin':return apply(n.op,evq(n.a,x),evq(n.b,x));}}
+function equiv(a,b){
+  let ok=0;
+  for(const x of [2,3,5,7,11,13]){
+    let va,vb;try{va=evq(a,q(x));vb=evq(b,q(x));}catch(e){continue;}
+    if(!va.eq(vb))return false;ok++;
+  }
+  return ok>=3;
+}
+function hasVar(n){return n.t==='var'||(n.t==='grp'&&hasVar(n.x))||(n.t==='bin'&&(hasVar(n.a)||hasVar(n.b)));}
+function numsOf(n,s=new Set()){if(n.t==='num')s.add(qText(n.v));else if(n.t==='grp')numsOf(n.x,s);else if(n.t==='bin'){numsOf(n.a,s);numsOf(n.b,s);}return s;}
+function substV(n,x){switch(n.t){case 'var':return {t:'num',v:x,sv:true};case 'grp':return G(substV(n.x,x));case 'bin':return {...n,a:substV(n.a,x),b:substV(n.b,x)};default:return n;}}
+
+const COL=['#7cff6b','#ff5fd2','#5ad1ff','#ffd24a'];
+function rend(n,o={},ctx=''){
+  const col=(node,html)=>o.color&&node.cid!=null?`<span class="pc" style="--c:${COL[node.cid%COL.length]}">${html}</span>`:html;
+  switch(n.t){
+    case 'num':{const s=qHTML(n.v);return col(n,ctx==='impR'?`(${s})`:s);}
+    case 'var':return col(n,`<i>${n.name}</i>`);
+    case 'grp':return `(${rend(n.x,o)})`;
+    case 'bin':{
+      if(n.imp){
+        const L=rend(n.a,o),b=n.b;
+        if(b.t==='num')return L+rend(b,o,'impR');
+        if(b.t==='var'||b.t==='grp')return L+rend(b,o);
+        return `${L} ${col(n,'<span class="op">·</span>')} ${rend(b,o)}`;
+      }
+      const sym={'+':'+','-':'−','*':'×','/':'÷'}[n.op];
+      return `${rend(n.a,o)} ${col(n,`<span class="op">${sym}</span>`)} ${rend(n.b,o)}`;
+    }
+  }
+}
+const wordsHTML=(words,color)=>words.map(([t,c])=>color&&c!=null?`<span class="pc" style="--c:${COL[c%COL.length]}">${t}</span>`:t).join('');
+const wordsText=words=>words.map(w=>String(w[0])).join('').replace(/<[^>]+>/g,'');
+
+/* ---------------- Parsing the student's tiles ---------------- */
+function tokenize(keys){
+  const out=[];let num='';
+  const flush=()=>{if(num){if(!/^\d+(\.\d+)?$/.test(num))throw new Error('num');out.push({t:'num',v:num});num='';}};
+  for(const k of keys){
+    if(/^[0-9.]$/.test(k)){num+=k;continue;}
+    flush();
+    if(/^[a-z]$/.test(k))out.push({t:'var',v:k});else out.push({t:'op',v:k});
+  }
+  flush();return out;
+}
+function parseTokens(keys){
+  let toks;try{toks=tokenize(keys);}catch(e){return null;}
+  if(!toks.length)return null;
+  let i=0;
+  const starts=t=>t&&(t.t==='num'||t.t==='var'||t.v==='(');
+  function factor(){
+    const t=toks[i];if(!t)throw new Error('end');
+    if(t.t==='num'){i++;return N(t.v.includes('.')?dq(t.v):q(parseInt(t.v,10)));}
+    if(t.t==='var'){i++;return V(t.v);}
+    if(t.v==='('){i++;const e=expr();if(!toks[i]||toks[i].v!==')')throw new Error('paren');i++;return G(e);}
+    throw new Error('factor');
+  }
+  function term(){
+    let L=factor();
+    for(;;){const t=toks[i];
+      if(t&&t.t==='op'&&(t.v==='×'||t.v==='÷')){i++;const R=factor();L=B(t.v==='×'?'*':'/',L,R);}
+      else if(starts(t)){const R=factor();L=B('*',L,R,true);}
+      else break;}
+    return L;
+  }
+  function expr(){
+    let L=term();
+    for(;;){const t=toks[i];
+      if(t&&t.t==='op'&&(t.v==='+'||t.v==='−')){i++;const R=term();L=B(t.v==='+'?'+':'-',L,R);}
+      else break;}
+    return L;
+  }
+  try{const e=expr();return i===toks.length?e:null;}catch(e){return null;}
+}
+function toksHTML(keys){
+  return keys.map(k=>/^[a-z]$/.test(k)?`<i>${k}</i>`:'+−×÷'.includes(k)?` <span class="op">${k}</span> `:k).join('');
+}
+
+/* ---------------- Random helpers ---------------- */
+const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+function newP(){
+  const v=pick(['n','x','y','k','m','p','t','w']);const a=ri(2,12);let b;do{b=ri(2,6);}while(b===a);
+  const vi=`<i>${v}</i>`;
+  return {v,a,b,vi,vp:Math.random()<.35?`a number ${vi}`:vi};
+}
+const vN=(P,id)=>K(V(P.v),id), nN=(x,id)=>K(N(x),id);
+
+/* ---------------- Phrase templates ----------------
+   Each returns {words:[[text,colorId],...], ast, traps:[{ast,kind}]}             */
+const S1=[ // one operation
+  P=>({words:[['the sum of',0],[' '],[P.vi,1],[' and '],[P.a,2]],ast:K(add(vN(P,1),nN(P.a,2)),0)}),
+  P=>({words:[[`${P.a} more than`,0],[' '],[P.vp,1]],ast:K(add(vN(P,1),nN(P.a,0)),0)}),
+  P=>({words:[[P.vp,1],[` increased by ${P.a}`,0]],ast:K(add(vN(P,1),nN(P.a,0)),0)}),
+  P=>({words:[['the difference of',0],[' '],[P.vi,1],[' and '],[P.a,2]],ast:K(sub(vN(P,1),nN(P.a,2)),0)}),
+  P=>({words:[[P.vp,1],[` minus ${P.a}`,0]],ast:K(sub(vN(P,1),nN(P.a,0)),0)}),
+  P=>({words:[[P.vp,1],[` decreased by ${P.a}`,0]],ast:K(sub(vN(P,1),nN(P.a,0)),0)}),
+  P=>({words:[['the product of',0],[' '],[P.a,2],[' and '],[P.vi,1]],ast:K(imul(nN(P.a,2),vN(P,1)),0)}),
+  P=>({words:[[`${P.a} times`,0],[' '],[P.vp,1]],ast:K(imul(nN(P.a,0),vN(P,1)),0)}),
+  P=>({words:[['the quotient of',0],[' '],[P.vi,1],[' and '],[P.a,2]],ast:K(dvd(vN(P,1),nN(P.a,2)),0)}),
+  P=>({words:[[P.vp,1],[` divided by ${P.a}`,0]],ast:K(dvd(vN(P,1),nN(P.a,0)),0)}),
+  P=>{const [w,k]=pick([['twice',2],['triple',3]]);return{words:[[w,0],[' '],[P.vp,1]],ast:K(imul(nN(k,0),vN(P,1)),0)};},
+  P=>({words:[['half of',0],[' '],[P.vp,1]],ast:K(dvd(vN(P,1),nN(2,0)),0)}),
+];
+const S2=[ // order flips
+  P=>({words:[[`${P.a} less than`,0],[' '],[P.vp,1]],ast:K(sub(vN(P,1),nN(P.a,0)),0),traps:[{ast:sub(N(P.a),V(P.v)),kind:'reversed'}]}),
+  P=>({words:[[`${P.a} fewer than`,0],[' '],[P.vp,1]],ast:K(sub(vN(P,1),nN(P.a,0)),0),traps:[{ast:sub(N(P.a),V(P.v)),kind:'reversed'}]}),
+  P=>({words:[[`${P.a} subtracted from`,0],[' '],[P.vp,1]],ast:K(sub(vN(P,1),nN(P.a,0)),0),traps:[{ast:sub(N(P.a),V(P.v)),kind:'reversed'}]}),
+  P=>({words:[[P.vi,1],[' subtracted from ',0],[P.a,2]],ast:K(sub(nN(P.a,2),vN(P,1)),0),traps:[{ast:sub(V(P.v),N(P.a)),kind:'reversed'}]}),
+  P=>({words:[[P.vi,1],[' less than ',0],[P.a,2]],ast:K(sub(nN(P.a,2),vN(P,1)),0),traps:[{ast:sub(V(P.v),N(P.a)),kind:'reversed'}]}),
+  P=>({words:[['the difference of',0],[' '],[P.a,2],[' and '],[P.vi,1]],ast:K(sub(nN(P.a,2),vN(P,1)),0),traps:[{ast:sub(V(P.v),N(P.a)),kind:'reversed'}]}),
+  P=>({words:[['the quotient of',0],[' '],[P.a,2],[' and '],[P.vi,1]],ast:K(dvd(nN(P.a,2),vN(P,1)),0),traps:[{ast:dvd(V(P.v),N(P.a)),kind:'reversed'}]}),
+  P=>({words:[[P.a,2],[' divided by ',0],[P.vp,1]],ast:K(dvd(nN(P.a,2),vN(P,1)),0),traps:[{ast:dvd(V(P.v),N(P.a)),kind:'reversed'}]}),
+];
+const S3=[ // two steps
+  P=>({words:[[`${P.a} more than`,0],[' '],[`${P.b} times`,1],[' '],[P.vp,2]],
+       ast:K(add(K(imul(nN(P.b,1),vN(P,2)),1),nN(P.a,0)),0),traps:[{ast:imul(N(P.b),G(add(V(P.v),N(P.a)))),kind:'parens'}]}),
+  P=>({words:[[`${P.b} times`,1],[' '],['the sum of',0],[' '],[P.vi,2],[' and '],[P.a,3]],
+       ast:K(imul(nN(P.b,1),G(K(add(vN(P,2),nN(P.a,3)),0))),1),traps:[{ast:add(imul(N(P.b),V(P.v)),N(P.a)),kind:'parens'}]}),
+  P=>({words:[[`${P.a} less than`,0],[' '],[`${P.b} times`,1],[' '],[P.vp,2]],
+       ast:K(sub(K(imul(nN(P.b,1),vN(P,2)),1),nN(P.a,0)),0),traps:[{ast:sub(N(P.a),imul(N(P.b),V(P.v))),kind:'reversed'},{ast:imul(N(P.b),G(sub(V(P.v),N(P.a)))),kind:'parens'}]}),
+  P=>({words:[[`${P.b} times`,1],[' '],['the difference of',0],[' '],[P.vi,2],[' and '],[P.a,3]],
+       ast:K(imul(nN(P.b,1),G(K(sub(vN(P,2),nN(P.a,3)),0))),1),traps:[{ast:sub(imul(N(P.b),V(P.v)),N(P.a)),kind:'parens'},{ast:imul(N(P.b),G(sub(N(P.a),V(P.v)))),kind:'reversed'}]}),
+  P=>({words:[['the sum of',0],[' '],[P.vi,2],[' and '],[P.a,3],[`, divided by ${P.b}`,1]],
+       ast:K(dvd(G(K(add(vN(P,2),nN(P.a,3)),0)),nN(P.b,1)),1),traps:[{ast:add(V(P.v),dvd(N(P.a),N(P.b))),kind:'parens'}]}),
+  P=>({words:[['twice',1],[' '],[P.vp,2],[`, decreased by ${P.a}`,0]],
+       ast:K(sub(K(imul(nN(2,1),vN(P,2)),1),nN(P.a,0)),0),traps:[{ast:imul(N(2),G(sub(V(P.v),N(P.a)))),kind:'parens'},{ast:sub(N(P.a),imul(N(2),V(P.v))),kind:'reversed'}]}),
+  P=>({words:[[`${P.a} more than`,0],[' '],['the quotient of',1],[' '],[P.vi,2],[' and '],[P.b,3]],
+       ast:K(add(K(dvd(vN(P,2),nN(P.b,3)),1),nN(P.a,0)),0),traps:[{ast:dvd(G(add(V(P.v),N(P.a))),N(P.b)),kind:'parens'}]}),
+];
+const S5=[ // real-world stories
+  ()=>{const a=ri(3,12),v='t';return{v,story:true,words:[['Tickets to the Zorg Space Show cost '],[`$${a} each`,0],['. What is the total cost of '],['<i>t</i> tickets',1],['?']],
+    ast:K(imul(nN(a,0),K(V(v),1)),0),traps:[{ast:add(V(v),N(a)),kind:'wrongop'}]};},
+  ()=>{const a=5*ri(4,12),v='g';return{v,story:true,words:[['Blip has '],[`${a} star crystals`,0],[' and '],['gives away <i>g</i> of them',1],['. How many crystals are left?']],
+    ast:K(sub(nN(a,0),K(V(v),1)),1),traps:[{ast:sub(V(v),N(a)),kind:'reversed'}]};},
+  ()=>{const f=5*ri(2,6),v='m';let r;do{r=ri(6,15);}while(r===f);return{v,story:true,words:[['The Galaxy Gym charges '],[`$${f} to join`,0],[' plus '],[`$${r} per month`,1],['. What is the total cost for '],['<i>m</i> months',2],['?']],
+    ast:K(add(K(imul(nN(r,1),K(V(v),2)),1),nN(f,0)),0),traps:[{ast:add(imul(N(f),V(v)),N(r)),kind:'swap'},{ast:imul(N(r+f),V(v)),kind:'swap'}]};},
+  ()=>{const k=ri(4,9),v='b';let p;do{p=ri(2,9);}while(p===k);return{v,story:true,words:[['Each bag holds '],[`${k} moon rocks`,0],['. Zed has '],['<i>b</i> bags',1],[' and '],[`${p} loose rocks`,2],['. How many rocks does Zed have?']],
+    ast:K(add(K(imul(nN(k,0),K(V(v),1)),0),nN(p,2)),2),traps:[{ast:add(imul(N(p),V(v)),N(k)),kind:'swap'}]};},
+  ()=>{const c=pick([24,30,36,48,60]),v='p';return{v,story:true,words:[[`${c} space cookies`,0],[' are '],['shared equally among <i>p</i> friends',1],['. How many cookies does each friend get?']],
+    ast:K(dvd(nN(c,0),K(V(v),1)),1),traps:[{ast:dvd(V(v),N(c)),kind:'reversed'}]};},
+  ()=>{const a=ri(2,9),v='z';return{v,story:true,words:[['Zip is '],[`${a} years older than`,0],[' Zap. '],['Zap is <i>z</i> years old',1],['. How old is Zip?']],
+    ast:K(add(K(V(v),1),nN(a,0)),0),traps:[{ast:sub(V(v),N(a)),kind:'wrongop'}]};},
+  ()=>{const r=10*ri(4,12),v='h';return{v,story:true,words:[['A rocket travels '],[`${r} miles each hour`,0],[' for '],['<i>h</i> hours',1],['. How far does it travel?']],
+    ast:K(imul(nN(r,0),K(V(v),1)),0),traps:[{ast:add(V(v),N(r)),kind:'wrongop'}]};},
+  ()=>{const c=10*ri(4,9),s=ri(4,9),v='m';return{v,story:true,words:[['Kip has '],[`a gift card worth $${c}`,0],[' and spends '],[`$${s} on each movie`,1],['. How much money is left after '],['<i>m</i> movies',2],['?']],
+    ast:K(sub(nN(c,0),K(imul(nN(s,1),K(V(v),2)),1)),1),traps:[{ast:sub(imul(N(s),V(v)),N(c)),kind:'reversed'},{ast:sub(imul(N(c),V(v)),N(s)),kind:'swap'}]};},
+];
+function genTranslate(pool){
+  const f=pick(pool);const P=pool===S5?null:newP();const t=f(P);
+  return {kind:'translate',v:t.v||P.v,words:t.words,ast:t.ast,traps:t.traps||[],story:!!t.story};
+}
+
+/* ---------------- Diagnosis for translations ---------------- */
+function diagnoseT(p,st){
+  for(const tr of p.traps)if(equiv(st,tr.ast))return tr.kind;
+  const A=p.ast;
+  if(A.t==='bin'){
+    if((A.op==='-'||A.op==='/')&&equiv(st,B(A.op,A.b,A.a)))return 'reversed';
+    for(const op of ['+','-','*','/'])if(op!==A.op&&(equiv(st,B(op,A.a,A.b))||equiv(st,B(op,A.b,A.a))))return 'wrongop';
+  }
+  if(!hasVar(st))return 'novar';
+  const want=numsOf(A),got=numsOf(st);
+  if([...got].some(x=>!want.has(x))||[...want].some(x=>!got.has(x)))return 'wrongnum';
+  return 'other';
+}
+function hintT(p,kind){
+  const A=p.ast;
+  switch(kind){
+    case 'reversed':return A.op==='/'||(A.t==='bin'&&A.op==='/')
+      ?'<b>Order matters with division!</b> “The quotient of A and B” and “A divided by B” both mean A ÷ B, in that order.'
+      :'<b>Order matters with subtraction!</b> “Less than,” “fewer than,” and “subtracted from” flip the order: you start with the <u>other</u> amount and take this one away.';
+    case 'wrongop':return '<b>Check the keyword.</b> sum / more / increased → <b>+</b> · difference / less / decreased → <b>−</b> · product / times / twice / each → <b>×</b> · quotient / divided / shared / half → <b>÷</b>';
+    case 'parens':return '<b>Parentheses change the meaning!</b> If the message multiplies or divides a whole <u>sum</u> or <u>difference</u>, group that part with ( ). If it says “more than” or “less than” a product, no parentheses are needed.';
+    case 'swap':return '<b>Which number goes with the variable?</b> The “each” or “per” amount is the one multiplied by the variable. The one-time amount is added or subtracted by itself.';
+    case 'novar':return `<b>Your translation needs the variable!</b> Tap <i>${p.v}</i> for the unknown amount.`;
+    case 'wrongnum':return '<b>Check your numbers.</b> Use exactly the numbers from the message.';
+    default:return '<b>Not quite.</b> Break the message into chunks and translate one chunk at a time.';
+  }
+}
+function beamHTML(p,ast,label='Yours'){
+  // pick a test value that keeps the arithmetic friendly: whole, non-negative results if possible
+  const cands=[];
+  for(const x of [10,12,8,6,20,5,4,3,2,24,30,15,9,7,40,60,1]){
+    let a,b;try{a=evq(p.ast,q(x));b=evq(ast,q(x));}catch(e){continue;}
+    if(a.eq(b))continue;
+    const whole=a.d===1&&b.d===1,pos=a.n>=0&&b.n>=0;
+    cands.push({x,a,b,score:(whole?2:0)+(pos?1:0)});
+  }
+  cands.sort((m,n)=>n.score-m.score);
+  for(const {x,a,b} of cands){
+    return `🔬 <b>TEST BEAM:</b> let <i>${p.v}</i> = ${x}<br>Message: <span class="m">${rend(substV(p.ast,q(x)))} = <b class="g">${qHTML(a)}</b></span><br>${label}: <span class="m">${rend(substV(ast,q(x)))} = <b class="r">${qHTML(b)}</b></span> &nbsp;✗ not the same!`;
+  }
+  return '';
+}
+
+/* ---------------- Parts of an expression ---------------- */
+function genParts(){
+  const vs=shuffle(['x','y','a','b','m','n','k','t']);
+  const nT=ri(2,4),hasConst=Math.random()<.85,nV=hasConst?nT-1:nT;
+  let terms=[];const one=Math.random()<.45?ri(0,nV-1):-1;
+  for(let i=0;i<nV;i++)terms.push({c:i===one?1:ri(2,9),v:vs[i]});
+  if(terms.every(t=>t.c===1))terms[0].c=ri(2,9);
+  if(hasConst){const c={c:ri(1,15),v:null};Math.random()<.75?terms.push(c):terms.splice(ri(0,terms.length),0,c);}
+  // make numbers distinct so "tap the 4" is never ambiguous
+  const used=new Set();terms.forEach(t=>{if(t.c===1&&t.v)return;while(used.has(t.c))t.c=t.v?ri(2,9):ri(10,19);used.add(t.c);});
+  const qs=[{type:'terms',text:'How many <b>TERMS</b> are in this expression?',choices:['1','2','3','4','5'],answer:String(terms.length)}];
+  const pool=[];
+  const big=terms.map((t,i)=>({t,i})).filter(o=>o.t.v&&o.t.c>1);
+  if(big.length){const o=pick(big);pool.push({type:'coef',v:o.t.v,text:`Tap the <b>COEFFICIENT</b> of <i>${o.t.v}</i>.`,target:{r:'coef',i:o.i}});}
+  const ones=terms.filter(t=>t.v&&t.c===1);
+  if(ones.length)pool.push({type:'coef1',v:ones[0].v,text:`What is the <b>COEFFICIENT</b> of <i>${ones[0].v}</i>?`,choices:['0','1',ones[0].v,'none'],answer:'1'});
+  const ci=terms.findIndex(t=>!t.v);
+  if(ci>=0)pool.push({type:'const',text:'Tap the <b>CONSTANT</b>.',target:{r:'const',i:ci}});
+  pool.push({type:'var',text:'Tap a <b>VARIABLE</b>.',target:{r:'var'}});
+  return {kind:'parts',terms,qs:qs.concat(shuffle(pool).slice(0,2))};
+}
+function partsHTML(terms){
+  return terms.map((t,i)=>{
+    const h=t.v?(t.c!==1?`<span class="pt" data-r="coef" data-i="${i}">${t.c}</span>`:'')+`<span class="pt" data-r="var" data-i="${i}"><i>${t.v}</i></span>`
+               :`<span class="pt" data-r="const" data-i="${i}">${t.c}</span>`;
+    return (i?' <span class="op">+</span> ':'')+h;
+  }).join('');
+}
+function partsHint(qn,r,i,terms){
+  if(qn.type==='coef'){
+    if(r==='var')return 'That\'s a <b>variable</b>. The coefficient is the <u>number multiplied by</u> the variable.';
+    if(r==='const')return 'That\'s the <b>constant</b>: it has no variable. A coefficient is attached to a variable.';
+    return `That's the coefficient of <i>${terms[i].v}</i>. Find the term with <i>${qn.v}</i>.`;
+  }
+  if(qn.type==='const'){
+    if(r==='coef')return 'That number is a <b>coefficient</b>: it multiplies a variable. A constant stands alone.';
+    return 'That\'s a <b>variable</b>. The constant is the number with no variable attached.';
+  }
+  if(qn.type==='var')return r==='coef'?'That\'s a <b>coefficient</b>. A variable is a <u>letter</u> that stands for a number.':'That\'s the <b>constant</b>. A variable is a <u>letter</u> that stands for a number.';
+  if(qn.type==='terms')return '<b>Terms</b> are the parts separated by + or − signs. Count the parts.';
+  return `When no number is written, the coefficient is <b>1</b>: <i>${qn.v}</i> means 1<i>${qn.v}</i>.`;
+}
+
+/* ---------------- Reverse transmissions ---------------- */
+function genReverse(){
+  for(let k=0;k<200;k++){
+    const P=newP();const pool=[...S1,...S2,...S3];
+    const cor=pick(Math.random()<.45?S3:Math.random()<.6?S2:S1)(P);
+    const corText=wordsText(cor.words);
+    const cands=shuffle(pool).map(f=>f(P)).filter(o=>!equiv(o.ast,cor.ast));
+    const trapAsts=(cor.traps||[]).map(t=>t.ast);
+    if(cor.ast.op==='-'||cor.ast.op==='/')trapAsts.push(B(cor.ast.op,cor.ast.b,cor.ast.a));
+    const hot=cands.filter(o=>trapAsts.some(a=>equiv(a,o.ast))),cold=cands.filter(o=>!hot.includes(o));
+    const chosen=[],seenT=new Set([corText]),seenA=[];
+    for(const o of [...hot.slice(0,2),...cold]){
+      const tx=wordsText(o.words);if(seenT.has(tx)||seenA.some(a=>equiv(a,o.ast)))continue;
+      seenT.add(tx);seenA.push(o.ast);chosen.push(o);if(chosen.length===3)break;
+    }
+    if(chosen.length<3)continue;
+    const options=shuffle([{...cor,correct:true},...chosen.map(o=>({...o,correct:false}))]);
+    return {kind:'reverse',v:P.v,ast:cor.ast,words:cor.words,traps:cor.traps||[],options};
+  }
+}
+
+/* ---------------- Sectors ---------------- */
+const SECTORS=[
+  {name:'Keyword Station',icon:'🔑',skill:'One-operation phrases',n:3,gen:()=>genTranslate(S1),
+   intel:'Every math phrase has a <b>keyword</b> that tells you the operation. Find it, then write the algebra.',brief:'kw'},
+  {name:'Backwards Belt',icon:'🔄',skill:'Phrases that flip the order',n:3,gen:()=>genTranslate(S2),
+   intel:'Some phrases are sneaky: the numbers appear in one order, but the algebra goes in the <b>other</b> order. Addition and multiplication don\'t care about order. <b>Subtraction and division do!</b>',brief:'flip'},
+  {name:'Double Signal',icon:'📡',skill:'Two-step phrases',n:3,gen:()=>genTranslate(S3),
+   intel:'These messages have <b>two operations</b>. Decide what happens first. If a whole sum or difference gets multiplied or divided, wrap it in <b>parentheses</b>.',brief:'two'},
+  {name:'Parts Lab',icon:'🔬',skill:'Terms, coefficients, constants',n:3,gen:genParts,
+   intel:'Every expression is built from parts. Time to learn their names so you can talk about algebra like a pro.',brief:'parts'},
+  {name:'Trading Post',icon:'🛸',skill:'Real-world situations',n:3,gen:()=>genTranslate(S5),
+   intel:'Real situations don\'t use math keywords. You have to spot the operation from the story. The <b>variable</b> stands for the amount that can change.',brief:'story'},
+  {name:'Reverse Transmission',icon:'🔁',skill:'Algebra → words',n:4,gen:genReverse,
+   intel:'Now translate the other way! You\'ll see an algebraic expression. Pick the phrase that means <b>exactly</b> the same thing. Watch out for flipped orders and missing parentheses.',brief:'rev'},
+];
+const MISTAKE_TXT={
+  reversed:'Order in subtraction & division (“6 less than x” is x − 6)',
+  wrongop:'Matching keywords to the right operation',
+  parens:'Using parentheses for “times the sum of…”',
+  swap:'Deciding which number multiplies the variable',
+  novar:'Including the variable',
+  wrongnum:'Using the exact numbers from the message',
+  coef:'Coefficients (the number multiplied by a variable)',
+  const:'Constants (a number with no variable)',
+  var:'Variables (letters that stand for numbers)',
+  terms:'Counting terms (parts separated by + or −)',
+  rev:'Reading an expression back into words',
+  other:'Translating one chunk at a time'
+};
+
+/* =====================================================================
+   GAME (browser only)
+   ===================================================================== */
+if(typeof window!=='undefined'){
+
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+};
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const app=$('#app');
+const S={muted:store.get('gt_muted',false)};
+window.__gt=S; // handy for debugging in the browser console (no student identifiers are kept)
+const IN_TOWN=(()=>{try{return window.parent&&window.parent!==window;}catch(e){return true;}})(); // embedded in Expression Town?
+const toTown=msg=>{try{window.parent.postMessage(msg,'*');}catch(e){console.warn(e);}};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>n.toLocaleString();
+const clock=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const elapsed=()=>Math.floor((Date.now()-S.t0)/1000);
+
+/* ---------------- Sound ---------------- */
+let AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,dur,type='sine',vol=.13,when=0,f2){
+  if(S.muted)return;const c=ac();if(!c)return;
+  const t=c.currentTime+when,o=c.createOscillator(),g=c.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.03);
+}
+const SFX={
+  key:()=>tone(880,.04,'square',.035),
+  blip:()=>{tone(660,.08,'sine',.1,0,990);},
+  good:()=>{[523,784,1047,1568].forEach((f,i)=>tone(f,.2,'sine',.11,i*.07));},
+  bad:()=>{tone(300,.3,'sawtooth',.07,0,110);},
+  win:()=>{[523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,.3,'triangle',.12,i*.1));},
+};
+
+/* ---------------- FX / modal ---------------- */
+function flash(){const f=$('#flash');f.classList.remove('on');void f.offsetWidth;f.classList.add('on');}
+function confetti(big){
+  const cv=$('#fx'),cx=cv.getContext('2d');cv.width=innerWidth;cv.height=innerHeight;
+  const cols=['#7cff6b','#ff5fd2','#5ad1ff','#ffd24a','#ffffff','#b9a8ff'];
+  const P=Array.from({length:big?220:90},()=>({x:innerWidth/2+(Math.random()-.5)*innerWidth*.5,y:innerHeight*.35,vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,
+    s:4+Math.random()*7,c:pick(cols),r:Math.random()*6,vr:(Math.random()-.5)*.4,star:Math.random()<.25}));
+  const t0=performance.now();
+  (function fr(t){cx.clearRect(0,0,cv.width,cv.height);
+    P.forEach(p=>{p.vy+=.33;p.x+=p.vx;p.y+=p.vy;p.vx*=.99;p.r+=p.vr;cx.save();cx.translate(p.x,p.y);cx.rotate(p.r);cx.fillStyle=p.c;
+      if(p.star){cx.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5,rr=i%2?p.s*.45:p.s;cx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}cx.closePath();cx.fill();}
+      else cx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);cx.restore();});
+    if(t-t0<(big?3200:1700))requestAnimationFrame(fr);else cx.clearRect(0,0,cv.width,cv.height);})(t0);
+}
+let modalBtns=[];
+function showModal(html,btns){
+  modalBtns=btns;
+  $('#mbox').innerHTML=html+`<div class="btns">${btns.map((b,i)=>`<button class="btn ${b.cls||''}" data-b="${i}">${b.label}</button>`).join('')}</div>`;
+  $('#modal').classList.remove('hidden');
+  $$('#mbox [data-b]').forEach(el=>el.onclick=()=>{hideModal();btns[+el.dataset.b].fn();});
+  setTimeout(()=>{const b=$('#mbox [data-b="0"]');b&&b.focus();},50);
+}
+function hideModal(){$('#modal').classList.add('hidden');modalBtns=[];}
+function comms(html,kind=''){const r=$('#comms');if(!r)return;r.className='comms '+kind;r.innerHTML=`<div class="who">🛰️ SHIP COMPUTER</div>${html}`;}
+
+/* ---------------- Alien ---------------- */
+function alienSVG(){
+  return `<svg viewBox="0 0 120 130" aria-hidden="true">
+    <line x1="60" y1="30" x2="60" y2="10" stroke="#3aa82e" stroke-width="4"/><circle cx="60" cy="8" r="6" fill="#ff5fd2"/>
+    <ellipse class="skin" cx="60" cy="74" rx="46" ry="48" fill="#7cff6b"/>
+    <ellipse cx="60" cy="110" rx="30" ry="8" fill="#000" opacity=".12"/>
+    <circle cx="38" cy="62" r="12" fill="#fff"/><circle cx="82" cy="62" r="12" fill="#fff"/><circle cx="60" cy="46" r="9" fill="#fff"/>
+    <circle cx="40" cy="64" r="5" fill="#17103a"/><circle cx="80" cy="64" r="5" fill="#17103a"/><circle cx="60" cy="47" r="4" fill="#17103a"/>
+    <path class="flat" d="M44 92 H76" stroke="#17103a" stroke-width="4" stroke-linecap="round" fill="none"/>
+    <path class="smile" d="M40 88 Q60 108 80 88" stroke="#17103a" stroke-width="4" stroke-linecap="round" fill="#ff8ab0"/>
+    <path class="frown" d="M42 98 Q60 82 78 98" stroke="#17103a" stroke-width="4" stroke-linecap="round" fill="none"/>
+  </svg>`;
+}
+function mood(m){const a=$('#alien');if(!a)return;a.className='alien';void a.offsetWidth;if(m)a.classList.add(m);}
+
+/* ================= TITLE ================= */
+function showTitle(){
+  clearInterval(S.timer);
+  const best=store.get('gt_best',0);
+  app.innerHTML=`<div class="screen center">
+    <div class="lesson-tag">enVision 2.0 · Topic 3 · Lesson 3-4 · Write Algebraic Expressions</div>
+    <div class="title-alien">${alienSVG()}</div>
+    <h1 class="logo">GALACTIC<span>TRANSLATOR</span></h1>
+    <p class="tag">The aliens speak in words. Your ship speaks <b>algebra</b>.</p>
+    <div class="how">
+      <div class="card"><span class="n">1</span><b>Read the transmission</b><small>An alien sends a message like “6 less than <i class="v">x</i>.”</small></div>
+      <div class="card"><span class="n">2</span><b>Build the algebra</b><small>Tap tiles to write the expression: <i class="v">x</i> − 6. Order matters!</small></div>
+      <div class="card"><span class="n">3</span><b>Test the beam</b><small>Wrong? The ship plugs in a number to show why the meaning changed.</small></div>
+    </div>
+    <div class="start-row">
+      <select id="sz" aria-label="Starting sector">${SECTORS.map((z,i)=>`<option value="${i}">Start: Sector ${i+1}</option>`).join('')}</select>
+      <button class="btn" id="go">OPEN CHANNEL ▶</button>
+      ${IN_TOWN?'<button class="btn plain" id="townExit" title="Exit to Expression Town">⬅ RETURN TO TOWN</button>':''}
+    </div>
+    <div class="best">${best?`Best score on this device: <b style="color:var(--green)">${fmt(best)}</b>`:'6 sectors · 19 transmissions · about 10 minutes'}</div>
+  </div>`;
+  $('#go').onclick=()=>{ac();startGame(+$('#sz').value);};
+  const te=$('#townExit');if(te)te.onclick=()=>toTown({type:'CARTRIDGE_EXIT_REQUEST'});
+}
+function startGame(start){
+  Object.assign(S,{start,zone:start,score:0,streak:0,bestStreak:0,checks:0,correct:0,
+    mistakes:Object.fromEntries(Object.keys(MISTAKE_TXT).map(k=>[k,0])),zstats:SECTORS.map(()=>({res:[],pts:0})),t0:Date.now()});
+  clearInterval(S.timer);
+  S.timer=setInterval(()=>{const el=$('#clock');if(el)el.textContent='⏱ '+clock(elapsed());},1000);
+  showBrief();
+}
+function strip(){
+  return `<div class="strip">${SECTORS.map((z,i)=>{const cls=i<S.zone&&i>=S.start?'done':i===S.zone?'now':'';
+    return `<div class="chip ${cls}"><span class="dot">${cls==='done'?'✓':i+1}</span>${z.name}</div>`;}).join('')}</div>`;
+}
+
+/* ================= BRIEFING ================= */
+function pairHTML(t){return `<div class="pair"><span>“${wordsHTML(t.words,true)}”</span><span class="arrow">➜</span><span class="m">${rend(t.ast,{color:true})}</span></div>`;}
+function briefDemo(kind){
+  const P={v:'n',a:6,b:3,vi:'<i>n</i>',vp:'<i>n</i>'};
+  if(kind==='kw')return `<div class="label">Keyword decoder</div><div class="kw">
+      <div><b>+</b>sum · more than · increased by · plus · total</div>
+      <div><b>−</b>difference · less than · decreased by · minus · fewer</div>
+      <div><b>×</b>product · times · twice · triple · each</div>
+      <div><b>÷</b>quotient · divided by · half of · shared equally</div></div>
+      <div class="label" style="margin-top:.7rem">Matching colors show which words become which symbols</div>${pairHTML(S1[1](P))}${pairHTML(S1[6](P))}`;
+  if(kind==='flip')return `<div class="label">Same numbers, different order</div>${pairHTML(S2[0](P))}${pairHTML(S2[4](P))}${pairHTML(S2[6](P))}
+      <div class="tipbox warn" style="margin:.6rem 0 0"><b>Test it:</b> if <i class="v">n</i> = 10, then <span class="m"><i>n</i> − 6 = 4</span> but <span class="m">6 − <i>n</i> = −4</span>. Not the same message!</div>`;
+  if(kind==='two')return `<div class="label">Parentheses or not?</div>${pairHTML(S3[0](P))}${pairHTML(S3[1](P))}
+      <div class="tipbox" style="margin:.6rem 0 0"><b>Listen for “the sum of” or “the difference of”</b> after “times.” That whole group gets multiplied, so it needs parentheses.</div>`;
+  if(kind==='parts')return `<div class="label">Parts of an expression</div>
+      <div class="pair"><span class="m" style="font-size:2rem">4<i>x</i> + <i>y</i> + 7</span></div>
+      <div class="kw" style="grid-template-columns:repeat(2,1fr)">
+      <div><b>Terms</b>The parts separated by + or −. This one has 3 terms: 4<i class="v">x</i>, <i class="v">y</i>, and 7.</div>
+      <div><b>Variable</b>A letter that stands for a number: <i class="v">x</i> and <i class="v">y</i>.</div>
+      <div><b>Coefficient</b>The number multiplied by a variable: 4 is the coefficient of <i class="v">x</i>. The coefficient of <i class="v">y</i> is 1.</div>
+      <div><b>Constant</b>A number all by itself, with no variable: 7.</div></div>`;
+  if(kind==='story'){const t=S5[2]();return `<div class="label">Example</div><div class="pair" style="font-size:1.02rem"><span>${wordsHTML(t.words,true)}</span></div><div class="pair"><span class="arrow">➜</span><span class="m">${rend(t.ast,{color:true})}</span></div>
+      <div class="tipbox" style="margin:.6rem 0 0"><b>Tip:</b> “each” and “per” mean multiply by the variable. A one-time amount is added on by itself.</div>`;}
+  return `<div class="label">Example</div><div class="pair"><span class="m" style="font-size:2rem"><i>n</i> − 6</span></div>
+      <div class="pair">✅ “6 less than <i class="v">n</i>”</div><div class="pair">❌ “<i class="v">n</i> less than 6” <span style="color:var(--muted);font-size:.95rem">(that's 6 − <i class="v">n</i>)</span></div>`;
+}
+function showBrief(){
+  const z=SECTORS[S.zone];
+  app.innerHTML=`<div class="screen">${strip()}
+    <div class="brief card">
+      <div class="kicker">${z.icon} SECTOR ${S.zone+1} OF ${SECTORS.length} · ${z.skill.toUpperCase()}</div>
+      <h2>${z.name}</h2>
+      <p class="intel">${z.intel}</p>
+      <div class="demo">${briefDemo(z.brief)}</div>
+      <div class="go"><button class="btn plain" id="quit">Quit</button><button class="btn" id="fly">START TRANSMISSIONS ▶</button></div>
+    </div></div>`;
+  $('#fly').onclick=()=>{S.route=0;newRoute(false);};
+  $('#quit').onclick=showTitle;
+  setTimeout(()=>$('#fly')&&$('#fly').focus(),50);
+}
+
+/* ================= TRANSMISSIONS ================= */
+function newRoute(backup){
+  const p=SECTORS[S.zone].gen();
+  Object.assign(S,{p,backup,phase:'busy',toks:[],tries:0,routeMiss:0,revealed:false,qi:0,qmiss:0});
+  renderRoute();
+}
+function lightsHTML(){
+  const res=S.zstats[S.zone].res,n=SECTORS[S.zone].n;
+  return Array.from({length:n},(_,i)=>{const r=res[i];const cls=r==='first'?'on':r==='later'?'half':r==='bust'?'bust':i===S.route?'cur':'';
+    return `<span class="light ${cls}"></span>`;}).join('');
+}
+function hudHTML(){
+  const z=SECTORS[S.zone];
+  return `<div class="hud card">
+    <div class="zt">${z.icon} SECTOR ${S.zone+1}/${SECTORS.length} · <b>${z.name}</b> · Transmission ${S.route+1} of ${z.n}${S.backup?' <span style="color:var(--pink)">(backup)</span>':''}</div>
+    <div class="lights" id="lights">${lightsHTML()}</div>
+    <div class="stat pts" id="pts">⭐ ${fmt(S.score)}</div>
+    <div class="stat fire" id="streak">🔥 ${S.streak}</div>
+    <div class="stat" id="clock">⏱ ${clock(elapsed())}</div>
+    <button class="iconbtn" id="mute" aria-label="Toggle sound">${S.muted?'🔇':'🔊'}</button></div>`;
+}
+function viewHTML(){
+  const p=S.p;let sig,msg;
+  if(p.kind==='translate'){sig='📡 INCOMING TRANSMISSION · translate to algebra';msg=`<div class="msg ${p.story?'story':''}" id="msg">${p.story?'':'“'}${wordsHTML(p.words,false)}${p.story?'':'”'}</div>`;}
+  else if(p.kind==='parts'){sig='🔬 PARTS LAB · the alien is quizzing you';msg=`<div class="msg" id="msg"></div><div class="qdots" id="qdots"></div>`;}
+  else{sig='🔁 REVERSE TRANSMISSION · which phrase means exactly this?';msg=`<div class="msg expr" id="msg">${rend(p.ast)}</div>`;}
+  return `<div class="view card"><div class="alien" id="alien">${alienSVG()}</div><div class="bubble"><div class="sig">${sig}</div>${msg}</div></div>`;
+}
+function consoleHTML(){
+  const p=S.p;
+  if(p.kind==='translate'){
+    const order=[['var',p.v],['opk','('],['opk',')'],['s','⌫','back'],['s','CLR','clr'],'7','8','9',['opk','+'],['opk','−'],['','0'],'4','5','6',['opk','×'],['opk','÷'],['','.'],'1','2','3'];
+    return `<div class="console"><div class="comms" id="comms"></div>
+      <div class="card work"><div class="label">Your translation</div>
+        <div class="disprow"><div class="disp" id="disp"></div><button class="btn" id="send">TRANSLATE</button></div>
+        <div class="tries" id="tries"></div><div id="beam"></div></div>
+      <div class="card keypad">${order.map(k=>Array.isArray(k)?`<button class="key ${k[0]}" data-k="${k[2]||k[1]}">${k[1]}</button>`:`<button class="key" data-k="${k}">${k}</button>`).join('')}</div></div>`;
+  }
+  if(p.kind==='parts'){
+    return `<div class="console wide"><div class="comms" id="comms"></div>
+      <div class="card work"><div class="label">The expression</div><div class="pexpr" id="pexpr">${partsHTML(p.terms)}</div>
+      <div class="choices" id="choices"></div></div></div>`;
+  }
+  return `<div class="console wide"><div class="comms" id="comms"></div>
+    <div class="card work"><div class="label">Choose the matching phrase</div>
+      <div class="opts" id="opts">${p.options.map((o,i)=>`<button class="opt" data-o="${i}">“${wordsHTML(o.words,false)}”</button>`).join('')}</div>
+      <div class="tries" id="tries"></div><div id="beam"></div></div></div>`;
+}
+function renderRoute(){
+  app.innerHTML=`<div class="screen">${hudHTML()}${viewHTML()}${consoleHTML()}</div>`;
+  $('#mute').onclick=()=>{S.muted=!S.muted;store.set('gt_muted',S.muted);$('#mute').textContent=S.muted?'🔇':'🔊';};
+  const p=S.p;
+  if(p.kind==='translate'){
+    $$('.key').forEach(k=>k.onclick=()=>pressKey(k.dataset.k));$('#send').onclick=submitT;
+    S.phase='build';updateDisp();
+    comms(S.zone===S.start&&S.route===0&&!S.backup?'Channel open! Tap the tiles to write the alien\'s message as an <b>algebraic expression</b>, then press TRANSLATE. You can also type on your keyboard.'
+      :p.story?pick(['Find the amount that changes: that\'s the variable.','What happens to the variable in this story?','“Each” and “per” mean multiply.'])
+      :pick(['New message coming through. Find the keyword!','Watch the order of the words.','Translate one chunk at a time.']));
+  } else if(p.kind==='parts'){
+    $$('#pexpr .pt').forEach(el=>el.onclick=()=>onPartTap(el));
+    S.phase='parts';showQuestion();
+    comms(S.route===0&&!S.backup?'The alien wants to know if you speak <b>algebra vocabulary</b>. Answer by tapping parts of the expression or choosing a button.':'Three quick questions about this expression.');
+  } else {
+    $$('.opt').forEach(el=>el.onclick=()=>onOption(+el.dataset.o,el));
+    S.phase='choose';updateTries();
+    comms(pick(['Read each phrase carefully. Only one means exactly this.','Tip: translate each phrase in your head and compare.','Watch for flipped orders!']));
+  }
+}
+
+/* ---- translate mode ---- */
+function updateDisp(){
+  const d=$('#disp');if(!d)return;
+  d.innerHTML=toksHTML(S.toks)+(S.phase==='build'?'<span class="cur"></span>':'');
+  d.scrollLeft=d.scrollWidth;updateTries();
+  const live=S.phase==='build';$$('.key').forEach(k=>k.disabled=!live);const s=$('#send');if(s)s.disabled=!live;
+}
+function updateTries(){const t=$('#tries');if(t)t.textContent=(S.phase==='build'||S.phase==='choose')?(S.tries===0?'2 tries for this transmission':'⚠️ 1 try left!'):'';}
+function pressKey(k){
+  if(S.phase!=='build')return;SFX.key();
+  if(k==='back')S.toks.pop();else if(k==='clr')S.toks=[];else if(S.toks.length<22)S.toks.push(k);
+  $('#disp').classList.remove('err');updateDisp();
+}
+function mapHTML(p){
+  return `<div class="map"><div class="ph">${p.story?'':'“'}${wordsHTML(p.words,true)}${p.story?'':'”'}</div><div class="ar">⬇</div><div class="ex">${rend(p.ast,{color:true})}</div>
+    <div style="color:var(--muted);font-size:.85rem;margin-top:.2rem">Matching colors show which words became which symbols.</div></div>`;
+}
+function tally(k){S.mistakes[k]=(S.mistakes[k]||0)+1;}
+function wrongFX(){flash();SFX.bad();mood('mad');S.streak=0;updateHud();}
+function submitT(){
+  if(S.phase!=='build')return;
+  const p=S.p;
+  if(!S.toks.length){comms('Build your translation with the tiles first.','warn');return;}
+  const st=parseTokens(S.toks);
+  if(!st){comms('⚠️ The ship can\'t read that. Check for a missing number, variable, or parenthesis.','warn');SFX.bad();$('#disp').classList.add('err');return;}
+  S.checks++;
+  if(equiv(st,p.ast)){S.correct++;S.phase='done';updateDisp();$('#disp').classList.add('ok');$('#msg').innerHTML=(p.story?'':'“')+wordsHTML(p.words,true)+(p.story?'':'”');finish();return;}
+  const kind=diagnoseT(p,st);tally(kind);S.tries++;S.routeMiss++;wrongFX();
+  $('#disp').classList.add('err');
+  const beam=beamHTML(p,st);$('#beam').innerHTML=beam?`<div class="beam">${beam}</div>`:'';
+  if(S.tries<2){
+    comms(`👽 <b>The alien looks confused!</b> ${hintT(p,kind)}<div style="margin-top:.3rem;color:var(--yellow)">Fix your translation and try again.</div>`,'bad');
+    updateDisp();
+  } else {
+    S.phase='done';S.revealed=true;updateDisp();
+    comms('👽 <b>Translation failed.</b> Study the correct one.','bad');
+    const can=!S.backup;
+    setTimeout(()=>showModal(`<h3 class="bad">👽 Lost in translation</h3>
+      <p style="margin:.2rem 0">Here is the correct translation:</p>${mapHTML(p)}
+      ${beam?`<div class="beam">${beam}</div>`:''}
+      <div class="tipbox warn" style="margin:.7rem 0 0">${hintT(p,kind)}</div>
+      ${can?'<p style="color:var(--muted);margin:.6rem 0 0">The alien is sending a <b>backup message</b> of the same type.</p>':''}`,
+      [{label:can?'RECEIVE BACKUP MESSAGE ▶':'NEXT TRANSMISSION ▶',fn:can?()=>newRoute(true):()=>{S.zstats[S.zone].res[S.route]='bust';advance();}}]),700);
+  }
+}
+
+/* ---- parts mode ---- */
+function showQuestion(){
+  const p=S.p,qn=p.qs[S.qi];S.qmiss=0;
+  $('#msg').innerHTML=qn.text;
+  $('#qdots').innerHTML=p.qs.map((_,i)=>`<span class="${i<S.qi?'d':i===S.qi?'c':''}"></span>`).join('');
+  $$('#pexpr .pt').forEach(el=>el.classList.remove('good','bad'));
+  const ch=$('#choices');
+  ch.innerHTML=qn.choices?qn.choices.map(c=>`<button class="opt" data-c="${esc(c)}">${/^[a-z]$/.test(c)?`<i>${c}</i>`:c}</button>`).join(''):'';
+  $$('#choices .opt').forEach(el=>el.onclick=()=>onChoice(el));
+}
+function partRight(){
+  S.correct++;SFX.blip();mood('happy');
+  comms(pick(['Correct!','Yes! You speak algebra.','Exactly right.']),'good');
+  S.phase='busy';
+  setTimeout(()=>{S.qi++;if(S.qi<S.p.qs.length){S.phase='parts';showQuestion();}else{S.phase='done';finish();}},750);
+}
+function partWrong(hint,revealFn){
+  S.qmiss++;S.routeMiss++;wrongFX();tally({coef:'coef',coef1:'coef',const:'const',var:'var',terms:'terms'}[S.p.qs[S.qi].type]);
+  if(S.qmiss>=2){revealFn();comms(`${hint}<div style="margin-top:.3rem;color:var(--yellow)">The answer is highlighted.</div>`,'bad');S.phase='busy';
+    setTimeout(()=>{S.qi++;if(S.qi<S.p.qs.length){S.phase='parts';showQuestion();}else{S.phase='done';finish();}},1900);}
+  else comms(`👽 ${hint} Try again.`,'bad');
+}
+function onPartTap(el){
+  if(S.phase!=='parts')return;
+  const p=S.p,qn=p.qs[S.qi],r=el.dataset.r,i=+el.dataset.i;
+  if(qn.choices){comms('Use the answer buttons for this question.','warn');return;}
+  S.checks++;
+  const ok=qn.target.r===r&&(qn.target.i===undefined||qn.target.i===i);
+  if(ok){el.classList.add('good');partRight();return;}
+  el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),500);
+  partWrong(partsHint(qn,r,i,p.terms),()=>{$$('#pexpr .pt').forEach(e=>{if(e.dataset.r===qn.target.r&&(qn.target.i===undefined||+e.dataset.i===qn.target.i))e.classList.add('good');});});
+}
+function onChoice(el){
+  if(S.phase!=='parts')return;
+  const qn=S.p.qs[S.qi];S.checks++;
+  if(el.dataset.c===qn.answer){el.classList.add('right');partRight();return;}
+  el.classList.add('wrong');
+  partWrong(partsHint(qn,null,null,S.p.terms),()=>{$$('#choices .opt').forEach(e=>{if(e.dataset.c===qn.answer)e.classList.add('right');});});
+}
+
+/* ---- reverse mode ---- */
+function onOption(i,el){
+  if(S.phase!=='choose')return;
+  const p=S.p,o=p.options[i];S.checks++;
+  if(o.correct){S.correct++;el.classList.add('right');S.phase='done';updateTries();finish();return;}
+  el.classList.add('wrong');S.tries++;S.routeMiss++;tally('rev');wrongFX();
+  const beam=beamHTML(p,o.ast,'That phrase');
+  $('#beam').innerHTML=`<div class="beam">That phrase means <span class="m">${rend(o.ast)}</span>, not <span class="m">${rend(p.ast)}</span>.${beam?'<br>'+beam:''}</div>`;
+  if(S.tries<2){comms('👽 <b>Not that one.</b> Translate each phrase in your head, then compare it to the expression.','bad');updateTries();}
+  else{
+    S.phase='done';S.revealed=true;updateTries();
+    $$('.opt').forEach((e,k)=>{if(p.options[k].correct)e.classList.add('right');});
+    comms('👽 <b>Transmission lost.</b> The correct phrase is highlighted.','bad');
+    setTimeout(()=>showModal(`<h3 class="bad">👽 Lost in translation</h3>${mapHTML(p)}
+      <div class="beam">You chose “${wordsHTML(o.words,false)}”, which means <span class="m">${rend(o.ast)}</span>.${beam?'<br>'+beam:''}</div>`,
+      [{label:S.route===SECTORS[S.zone].n-1?'FINISH SECTOR ▶':'NEXT TRANSMISSION ▶',fn:()=>{S.zstats[S.zone].res[S.route]='bust';advance();}}]),700);
+  }
+}
+
+/* ---- finishing a transmission ---- */
+function updateHud(){
+  const t=$('#pts');if(t)t.textContent='⭐ '+fmt(S.score);
+  const s=$('#streak');if(s)s.textContent='🔥 '+S.streak;
+  const l=$('#lights');if(l)l.innerHTML=lightsHTML();
+}
+function finish(){
+  const p=S.p,clean=S.routeMiss===0;
+  const res=clean&&!S.backup?'first':'later';
+  let pts=S.backup?(clean?40:20):(clean?100:50);
+  const bonus=res==='first'?Math.min(S.streak,5)*20:0;pts+=bonus;
+  if(clean){S.streak++;S.bestStreak=Math.max(S.bestStreak,S.streak);}else S.streak=0;
+  S.score+=pts;S.zstats[S.zone].pts+=pts;S.zstats[S.zone].res[S.route]=res;updateHud();
+  SFX.good();mood('happy');confetti(false);
+  comms(pick(['👽 The alien understood perfectly!','Message decoded. The alien is delighted.','Translation accepted!']),'good');
+  const body=p.kind==='parts'
+    ?`<div class="map"><div class="ex">${p.terms.map((t,i)=>(i?' + ':'')+(t.v?(t.c!==1?t.c:'')+`<i>${t.v}</i>`:t.c)).join('')}</div>
+        <div style="font-size:1rem;line-height:1.6;margin-top:.3rem"><b>${p.terms.length} terms</b> · variables: ${p.terms.filter(t=>t.v).map(t=>`<i class="v">${t.v}</i>`).join(', ')} · coefficients: ${p.terms.filter(t=>t.v).map(t=>`${t.c} (of <i class="v">${t.v}</i>)`).join(', ')}${p.terms.some(t=>!t.v)?` · constant: ${p.terms.find(t=>!t.v).c}`:' · no constant'}</div></div>`
+    :mapHTML(p);
+  const last=S.route===SECTORS[S.zone].n-1;
+  setTimeout(()=>showModal(`<h3 class="good">📡 ${p.kind==='parts'?'Vocabulary check passed!':'Translation accepted!'}</h3>${body}
+    <div class="ptsline">+${fmt(pts)} points${bonus?` <span style="color:#ff9a4d;font-size:.9rem">(includes 🔥 streak bonus +${bonus})</span>`:''}</div>`,
+    [{label:last?'FINISH SECTOR ▶':'NEXT TRANSMISSION ▶',fn:advance}]),800);
+}
+function advance(){
+  S.route++;
+  if(S.route<SECTORS[S.zone].n){newRoute(false);return;}
+  const z=SECTORS[S.zone],zs=S.zstats[S.zone],firsts=zs.res.filter(r=>r==='first').length;
+  const stars=firsts>=z.n?3:firsts>=z.n-1?2:firsts>=1?1:0;zs.stars=stars;
+  confetti(true);SFX.win();
+  const last=S.zone===SECTORS.length-1;
+  showModal(`<div style="text-align:center"><div style="font-size:3rem">${z.icon}</div>
+    <h3 class="gold">SECTOR ${S.zone+1} CLEARED!</h3><div style="color:var(--muted)">${z.name}</div>
+    <div class="stars">${[0,1,2].map(i=>`<span class="${i<stars?'':'off'}">⭐</span>`).join('')}</div>
+    <div style="color:var(--muted);font-size:.9rem;margin-bottom:.4rem">${firsts} of ${z.n} transmissions perfect on the first try</div>
+    <div class="ptsline">${fmt(zs.pts)} points from this sector</div></div>`,
+    [{label:last?'SEE MISSION REPORT ▶':'NEXT SECTOR ▶',fn:()=>{S.zone++;if(S.zone>=SECTORS.length)showReport();else showBrief();}}]);
+}
+
+/* ================= REPORT ================= */
+function showReport(){
+  clearInterval(S.timer);
+  const time=elapsed(),acc=S.checks?Math.round(100*S.correct/S.checks):0;
+  const played=SECTORS.map((z,i)=>i).filter(i=>i>=S.start);
+  const stars=played.reduce((s,i)=>s+(S.zstats[i].stars||0),0),maxStars=played.length*3;
+  const rank=acc>=90&&stars>=maxStars*.8?['🌟','GALACTIC AMBASSADOR']:acc>=75?['🛸','SENIOR TRANSLATOR']:acc>=55?['📡','TRANSLATOR']:['🎒','CADET TRANSLATOR'];
+  const best=store.get('gt_best',0),newBest=S.score>best;if(newBest)store.set('gt_best',S.score);
+  const rev=Object.entries(S.mistakes).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
+  const icon=r=>r==='first'?'⭐':r==='later'?'📡':r==='bust'?'🚨':'·';
+  app.innerHTML=`<div class="screen"><div class="report card">
+    <div class="kicker">MISSION REPORT · LESSON 3-4 · WRITE ALGEBRAIC EXPRESSIONS</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px">
+      <div><div style="color:var(--muted)">${new Date().toLocaleDateString()}</div><div class="rank">${rank[0]} ${rank[1]}</div></div>
+      ${newBest?'<div class="stat pts">🏆 New best on this device!</div>':''}
+    </div>
+    <div class="grid4">
+      <div class="big"><b style="color:var(--green)">${fmt(S.score)}</b><small>Total points</small></div>
+      <div class="big"><b>${acc}%</b><small>Answer accuracy</small></div>
+      <div class="big"><b>${stars}/${maxStars}</b><small>Sector stars</small></div>
+      <div class="big"><b>${clock(time)}</b><small>Mission time</small></div>
+    </div>
+    <div class="label">Sectors</div>
+    ${played.map(i=>`<div class="vrow"><span>${SECTORS[i].icon} ${SECTORS[i].name} <span style="color:var(--muted);font-size:.85rem">· ${SECTORS[i].skill}</span></span>
+      <span class="s">${Array.from({length:SECTORS[i].n},(_,k)=>icon(S.zstats[i].res[k])).join(' ')}</span></div>`).join('')}
+    <div style="color:var(--muted);font-size:.82rem;margin-top:.4rem">⭐ perfect first try · 📡 completed with a fix · 🚨 lost in translation</div>
+    ${rev.length?`<div class="review"><b style="color:var(--yellow)">🎯 Skills to sharpen:</b><br>${rev.map(([k,n])=>`• ${MISTAKE_TXT[k]} <span style="color:var(--muted)">(${n}×)</span>`).join('<br>')}</div>`
+      :'<div class="review" style="border-color:rgba(124,255,107,.45);background:rgba(124,255,107,.07)"><b style="color:var(--green)">Flawless!</b> Every alien understood you perfectly.</div>'}
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:1rem"><button class="btn plain" id="home">Home</button><button class="btn${IN_TOWN?' plain':''}" id="again">PLAY AGAIN ▶</button>${IN_TOWN?'<button class="btn" id="townDone">SAVE &amp; RETURN TO TOWN ▶</button>':''}</div>
+  </div></div>`;
+  confetti(true);SFX.win();
+  $('#again').onclick=()=>startGame(S.start);$('#home').onclick=showTitle;
+  const td=$('#townDone');
+  if(td)td.onclick=()=>toTown({type:'CARTRIDGE_COMPLETE',payload:{
+    lessonId:'G06_U03_L04',
+    score:Math.max(1,S.correct||0), // hub stars come from score/total (answer accuracy)
+    total:Math.max(1,S.checks||0),
+    stars:maxStars?Math.max(1,Math.min(3,Math.round(stars/maxStars*3))):1,
+    accuracy:acc,
+    bossDefeated:true, // the report only appears after the Reverse Transmission sector
+  }});
+}
+
+/* ---------------- Keyboard ---------------- */
+document.addEventListener('keydown',e=>{
+  if(!$('#modal').classList.contains('hidden')){
+    if(e.key==='Enter'&&modalBtns[0]){e.preventDefault();const b=modalBtns[0];hideModal();b.fn();}return;
+  }
+  if(S.phase!=='build')return;
+  const k=e.key;
+  if(/^[0-9.]$/.test(k))pressKey(k);
+  else if(k.toLowerCase()===S.p.v)pressKey(S.p.v);
+  else if(k==='+')pressKey('+');
+  else if(k==='-')pressKey('−');
+  else if(k==='*')pressKey('×');
+  else if(k==='/'){e.preventDefault();pressKey('÷');}
+  else if(k==='('||k===')')pressKey(k);
+  else if(k==='Backspace'){e.preventDefault();pressKey('back');}
+  else if(k==='Escape')pressKey('clr');
+  else if(k==='Enter'){e.preventDefault();submitT();}
+});
+
+showTitle();
+
+// Expression Town handshake: announce readiness, then follow the hub's mute setting
+if(IN_TOWN)toTown({type:'CARTRIDGE_READY'});
+window.addEventListener('message',ev=>{
+  const d=ev.data;if(!d||typeof d!=='object'||d.type!=='HUB_INIT')return;
+  const p=d.payload||{};
+  if(typeof p.isMuted==='boolean'){S.muted=p.isMuted;const m=$('#mute');if(m)m.textContent=S.muted?'🔇':'🔊';}
+});
+}
+</script>
+</body>
+</html>

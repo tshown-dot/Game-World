@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Demolition Crane: Order of Operations (Lesson 3-3)</title>
+
+  <!-- Tailwind CSS CDN (Zero build tools) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800;900&display=swap');
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      background: radial-gradient(ellipse at top, #1c1408 0%, #020617 60%);
+      color: #f1f5f9;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+    .font-mono-math { font-family: 'JetBrains Mono', monospace; }
+    .math-sup { font-size: 0.7em; line-height: 0; vertical-align: 0.5em; margin-left: 0.05em; font-weight: 800; color: #e879f9; }
+
+    .glow-amber { box-shadow: 0 0 25px -4px rgba(245, 158, 11, 0.55), 0 0 10px rgba(245, 158, 11, 0.3); }
+    .glow-emerald { box-shadow: 0 0 25px -4px rgba(16, 185, 129, 0.6), 0 0 10px rgba(16, 185, 129, 0.35); }
+    .glow-rose { box-shadow: 0 0 25px -4px rgba(244, 63, 94, 0.65), 0 0 12px rgba(244, 63, 94, 0.4); }
+    .glow-cyan { box-shadow: 0 0 25px -4px rgba(6, 182, 212, 0.55), 0 0 10px rgba(6, 182, 212, 0.35); }
+
+    .hazard-stripes {
+      background-image: repeating-linear-gradient(-45deg, #eab308, #eab308 10px, #0f172a 10px, #0f172a 20px);
+    }
+    .steel-cable {
+      background: repeating-linear-gradient(to bottom, #64748b, #64748b 2px, #334155 2px, #334155 5px);
+    }
+    .blueprint-grid {
+      background-color: #0b1120;
+      background-image:
+        linear-gradient(to right, rgba(14, 165, 233, 0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(14, 165, 233, 0.08) 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      15% { transform: translate(-9px, 5px); }
+      30% { transform: translate(9px, -5px); }
+      45% { transform: translate(-6px, 3px); }
+      60% { transform: translate(6px, -3px); }
+      75% { transform: translate(-3px, 1px); }
+    }
+    .shake-active { animation: screenShake 0.42s ease-in-out; }
+
+    @keyframes pulseUrgent { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+    .animate-urgent { animation: pulseUrgent 0.6s ease-in-out infinite; }
+
+    @keyframes popIn { 0% { transform: scale(0.6); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+    .pop-in { animation: popIn 0.35s ease-out both; }
+
+    @keyframes stamp {
+      0% { transform: translate(-50%, -50%) scale(2.6) rotate(-14deg); opacity: 0; }
+      45% { transform: translate(-50%, -50%) scale(0.95) rotate(-8deg); opacity: 1; }
+      60% { transform: translate(-50%, -50%) scale(1.05) rotate(-8deg); }
+      85% { transform: translate(-50%, -50%) scale(1) rotate(-8deg); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1) rotate(-8deg); opacity: 0; }
+    }
+    .stamp-active { animation: stamp 1.05s ease-out both; }
+
+    @keyframes floatUp { 0% { transform: translate(-50%, 0); opacity: 1; } 100% { transform: translate(-50%, -70px); opacity: 0; } }
+    .float-text { position: fixed; pointer-events: none; z-index: 60; animation: floatUp 1s ease-out forwards; }
+
+    @keyframes flame { 0%, 100% { transform: scale(1) rotate(-2deg); } 50% { transform: scale(1.08) rotate(2deg); } }
+    .combo-hot { animation: flame 0.5s ease-in-out infinite; border-color: #f59e0b !important; }
+
+    @keyframes beacon { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; filter: drop-shadow(0 0 6px #f59e0b); } }
+    .animate-beacon { animation: beacon 1s infinite; }
+
+    @keyframes titanIdle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    .titan-idle { animation: titanIdle 2.2s ease-in-out infinite; }
+    @keyframes titanHit {
+      0%, 100% { transform: translateX(0) scale(1); filter: none; }
+      20% { transform: translateX(-12px) scale(0.9) rotate(-6deg); filter: brightness(2.4) saturate(0); }
+      50% { transform: translateX(9px) scale(0.96) rotate(4deg); }
+    }
+    .titan-hit { animation: titanHit 0.5s ease-out; }
+
+    /* Expression blocks */
+    .op-block { transition: transform 0.12s, box-shadow 0.15s, opacity 0.2s; }
+    .op-block:hover { transform: translateY(-2px); }
+    .aimed { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.9), 0 0 22px rgba(245, 158, 11, 0.6) !important; transform: translateY(-2px) scale(1.06); }
+    @keyframes radarPulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.9), 0 0 16px rgba(16, 185, 129, 0.6); } 50% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0.5), 0 0 28px rgba(16, 185, 129, 0.9); } }
+    .radar { animation: radarPulse 0.9s ease-in-out infinite; }
+    .active-step { box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.95), 0 0 24px rgba(16, 185, 129, 0.7) !important; border-color: #6ee7b7 !important; }
+    .dimmed { opacity: 0.35; }
+    @keyframes blockerFlash { 0%, 100% { box-shadow: none; } 25%, 75% { box-shadow: 0 0 0 5px rgba(244, 63, 94, 1), 0 0 28px rgba(244, 63, 94, 0.9); transform: scale(1.12); } }
+    .blocker-flash { animation: blockerFlash 0.8s ease-in-out 2; }
+    .fresh-crate { border-color: #34d399 !important; }
+
+    .key-btn { transition: transform 0.08s, background-color 0.15s; }
+    .key-btn:active:not(:disabled) { transform: scale(0.93); }
+    kbd { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
+  </style>
+</head>
+<body class="flex flex-col">
+
+  <canvas id="fx-canvas" class="fixed inset-0 pointer-events-none z-40"></canvas>
+  <div id="stamp" class="hidden fixed left-1/2 top-1/2 z-50 pointer-events-none px-8 py-3 border-[6px] border-amber-400 rounded-2xl text-5xl font-black uppercase tracking-widest text-amber-300 bg-slate-950/80">DEMOLISHED!</div>
+
+  <div id="game-root" class="flex flex-col h-full w-full p-3 gap-3">
+
+    <!-- ============ HUD ============ -->
+    <header class="flex items-center justify-between gap-3 bg-slate-950/90 border border-amber-900/50 rounded-2xl px-4 py-2 shrink-0">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-xl shadow-lg">🏗️</div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-black tracking-wider uppercase text-amber-300">Demolition Crane</h1>
+            <span id="zone-badge" class="px-1.5 py-0.5 rounded text-[10px] font-mono-math font-black bg-amber-950 border border-amber-700 text-amber-300">ZONE-1</span>
+          </div>
+          <p id="zone-title" class="text-[11px] font-bold text-slate-400 truncate">Zone 1: Ground Floor</p>
+        </div>
+      </div>
+
+      <div id="progress-pips" class="flex items-center gap-1.5"></div>
+
+      <div class="flex items-center gap-2">
+        <div id="practice-badge" class="hidden items-center gap-1.5 bg-emerald-950/70 border border-emerald-600/70 px-3 py-1.5 rounded-xl">
+          <span class="text-xs">🧪</span><span class="text-[11px] font-black uppercase text-emerald-300">Practice: no timer, no damage</span>
+        </div>
+
+        <div id="stakes-timer" class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl" title="Time left on this building. Running out costs integrity.">
+          <span class="text-[10px] font-black uppercase text-slate-500">Time</span>
+          <span id="timer-display" class="text-sm w-9 text-right font-mono-math font-black text-amber-300">50s</span>
+          <div class="w-16 h-2 bg-slate-800 rounded-full overflow-hidden"><div id="timer-bar" class="h-full bg-amber-400 rounded-full" style="width:100%"></div></div>
+        </div>
+
+        <div id="stakes-integrity" class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl" title="Crane integrity. Mistakes cost integrity. At 0% the zone restarts.">
+          <span class="text-[10px] font-black uppercase text-slate-500">Crane</span>
+          <div class="w-20 h-2 bg-slate-800 rounded-full overflow-hidden"><div id="integrity-bar" class="h-full bg-emerald-500 rounded-full" style="width:100%"></div></div>
+          <span id="integrity-display" class="text-xs w-9 font-mono-math font-bold text-slate-200">100%</span>
+        </div>
+
+        <div id="combo-box" class="flex items-center gap-1 bg-indigo-950/60 border border-indigo-700/60 px-2.5 py-1.5 rounded-xl" title="Combo: goes up with each step right on the first try">
+          <span class="text-sm">⚡</span>
+          <span id="combo-display" class="text-xs font-mono-math font-black text-indigo-200">x1</span>
+        </div>
+
+        <div class="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
+          <span class="text-[10px] font-black uppercase text-slate-500">Score</span>
+          <span id="score-display" class="text-sm font-mono-math font-black text-amber-300">0</span>
+        </div>
+
+        <button id="audio-btn" class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-600 flex items-center justify-center cursor-pointer" title="Sound on/off"><span id="audio-icon">🔊</span></button>
+        <button id="briefing-btn" class="px-2.5 py-1.5 text-xs font-bold text-amber-400 bg-amber-950/50 border border-amber-800/60 rounded-lg hover:bg-amber-900/60 cursor-pointer" title="Mission briefing">📋 Briefing</button>
+        <button id="guide-btn" class="px-2.5 py-1.5 text-xs font-bold text-cyan-400 bg-cyan-950/50 border border-cyan-800/60 rounded-lg hover:bg-cyan-900/60 cursor-pointer" title="Rules guide (?)">? Guide</button>
+      </div>
+    </header>
+
+    <!-- ============ MAIN ============ -->
+    <main class="flex-1 min-h-0 grid grid-cols-12 gap-3">
+
+      <!-- Stage -->
+      <section class="col-span-8 flex flex-col min-h-0 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 relative overflow-hidden">
+        <div class="flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2">
+            <span id="task-icon" class="text-xl">🏗️</span>
+            <span id="task-label" class="text-xs font-black uppercase tracking-widest text-amber-300">Building 1/3</span>
+            <span id="followup-tag" class="hidden text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-950 border border-indigo-500 text-indigo-300">Follow-up</span>
+          </div>
+          <button id="hint-btn" class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-cyan-900/60 rounded-xl text-xs font-bold text-cyan-300 cursor-pointer">📡 Radar Hint (H)</button>
+        </div>
+
+        <!-- Boss panel -->
+        <div id="boss-panel" class="hidden shrink-0 mt-2 flex items-center gap-4 bg-rose-950/30 border border-rose-800/60 rounded-2xl px-4 py-2">
+          <div id="titan" class="text-5xl titan-idle leading-none">🤖</div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black uppercase tracking-widest text-rose-300">The Titan Demolisher</span>
+              <span id="boss-hp-text" class="text-[11px] font-mono-math font-bold text-rose-300">6 / 6 armor</span>
+            </div>
+            <div id="boss-hp-plates" class="flex gap-1 mt-1.5"></div>
+            <p id="boss-taunt" class="text-[11px] text-rose-200/80 italic mt-1"></p>
+          </div>
+        </div>
+
+        <p id="prompt-text" class="shrink-0 mt-2 text-base font-semibold text-slate-200 leading-snug"></p>
+
+        <div id="stage" class="relative flex-1 min-h-0 flex flex-col">
+          <!-- Overhead crane -->
+          <div id="crane-rig" class="relative h-[118px] shrink-0">
+            <div class="absolute top-0 left-0 right-0 h-8 bg-slate-900 border-b-2 border-slate-700 rounded-t-lg">
+              <div class="absolute top-0 left-0 right-0 h-1 bg-slate-500"></div>
+              <div class="absolute bottom-0 left-0 right-0 h-2 hazard-stripes opacity-80"></div>
+            </div>
+            <div id="trolley" class="absolute top-1 left-0 -ml-14 w-28 flex flex-col items-center z-20">
+              <div class="w-24 h-8 bg-gradient-to-b from-amber-500 via-amber-600 to-amber-700 rounded-md border-2 border-slate-900 shadow-xl flex items-center justify-between px-1.5">
+                <span class="text-[8px] font-mono-math font-black text-slate-900 bg-amber-300 px-1 rounded-sm">DEMO-3</span>
+                <div class="flex items-center gap-1">
+                  <div class="w-2 h-2 rounded-full bg-amber-400 animate-beacon"></div>
+                  <div id="trolley-light" class="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+                </div>
+              </div>
+              <div id="cable" class="w-2 steel-cable" style="height:48px"></div>
+              <div id="ball" class="relative -mt-1 flex flex-col items-center">
+                <div class="w-11 h-11 rounded-full bg-gradient-to-br from-slate-500 via-slate-800 to-slate-950 border-2 border-slate-400 shadow-[0_8px_16px_rgba(0,0,0,0.8)] flex items-center justify-center">
+                  <div class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Expression beam -->
+          <div id="beam" class="flex-1 min-h-0 flex items-center justify-center px-2"></div>
+
+          <!-- Boss: cage drop -->
+          <div id="cage-panel" class="hidden flex-1 min-h-0 flex items-center justify-center"></div>
+
+          <!-- Boss: spot the mistake -->
+          <div id="spot-panel" class="hidden flex-1 min-h-0 flex items-center justify-center"></div>
+        </div>
+      </section>
+
+      <!-- Right column: step log + console -->
+      <section class="col-span-4 flex flex-col min-h-0 gap-3">
+        <div class="flex-1 min-h-0 blueprint-grid border border-sky-800/70 rounded-2xl flex flex-col overflow-hidden">
+          <div class="px-3 py-2 bg-slate-950/90 border-b border-sky-800/60 flex items-center justify-between shrink-0">
+            <span class="text-[11px] font-black uppercase tracking-wider text-sky-400">📐 Step Log</span>
+            <span class="text-[10px] font-mono-math text-sky-500/80">one step per line</span>
+          </div>
+          <div id="log" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-1.5"></div>
+        </div>
+
+        <div class="shrink-0 bg-slate-950/80 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2.5">
+          <div class="flex items-center justify-between">
+            <span id="console-label" class="text-xs font-black uppercase tracking-wider text-amber-400">Wrecking Ball</span>
+            <span class="text-[10px] font-mono-math text-slate-500 font-bold">H = hint · ? = guide</span>
+          </div>
+          <div id="answer-display" class="h-14 rounded-2xl border-2 border-amber-500/50 bg-slate-900 flex items-center justify-center gap-2 font-mono-math font-black text-3xl text-amber-200"></div>
+          <div id="keypad" class="grid grid-cols-4 gap-1.5"></div>
+          <div id="feedback" class="min-h-[84px] rounded-xl border border-slate-800 bg-slate-900/70 p-3 overflow-hidden">
+            <div class="flex items-center gap-2">
+              <span id="feedback-icon" class="text-base">📟</span>
+              <span id="feedback-title" class="text-xs font-black uppercase tracking-wider text-slate-300">Ready</span>
+            </div>
+            <p id="feedback-text" class="text-[13px] leading-snug text-slate-300 mt-1"></p>
+          </div>
+          <button id="action-btn" class="w-full py-3 rounded-2xl font-black uppercase tracking-widest text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 active:scale-[0.98] transition-all shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+            💥 Drop the Ball (Space)
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ MISSION BRIEFING ============ -->
+  <div id="modal-briefing" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-amber-600/60 rounded-3xl max-w-3xl w-full p-6 glow-amber relative">
+      <button id="briefing-close-btn" class="hidden absolute top-4 right-4 text-slate-400 hover:text-white text-lg font-bold cursor-pointer">✕</button>
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-2xl">🏗️</div>
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.3em] text-amber-500">Mission Briefing · Lesson 3-3</p>
+          <h2 class="text-2xl font-black text-white">Demolition Crane: Order of Operations</h2>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 mt-5 text-xs">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black uppercase text-amber-300 mb-1">🎯 Objective</p>
+          <p class="text-slate-300">Knock each building down to <b>one number</b>. Strike an operation you can do now, then <b>type its value</b>. Clear 4 zones, then wreck <b>The Titan Demolisher</b>.</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black uppercase text-amber-300 mb-1">🎮 Controls</p>
+          <p class="text-slate-300">Aim: mouse or <kbd>◄</kbd> <kbd>►</kbd>. Strike: click or <kbd>Space</kbd>. Type the answer, then <kbd>Enter</kbd>. <kbd>H</kbd> = radar hint. <kbd>?</kbd> = rules guide.</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black uppercase text-rose-300 mb-1">🚨 Stakes</p>
+          <p class="text-slate-300">Wrong order: <b>−25%</b> crane. Wrong math: <b>−10%</b>. Out of time: <b>−20%</b>. At 0% the zone restarts with new buildings. Mistakes bring a <b>follow-up</b> building.</p>
+        </div>
+      </div>
+
+      <div class="mt-4 bg-slate-900/60 border border-slate-800 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2 font-mono-math font-black text-sm">
+          <span class="px-2 py-1 rounded-lg bg-cyan-950 border border-cyan-600 text-cyan-200">( ) [ ]</span><span class="text-slate-500">→</span>
+          <span class="px-2 py-1 rounded-lg bg-fuchsia-950 border border-fuchsia-600 text-fuchsia-200">x<sup>n</sup></span><span class="text-slate-500">→</span>
+          <span class="px-2 py-1 rounded-lg bg-sky-950 border border-sky-600 text-sky-200">× ÷</span><span class="text-slate-500">→</span>
+          <span class="px-2 py-1 rounded-lg bg-amber-950 border border-amber-600 text-amber-200">+ −</span>
+        </div>
+        <p class="text-[11px] text-slate-400 text-right">Same rank? <b class="text-slate-200">Left to right.</b><br>Groups: innermost first, then left to right.</p>
+      </div>
+
+      <div class="grid grid-cols-5 gap-2 mt-4 text-[11px]">
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="font-black text-white">1 · Ground Floor</p><p class="text-slate-400">× ÷ before + −</p></div>
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="font-black text-white">2 · Power Plant</p><p class="text-slate-400">Exponents</p></div>
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="font-black text-white">3 · Cage Yard</p><p class="text-slate-400">Parentheses</p></div>
+        <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-2"><p class="font-black text-white">4 · Deep Core</p><p class="text-slate-400">[ ] and fraction bars</p></div>
+        <div class="bg-rose-950/40 border border-rose-800/60 rounded-xl p-2"><p class="font-black text-rose-200">☠ The Titan</p><p class="text-rose-300/70">Cage drops, spot the mistake</p></div>
+      </div>
+
+      <div class="grid grid-cols-4 gap-3 mt-5">
+        <button id="briefing-start-btn" class="col-span-2 py-3.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 text-slate-950 rounded-2xl font-black uppercase tracking-widest cursor-pointer">
+          💥 Start Demolition (Enter)
+        </button>
+        <button id="briefing-practice-btn" class="py-3 bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-600/70 text-emerald-300 rounded-2xl font-black uppercase text-xs tracking-wider cursor-pointer">
+          🧪 Practice (P)<br><span class="text-[10px] font-bold normal-case text-emerald-400/80">No timer · doesn't count</span>
+        </button>
+        <button id="briefing-sandbox-btn" class="py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded-2xl font-black uppercase text-xs tracking-wider cursor-pointer">
+          🔧 Build Your Own (B)<br><span class="text-[10px] font-bold normal-case text-slate-400">Type any expression</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ZONE CLEARED ============ -->
+  <div id="modal-zone-clear" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-emerald-600/60 rounded-3xl max-w-md w-full p-6 text-center glow-emerald pop-in">
+      <p class="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400">Zone Cleared</p>
+      <h2 id="zone-clear-title" class="text-lg font-black uppercase text-white mt-1"></h2>
+      <div id="zone-clear-stars" class="text-5xl my-3 tracking-widest text-amber-300">★★★</div>
+      <div id="zone-clear-stats" class="text-xs text-slate-300"></div>
+      <p class="text-[10px] text-slate-500 mt-1">3★ = no misses and no hints · 2★ = 2 misses or fewer</p>
+      <div class="mt-4 bg-slate-900/80 border border-slate-800 rounded-2xl p-3 text-left">
+        <div class="text-[10px] font-black uppercase tracking-widest text-slate-500">Up next</div>
+        <div id="zone-clear-next" class="text-sm font-black text-amber-300 mt-0.5"></div>
+        <div id="zone-clear-next-desc" class="text-[11px] text-slate-400 mt-0.5"></div>
+      </div>
+      <button id="zone-clear-btn" class="w-full mt-4 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:brightness-110 text-slate-950 rounded-2xl font-black uppercase tracking-widest cursor-pointer">Keep Going (Enter)</button>
+    </div>
+  </div>
+
+  <!-- ============ CRANE BREAKDOWN ============ -->
+  <div id="modal-breakdown" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-rose-950/50 backdrop-blur-md">
+    <div class="text-center pop-in">
+      <div class="text-8xl">🚨</div>
+      <p class="text-4xl font-black uppercase tracking-widest text-white drop-shadow-lg mt-2">Crane Breakdown!</p>
+      <p id="breakdown-text" class="text-sm font-bold text-rose-100 mt-2 max-w-md"></p>
+    </div>
+  </div>
+
+  <!-- ============ DEBRIEF ============ -->
+  <div id="modal-debrief" class="hidden fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-amber-600/60 rounded-3xl max-w-2xl w-full p-6 pop-in">
+      <div class="flex items-center gap-4">
+        <div id="debrief-icon" class="w-16 h-16 rounded-3xl bg-amber-950 border-2 border-amber-500/60 flex items-center justify-center text-3xl glow-amber">🏆</div>
+        <div>
+          <h2 id="debrief-title" class="text-xl font-black uppercase text-white">Titan Demolished!</h2>
+          <p id="debrief-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
+          <p id="debrief-stars" class="text-sm font-black text-amber-300 mt-1"></p>
+        </div>
+      </div>
+      <div class="grid grid-cols-4 gap-2 mt-4 text-center">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2"><div class="text-[10px] uppercase font-black text-slate-500">Score</div><div id="debrief-score" class="text-lg font-black font-mono-math text-amber-300">0</div></div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2"><div class="text-[10px] uppercase font-black text-slate-500">No-miss jobs</div><div id="debrief-accuracy" class="text-lg font-black font-mono-math text-emerald-300">0/0</div></div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2"><div class="text-[10px] uppercase font-black text-slate-500">Best combo</div><div id="debrief-combo" class="text-lg font-black font-mono-math text-indigo-300">x1</div></div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2"><div class="text-[10px] uppercase font-black text-slate-500">Time</div><div id="debrief-time" class="text-lg font-black font-mono-math text-white">0:00</div></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mt-3">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+          <div class="text-[10px] uppercase font-black text-slate-500 mb-1.5">Skills</div>
+          <div id="debrief-skills" class="space-y-1 text-xs"></div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+          <div class="text-[10px] uppercase font-black text-slate-500 mb-1.5">Review these</div>
+          <div id="debrief-mistakes" class="text-[11px] text-slate-300 space-y-0.5 max-h-40 overflow-hidden"></div>
+        </div>
+      </div>
+      <button id="debrief-again-btn" class="w-full mt-4 py-3 bg-gradient-to-r from-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 rounded-2xl font-black uppercase tracking-widest cursor-pointer">↻ Play Again (Enter)</button>
+    </div>
+  </div>
+
+  <!-- ============ RULES GUIDE ============ -->
+  <div id="modal-guide" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-cyan-700/60 rounded-3xl max-w-3xl w-full p-6 glow-cyan">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-black text-cyan-300 uppercase tracking-wider">Rules Guide: Order of Operations</h3>
+        <button id="guide-close-btn" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">✕</button>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mt-4 text-xs text-slate-300">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black text-white mb-1">1. Grouping symbols first</p>
+          <p>Do what's inside ( ) or [ ] first. With groups inside groups, start with the <b>innermost</b> one. Finish one group before starting the next.</p>
+          <p class="font-mono-math mt-1 text-cyan-200">2 × [10 − (1 + 3)] → 2 × [10 − 4] → 2 × 6 → 12</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black text-white mb-1">2. Exponents next</p>
+          <p>An exponent only belongs to the number (or group) right in front of it.</p>
+          <p class="font-mono-math mt-1 text-fuchsia-200">2 × 5² = 2 × 25 = 50 &nbsp;but&nbsp; (2 × 5)² = 100</p>
+          <p class="mt-1">5² means 5 × 5, <b>not</b> 5 × 2.</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black text-white mb-1">3. × and ÷, then + and −</p>
+          <p>× and ÷ are the same rank. + and − are the same rank. Within a rank, go <b>left to right</b>.</p>
+          <p class="font-mono-math mt-1 text-sky-200">40 ÷ 5 × 2 = 8 × 2 = 16 (not 40 ÷ 10)</p>
+          <p class="font-mono-math text-amber-200">20 − 5 + 3 = 15 + 3 = 18 (not 20 − 8)</p>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <p class="font-black text-white mb-1">4. Fraction bars group, too</p>
+          <p>A fraction bar means "divide the whole top by the whole bottom." Simplify the top and bottom completely, then divide.</p>
+          <p class="mt-1"><b>Two groups side by side?</b> Finish the left one first: in (8 + 4) × (6 − 2), do 8 + 4, then 6 − 2, then multiply.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BUILD YOUR OWN ============ -->
+  <div id="modal-sandbox" class="hidden fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-950 border-2 border-slate-600 rounded-3xl max-w-xl w-full p-6">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-black text-white uppercase tracking-wider">🔧 Build Your Own Building</h3>
+        <button id="sandbox-close-btn" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer" title="Back to briefing (Esc)">✕</button>
+      </div>
+      <p class="text-xs text-slate-400 mt-1">Type an expression from your homework and knock it down step by step. Practice only, nothing is saved.</p>
+      <p id="sandbox-result" class="hidden mt-3 px-3 py-2 rounded-xl bg-emerald-950/60 border border-emerald-600 text-emerald-200 text-sm font-bold"></p>
+      <form id="sandbox-form" class="mt-4 space-y-3">
+        <input id="sandbox-input" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. 3 × (2^3 + 4) − 10"
+          class="w-full px-4 py-3 rounded-xl bg-slate-900 border-2 border-slate-700 focus:border-amber-500 outline-none font-mono-math font-bold text-lg text-white select-text">
+        <div class="flex flex-wrap gap-1.5">
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert=" × ">×</button>
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert=" ÷ ">÷</button>
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert=" + ">+</button>
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert=" - ">−</button>
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert="^">x<sup>n</sup> (^)</button>
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert="(">(</button>
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert=")">)</button>
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert="[">[</button>
+          <button type="button" class="sandbox-chip px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 font-mono-math font-black text-sm cursor-pointer" data-insert="]">]</button>
+        </div>
+        <p id="sandbox-error" class="text-xs font-bold text-rose-400 min-h-[1rem]"></p>
+        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 rounded-2xl font-black uppercase tracking-widest cursor-pointer">Build It (Enter)</button>
+      </form>
+    </div>
+  </div>
+
+  <!--
+    Every JS file is loaded with the same ?v= tag (also used inside the imports in js/*.js).
+    GitHub Pages lets browsers cache files for 10 minutes, so after changing ANY js file,
+    bump this tag everywhere (search for "v=20261109b") or students can get a mix of old and new files.
+  -->
+  <script type="module" src="./js/game.js?v=20261109b"></script>
+  <script>
+    // If the game script fails to load (stale cache, network hiccup), say so instead of leaving dead buttons.
+    setTimeout(function () {
+      if (window.craneGame) return;
+      var box = document.createElement('div');
+      box.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl bg-rose-950 border-2 border-rose-500 text-rose-100 text-sm font-bold text-center shadow-2xl';
+      box.innerHTML = 'The game didn\'t finish loading.<br>Press <b>Ctrl + Shift + R</b> (or <b>Cmd + Shift + R</b> on a Mac) to reload it.';
+      document.body.appendChild(box);
+    }, 6000);
+  </script>
+</body>
+</html>

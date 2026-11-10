@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Charge Runner: Exponent Reactor (enVision 2.0 Math Companion)</title>
+
+  <!-- Tailwind CSS CDN (Zero build tools) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800;900&display=swap');
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      background-color: #030712;
+      color: #f3f4f6;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    .font-mono-math {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Sci-Fi Reactor Neon Glows */
+    .glow-cyan {
+      box-shadow: 0 0 30px -5px rgba(6, 182, 212, 0.5), 0 0 10px rgba(6, 182, 212, 0.35);
+    }
+    .glow-amber {
+      box-shadow: 0 0 30px -5px rgba(245, 158, 11, 0.5), 0 0 10px rgba(245, 158, 11, 0.35);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 30px -5px rgba(16, 185, 129, 0.55), 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+    .glow-rose {
+      box-shadow: 0 0 30px -5px rgba(244, 63, 94, 0.6), 0 0 14px rgba(244, 63, 94, 0.45);
+    }
+
+    /* Screen shake on circuit stall / overload */
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      15% { transform: translate(-10px, 6px); }
+      30% { transform: translate(10px, -6px); }
+      45% { transform: translate(-8px, 4px); }
+      60% { transform: translate(8px, -4px); }
+      75% { transform: translate(-4px, 2px); }
+    }
+    .shake-active {
+      animation: screenShake 0.4s ease-in-out;
+    }
+
+    /* Timer Urgency Pulse */
+    @keyframes timerUrgent {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.06); }
+    }
+    .animate-urgent {
+      animation: timerUrgent 0.6s infinite ease-in-out;
+    }
+    /* Floating "+points" over the score badge */
+    @keyframes scorePop {
+      0% { opacity: 0; transform: translate(-50%, 4px) scale(0.8); }
+      20% { opacity: 1; transform: translate(-50%, -6px) scale(1.15); }
+      100% { opacity: 0; transform: translate(-50%, -26px) scale(1); }
+    }
+    .score-pop {
+      position: absolute;
+      left: 50%;
+      top: -4px;
+      pointer-events: none;
+      font-weight: 900;
+      color: #6ee7b7;
+      text-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+      animation: scorePop 0.9s ease-out forwards;
+    }
+
+    /* Background Grid */
+    .reactor-grid-bg {
+      background-image: radial-gradient(rgba(14, 165, 233, 0.12) 1px, transparent 1px), radial-gradient(rgba(14, 165, 233, 0.05) 1px, transparent 1px);
+      background-size: 28px 28px;
+      background-position: 0 0, 14px 14px;
+    }
+  </style>
+</head>
+<body class="flex flex-col h-screen w-screen overflow-hidden reactor-grid-bg">
+
+  <!-- TOP COMMAND & STATUS BAR (1366x768 Optimized) -->
+  <header class="h-14 border-b border-cyan-900/50 bg-gray-950/95 px-4 flex items-center justify-between z-20 shrink-0">
+    <!-- Left: Title & Mission Sector -->
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center font-black text-white text-base shadow-lg shadow-cyan-500/25">
+        ⚡
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-xs font-black tracking-wider text-cyan-400 uppercase whitespace-nowrap">Charge Runner</h1>
+          <span id="sector-badge" class="whitespace-nowrap px-1.5 py-0.5 rounded text-[10px] font-mono-math font-black bg-cyan-950 border border-cyan-800 text-cyan-300">CORE-I</span>
+        </div>
+        <p id="sector-title" class="text-[11px] font-bold text-gray-400 tracking-tight whitespace-nowrap">Sector 1: The Basics</p>
+      </div>
+    </div>
+
+    <!-- Center: Real Stakes Dashboard (Surge Timer & Core Health) -->
+    <div class="flex items-center space-x-5">
+      <!-- Wave Progress -->
+      <div class="flex items-center space-x-1.5">
+        <span class="text-[10px] uppercase font-bold text-gray-500">Wave:</span>
+        <span id="wave-counter" class="text-xs font-mono-math font-extrabold text-cyan-300 whitespace-nowrap">1 / 5</span>
+      </div>
+
+      <!-- Practice mode badge (replaces timer/health/cores in practice) -->
+      <div id="practice-badge" class="hidden items-center space-x-2 bg-emerald-950/70 border border-emerald-600/70 px-3 py-1 rounded-xl">
+        <span class="text-xs">🧪</span>
+        <span class="text-[10px] uppercase font-black text-emerald-300 tracking-wider">Practice Mode · No Timer · No Damage</span>
+      </div>
+
+      <!-- Surge Countdown Timer -->
+      <div id="stakes-timer" class="flex items-center space-x-2 bg-gray-900/90 border border-gray-800 px-3 py-1 rounded-xl">
+        <span class="text-xs">⏱️</span>
+        <span class="text-[10px] uppercase font-extrabold text-gray-400 tracking-wider">Time:</span>
+        <span id="timer-display" class="text-sm font-mono-math font-black text-amber-300">30s</span>
+        <div class="w-16 h-2 bg-gray-800 rounded-full overflow-hidden p-0.5">
+          <div id="timer-bar" class="h-full bg-amber-400 rounded-full transition-all duration-300" style="width: 100%;"></div>
+        </div>
+      </div>
+
+      <!-- Core Integrity (Health Pool) -->
+      <div id="stakes-health" class="flex items-center space-x-2 bg-gray-900/90 border border-gray-800 px-3 py-1 rounded-xl">
+        <span class="text-xs">🛡️</span>
+        <span class="text-[10px] uppercase font-extrabold text-gray-400 tracking-wider">Core Health:</span>
+        <div class="w-24 h-2.5 bg-gray-800 rounded-full overflow-hidden p-0.5">
+          <div id="health-bar" class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 rounded-full transition-all duration-300" style="width: 100%;"></div>
+        </div>
+        <span id="health-text" class="text-xs font-mono-math font-bold text-cyan-300">100%</span>
+      </div>
+
+      <!-- Backup Cores (Sector Retries / Lives) -->
+      <div id="stakes-cores" class="flex items-center space-x-1.5 bg-gray-900/90 border border-gray-800 px-2.5 py-1 rounded-xl" title="Backup cores: if Core Health hits 0, a backup core restores it and you retry the wave">
+        <span class="text-[10px] uppercase font-extrabold text-gray-400 tracking-wider">Cores:</span>
+        <div id="lives-container" class="flex items-center space-x-1 text-xs">
+          <span class="core-life-icon transition-all duration-300">🔋</span>
+          <span class="core-life-icon transition-all duration-300">🔋</span>
+          <span class="core-life-icon transition-all duration-300">🔋</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Combo Multiplier & Score -->
+    <div class="flex items-center space-x-3">
+      <!-- Scaling Combo Badge -->
+      <div class="flex items-center space-x-1.5 bg-indigo-950/70 border border-indigo-700/60 px-2.5 py-1 rounded-xl">
+        <span class="text-xs">⚡</span>
+        <span class="text-[10px] uppercase font-black text-indigo-300">Combo:</span>
+        <span id="combo-multiplier-display" class="text-xs font-mono-math font-black text-indigo-200">x1</span>
+      </div>
+
+      <!-- Score & Watts -->
+      <div class="relative flex items-center space-x-1.5 bg-gray-900/90 border border-gray-800 px-2.5 py-1 rounded-xl font-mono-math text-xs">
+        <span class="text-amber-400">⭐</span>
+        <span id="score-display" class="font-black text-amber-300">0</span>
+      </div>
+
+      <!-- Sound Toggle -->
+      <button id="audio-toggle-btn" class="w-8 h-8 rounded-lg bg-gray-900 border border-gray-800 hover:border-gray-700 flex items-center justify-center text-sm text-gray-300 hover:text-white transition-all" title="Toggle Sound">
+        <span id="audio-icon">🔊</span>
+      </button>
+
+      <!-- Briefing Button -->
+      <button id="briefing-btn" class="px-2.5 py-1 text-xs font-bold text-amber-400 bg-amber-950/50 border border-amber-800/60 rounded-lg hover:bg-amber-900/60 transition-all flex items-center space-x-1 cursor-pointer" title="Review Mission Briefing">
+        <span>📋</span>
+        <span class="hidden sm:inline">Briefing</span>
+      </button>
+
+      <!-- Field Guide Pause Button -->
+      <button id="field-guide-btn" class="px-2.5 py-1 text-xs font-bold text-cyan-400 bg-cyan-950/50 border border-cyan-800/60 rounded-lg hover:bg-cyan-900/60 transition-all flex items-center space-x-1">
+        <span>📖</span>
+        <span class="hidden sm:inline">Field Guide</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN ARENA GRID (No vertical scroll on 1366x768) -->
+  <main class="flex-1 grid grid-cols-12 gap-3 p-3 overflow-hidden relative">
+
+    <!-- LEFT / CENTER: THE REACTOR CORE & SURGE CHAMBER (Col 7) -->
+    <section class="col-span-7 flex flex-col gap-2.5 h-full overflow-hidden">
+
+      <!-- Top Tactical Intel & Threat Strip -->
+      <div class="bg-gray-950/90 border border-cyan-900/40 rounded-2xl px-3.5 py-1.5 flex items-center justify-between shadow-lg shrink-0">
+        <div class="flex items-center space-x-2.5">
+          <span class="text-xs">⚡</span>
+          <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Surge Status:</span>
+          <span id="threat-badge" class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-cyan-950 border border-cyan-700 text-cyan-300">ACTIVE SURGE</span>
+        </div>
+
+        <button id="hint-toggle-btn" class="px-2.5 py-1 bg-gray-900 hover:bg-gray-800 border border-cyan-900/50 rounded-xl text-xs font-bold text-cyan-300 hover:text-white transition-all flex items-center space-x-1.5 cursor-pointer">
+          <span>💡</span>
+          <span>Hint <span class="text-gray-500 font-mono-math">(H)</span></span>
+        </button>
+      </div>
+
+      <!-- Hint Floating Strip (Toggled) -->
+      <div id="hint-strip" class="hidden bg-gray-900/95 border border-cyan-800/80 rounded-xl px-3 py-1.5 text-xs text-cyan-200 shrink-0">
+        <span class="font-extrabold text-amber-400">💡 Hint: </span>
+        <span id="hint-text">Think of 2 multiplied by itself 3 times.</span>
+      </div>
+
+      <!-- Interactive Reactor Particle & Beam Canvas with Equation Display Beneath Core -->
+      <div class="flex-1 bg-gray-950/80 border border-gray-800 rounded-2xl relative overflow-hidden flex flex-col items-center justify-between p-3">
+        <canvas id="reactor-canvas" class="w-full h-full absolute inset-0"></canvas>
+
+        <!-- Canvas Top Status Text -->
+        <div class="z-10 pointer-events-none text-center pt-1">
+          <div id="core-status-text" class="text-xs uppercase font-mono-math font-black tracking-widest text-cyan-400">
+            REACTOR MODULATOR READY
+          </div>
+          <div id="core-power-curve-text" class="text-[11px] font-mono-math text-gray-400 mt-0.5">
+            Repeated Factors: Base multiplied by itself exponent times.
+          </div>
+          <!-- Boss health (Sector 5 only) -->
+          <div id="boss-hp-panel" class="hidden mt-2 flex flex-col items-center">
+            <div class="text-[10px] font-black uppercase tracking-widest text-rose-400 mb-1">☢ Singularity Core Integrity</div>
+            <div id="boss-hp-segments" class="flex space-x-1"></div>
+          </div>
+        </div>
+
+        <!-- THE MAIN EQUATION BADGE BENEATH THE REACTOR ORB (content rendered per problem mode) -->
+        <div id="equation-display-card" class="z-10 bg-gray-950/90 border-2 border-cyan-500/60 px-6 py-2.5 rounded-2xl shadow-2xl backdrop-blur flex flex-col items-center justify-center transition-all duration-300 mb-1.5 glow-cyan">
+          <div id="equation-label" class="text-[10px] uppercase font-black tracking-widest text-cyan-400 mb-1 text-center">
+            Incoming Surge = Your Power
+          </div>
+          <div id="trainee-log" class="hidden text-[11px] font-mono-math font-bold text-rose-300 bg-rose-950/60 border border-rose-800/60 rounded-lg px-2 py-0.5 mb-1"></div>
+
+          <div class="flex items-center space-x-3 font-mono-math">
+            <div id="eq-left" class="flex items-baseline space-x-1"></div>
+            <span id="equation-operator" class="text-3xl font-black text-gray-400">=</span>
+            <div id="eq-right" class="flex items-baseline space-x-1"></div>
+
+            <!-- Evaluated Discharge Output (Revealed on discharge) -->
+            <div id="discharge-result-container" class="hidden items-center space-x-2 border-l border-gray-700 pl-3">
+              <span id="discharge-eq-symbol" class="text-2xl font-bold text-gray-400">=</span>
+              <span id="discharge-evaluated-mw" class="text-3xl font-black text-white">8</span>
+              <span id="discharge-unit" class="text-xs font-extrabold text-cyan-400 uppercase">MW</span>
+              <span id="discharge-verdict-badge" class="ml-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-500 text-emerald-300">MATCH</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Step-by-Step Visualizer Ribbon (Expanded Repeated Factors) -->
+      <div class="bg-gray-950/90 border border-gray-800 rounded-2xl p-2.5 flex flex-col justify-center min-h-[72px] shrink-0">
+        <div class="flex items-center justify-between text-xs mb-1">
+          <span class="text-gray-400 font-bold uppercase tracking-wider text-[10px] flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span>Factor Expansion Stream</span>
+          </span>
+          <span id="ribbon-summary" class="font-mono-math font-bold text-cyan-300 text-xs">
+            2³ = 2 × 2 × 2
+          </span>
+        </div>
+        <div id="ribbon-nodes-container" class="flex items-center space-x-2 overflow-x-auto py-0.5">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT: THE REACTOR MODULATOR CONSOLE & INLINE DIAGNOSTIC HUD (Col 5) -->
+    <section class="col-span-5 flex flex-col justify-between bg-gray-950/90 border border-cyan-900/40 rounded-2xl p-3.5 shadow-xl overflow-hidden">
+
+      <div class="space-y-3">
+        <!-- Console Header -->
+        <div class="flex items-center justify-between border-b border-gray-800/80 pb-2">
+          <span id="console-mode-label" class="text-xs font-black uppercase tracking-wider text-cyan-400">Set the Dials</span>
+          <span id="console-keys-label" class="text-[10px] font-mono-math text-gray-500 font-bold">Enter = Fire</span>
+        </div>
+
+        <div id="dial-panel" class="space-y-3">
+        <!-- 1. BASE SELECTOR (b) -->
+        <div class="bg-gray-900/70 border border-cyan-900/40 rounded-xl p-2.5">
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="flex items-center space-x-1.5">
+              <span class="text-xs font-extrabold uppercase text-cyan-300 tracking-wider">Base Selector (b)</span>
+              <span id="base-locked-badge" class="hidden px-2 py-0.5 rounded text-[9px] font-black uppercase bg-cyan-950 border border-cyan-500 text-cyan-300 animate-pulse">🔒 BASE LOCKED</span>
+            </div>
+            <span id="base-subtext" class="text-[10px] text-gray-400 font-medium">Repeated Factor</span>
+          </div>
+
+          <div class="flex items-center justify-center space-x-3 py-1">
+            <button id="base-dec-btn" class="w-9 h-9 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 text-lg font-black text-cyan-300 transition-all flex items-center justify-center">
+              −
+            </button>
+            <div class="w-16 h-12 rounded-xl bg-cyan-950/60 border border-cyan-500/50 flex items-center justify-center font-mono-math font-black text-3xl text-cyan-300 glow-cyan">
+              <span id="base-number-display">2</span>
+            </div>
+            <button id="base-inc-btn" class="w-9 h-9 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 text-lg font-black text-cyan-300 transition-all flex items-center justify-center">
+              +
+            </button>
+          </div>
+
+          <!-- Quick Selector Pills (1 to 10) -->
+          <div class="grid grid-cols-5 gap-1 mt-2">
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="1">1</button>
+            <button class="base-preset-btn py-1 bg-cyan-950 border border-cyan-500/50 rounded font-mono-math font-bold text-xs text-cyan-300 font-black" data-val="2">2</button>
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="3">3</button>
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="4">4</button>
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="5">5</button>
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="6">6</button>
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="7">7</button>
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="8">8</button>
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="9">9</button>
+            <button class="base-preset-btn py-1 bg-gray-950 hover:bg-cyan-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="10">10</button>
+          </div>
+        </div>
+
+        <!-- 2. EXPONENT SELECTOR (x) -->
+        <div class="bg-gray-900/70 border border-amber-900/40 rounded-xl p-2.5">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-extrabold uppercase text-amber-300 tracking-wider">Exponent Selector (x)</span>
+            <span class="text-[10px] text-gray-400 font-medium">Times Used as Factor</span>
+          </div>
+
+          <div class="flex items-center justify-center space-x-3 py-1">
+            <button id="exp-dec-btn" class="w-9 h-9 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 text-lg font-black text-amber-300 transition-all flex items-center justify-center">
+              −
+            </button>
+            <div class="w-16 h-12 rounded-xl bg-amber-950/60 border border-amber-500/50 flex items-center justify-center font-mono-math font-black text-3xl text-amber-300 glow-amber">
+              <span id="exp-number-display">3</span>
+            </div>
+            <button id="exp-inc-btn" class="w-9 h-9 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 text-lg font-black text-amber-300 transition-all flex items-center justify-center">
+              +
+            </button>
+          </div>
+
+          <!-- Quick Selector Pills (0 to 6) -->
+          <div class="grid grid-cols-7 gap-1 mt-2">
+            <button class="exp-preset-btn py-1 bg-gray-950 hover:bg-amber-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="0">0</button>
+            <button class="exp-preset-btn py-1 bg-gray-950 hover:bg-amber-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="1">1</button>
+            <button class="exp-preset-btn py-1 bg-gray-950 hover:bg-amber-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="2">2</button>
+            <button class="exp-preset-btn py-1 bg-amber-950 border border-amber-500/50 rounded font-mono-math font-bold text-xs text-amber-300 font-black" data-val="3">3</button>
+            <button class="exp-preset-btn py-1 bg-gray-950 hover:bg-amber-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="4">4</button>
+            <button class="exp-preset-btn py-1 bg-gray-950 hover:bg-amber-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="5">5</button>
+            <button class="exp-preset-btn py-1 bg-gray-950 hover:bg-amber-950 border border-gray-800 rounded font-mono-math font-bold text-xs text-gray-300" data-val="6">6</button>
+          </div>
+        </div>
+
+        <!-- 3. CURRENT MODULATION SETTING (NO ANSWER SPOILER) -->
+        <div class="p-2.5 rounded-xl bg-gray-900/80 border border-gray-800 text-center">
+          <div class="text-[10px] uppercase font-bold text-gray-400 mb-0.5 tracking-wider">Modulator Charge Setting:</div>
+          <div class="flex items-center justify-center space-x-1 font-mono-math">
+            <span id="formula-base" class="text-3xl font-black text-cyan-300">2</span>
+            <span id="formula-exp" class="text-xl font-black text-amber-400 -translate-y-2">3</span>
+          </div>
+        </div>
+        </div>
+
+        <!-- READOUT PANEL (evaluate / fix modes): type the value of the power -->
+        <div id="readout-panel" class="hidden space-y-2.5">
+          <div class="bg-gray-900/70 border border-emerald-900/40 rounded-xl p-2.5">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-extrabold uppercase text-emerald-300 tracking-wider">Charge Readout</span>
+              <span class="text-[10px] text-gray-400 font-medium">Type the value in MW</span>
+            </div>
+            <div class="h-14 rounded-xl bg-emerald-950/40 border border-emerald-500/50 flex items-center justify-end px-4 font-mono-math font-black text-3xl text-emerald-300">
+              <span id="readout-display" class="truncate">_</span>
+              <span class="text-xs font-extrabold text-emerald-500 ml-2">MW</span>
+            </div>
+          </div>
+          <div id="readout-keypad" class="grid grid-cols-3 gap-1.5">
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="7">7</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="8">8</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="9">9</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="4">4</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="5">5</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="6">6</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="1">1</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="2">2</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="3">3</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-900 hover:bg-gray-800 active:scale-95 font-black text-sm text-rose-300" data-key="clear">CLR</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 font-mono-math font-black text-lg text-white" data-key="0">0</button>
+            <button class="keypad-btn h-11 rounded-xl bg-gray-900 hover:bg-gray-800 active:scale-95 font-black text-lg text-amber-300" data-key="back">⌫</button>
+          </div>
+        </div>
+
+        <!-- CARDS PANEL (boss cards mode): pick the one card that makes the target -->
+        <div id="cards-panel" class="hidden space-y-2">
+          <div class="text-[11px] text-gray-300 text-center">Only <strong class="text-white">one</strong> charge card makes the surge exactly. Two are traps!</div>
+          <button class="card-btn w-full py-3.5 rounded-xl bg-gray-900 hover:bg-rose-950 border-2 border-rose-800 font-mono-math font-black text-2xl text-white active:scale-98 transition-all" data-index="0">
+            <span class="text-[10px] font-sans uppercase tracking-wider text-gray-400 mr-2">[1]</span><span id="card-label-0">2⁶</span>
+          </button>
+          <button class="card-btn w-full py-3.5 rounded-xl bg-gray-900 hover:bg-rose-950 border-2 border-rose-800 font-mono-math font-black text-2xl text-white active:scale-98 transition-all" data-index="1">
+            <span class="text-[10px] font-sans uppercase tracking-wider text-gray-400 mr-2">[2]</span><span id="card-label-1">6²</span>
+          </button>
+          <button class="card-btn w-full py-3.5 rounded-xl bg-gray-900 hover:bg-rose-950 border-2 border-rose-800 font-mono-math font-black text-2xl text-white active:scale-98 transition-all" data-index="2">
+            <span class="text-[10px] font-sans uppercase tracking-wider text-gray-400 mr-2">[3]</span><span id="card-label-2">32²</span>
+          </button>
+        </div>
+
+        <!-- COMPARE PANEL (compare mode): route power to the stronger line -->
+        <div id="compare-panel" class="hidden space-y-2">
+          <div class="text-[11px] text-gray-300 text-center">Which power line is <strong class="text-white">stronger</strong>? Route the beam there.</div>
+          <button id="compare-left-btn" class="compare-btn w-full py-3.5 rounded-xl bg-gray-900 hover:bg-cyan-950 border-2 border-cyan-800 font-mono-math font-black text-xl text-cyan-300 active:scale-98 transition-all" data-choice="left">
+            <span class="text-[10px] font-sans uppercase tracking-wider text-gray-400 mr-2">[1] Line A</span><span id="compare-left-label">2⁵</span>
+          </button>
+          <button id="compare-equal-btn" class="compare-btn w-full py-2.5 rounded-xl bg-gray-900 hover:bg-indigo-950 border-2 border-indigo-800 font-black text-sm text-indigo-300 active:scale-98 transition-all" data-choice="equal">
+            <span class="text-[10px] uppercase tracking-wider text-gray-400 mr-2">[2]</span>They're Equal
+          </button>
+          <button id="compare-right-btn" class="compare-btn w-full py-3.5 rounded-xl bg-gray-900 hover:bg-amber-950 border-2 border-amber-800 font-mono-math font-black text-xl text-amber-300 active:scale-98 transition-all" data-choice="right">
+            <span class="text-[10px] font-sans uppercase tracking-wider text-gray-400 mr-2">[3] Line B</span><span id="compare-right-label">5²</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- BOTTOM SECTION: INLINE RAPID DIAGNOSTIC HUD & DISCHARGE BUTTON (NO BLOCKING POPUPS!) -->
+      <div class="space-y-2.5 mt-2">
+        <!-- Inline feedback: success clears itself; errors stay until the answer changes -->
+        <div id="inline-diagnostic-hud" class="hidden rounded-xl border p-2.5 transition-all">
+          <div class="flex items-center space-x-2">
+            <span id="diagnostic-icon" class="text-base">⚠️</span>
+            <span id="diagnostic-title" class="text-xs font-black uppercase tracking-wider">CIRCUIT STALL</span>
+          </div>
+          <p id="diagnostic-message" class="text-[11px] leading-tight font-medium mt-1"></p>
+          <div id="diagnostic-formula" class="font-mono-math font-extrabold text-[11px] mt-1 text-amber-300"></div>
+        </div>
+
+        <!-- Big Discharge Button -->
+        <button id="discharge-btn" class="w-full py-3.5 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 active:scale-98 text-white rounded-xl font-black text-sm uppercase tracking-wider shadow-lg shadow-cyan-600/30 transition-all flex items-center justify-center space-x-2 cursor-pointer">
+          <span class="text-base">⚡</span>
+          <span id="discharge-label">DISCHARGE MATCHING BEAM</span>
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL 0: MISSION BRIEFING (On Game Load)   -->
+  <!-- ========================================== -->
+  <div id="modal-briefing" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-gray-950 border border-cyan-500/70 rounded-3xl w-full max-w-2xl p-6 shadow-2xl flex flex-col glow-cyan max-h-[92vh] overflow-y-auto">
+      <!-- Header -->
+      <div class="flex items-center space-x-3 pb-3 border-b border-gray-800">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center text-2xl font-black text-white shadow-lg shadow-cyan-500/30">
+          ⚡
+        </div>
+        <div>
+          <h2 class="text-base font-black uppercase text-white tracking-wider flex items-center space-x-2">
+            <span>MISSION BRIEFING: EXPONENT REACTOR</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono-math bg-cyan-950 border border-cyan-700 text-cyan-300">GRID DEFENSE</span>
+          </h2>
+          <p class="text-xs text-gray-400">Tactical Math Station &bull; Grade 6 Exponents (enVision 2.0 Topic 3)</p>
+        </div>
+      </div>
+
+      <!-- 3 Key Directives -->
+      <div class="grid grid-cols-3 gap-3 my-4">
+        <!-- Card 1: Objective -->
+        <div class="bg-gray-900/90 border border-cyan-900/50 p-3.5 rounded-2xl flex flex-col">
+          <div class="w-8 h-8 rounded-xl bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-base mb-2">🎯</div>
+          <h3 class="text-xs font-black uppercase text-cyan-300 tracking-wide">1. Stop the Surges</h3>
+          <p class="text-[11px] text-gray-300 mt-1 leading-relaxed">Each wave is an exponent challenge:</p>
+          <ul class="text-[11px] text-gray-300 mt-1 space-y-0.5 leading-snug">
+            <li>⚙️ <strong class="text-white">Match</strong> a number with the dials</li>
+            <li>⌨️ <strong class="text-white">Calculate</strong> a power like 4³</li>
+            <li>🛠️ <strong class="text-white">Fix</strong> a trainee's mistake</li>
+            <li>✖️ <strong class="text-white">Write</strong> 5 × 5 × 5 as a power</li>
+            <li>⚖️ <strong class="text-white">Compare</strong> two powers</li>
+          </ul>
+        </div>
+
+        <!-- Card 2: The Trap Warning -->
+        <div class="bg-gray-900/90 border border-rose-900/50 p-3.5 rounded-2xl flex flex-col">
+          <div class="w-8 h-8 rounded-xl bg-rose-950 border border-rose-500/50 flex items-center justify-center text-base mb-2">⚠️</div>
+          <h3 class="text-xs font-black uppercase text-rose-300 tracking-wide">2. Avoid the Trap!</h3>
+          <p class="text-[11px] text-gray-300 mt-1 leading-relaxed">
+            The exponent tells how many times the base is used as a factor.<br>
+            <span class="text-rose-300 font-mono-math font-bold">4³ ≠ 4 × 3 = 12</span><br>
+            <span class="text-emerald-300 font-mono-math font-bold">4³ = 4 × 4 × 4 = 64</span>
+          </p>
+        </div>
+
+        <!-- Card 3: Stakes -->
+        <div class="bg-gray-900/90 border border-amber-900/50 p-3.5 rounded-2xl flex flex-col">
+          <div class="w-8 h-8 rounded-xl bg-amber-950 border border-amber-500/50 flex items-center justify-center text-base mb-2">🔋</div>
+          <h3 class="text-xs font-black uppercase text-amber-300 tracking-wide">3. Stakes</h3>
+          <p class="text-[11px] text-gray-300 mt-1 leading-relaxed">
+            Misses damage <strong class="text-white">Core Health</strong>. If it hits 0 or time runs out, a <strong class="text-white">backup core</strong> lets you retry the wave. Lose all 3 and the reactor melts down!
+          </p>
+          <p class="text-[11px] text-gray-300 mt-1 leading-relaxed">Clean hits build your <strong class="text-indigo-300">combo (up to x5)</strong>.</p>
+        </div>
+      </div>
+
+      <!-- Controls banner -->
+      <div class="bg-indigo-950/40 border border-indigo-800/40 px-3 py-2 rounded-2xl text-[11px] text-gray-300 mb-4 flex flex-wrap gap-x-4 gap-y-1">
+        <span>⌨️ <kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">Enter</kbd> fire</span>
+        <span><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">←</kbd><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">→</kbd> base</span>
+        <span><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">↑</kbd><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">↓</kbd> exponent</span>
+        <span><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">0-9</kbd> type a value</span>
+        <span><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">1</kbd><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">2</kbd><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">3</kbd> pick a choice</span>
+        <span><kbd class="px-1.5 bg-gray-800 border border-gray-700 rounded font-mono-math text-white">H</kbd> hint</span>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="grid grid-cols-3 gap-3">
+        <button id="briefing-start-btn" class="col-span-2 py-3.5 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white rounded-2xl font-black text-sm uppercase tracking-wider shadow-lg shadow-cyan-600/40 active:scale-98 transition-all flex items-center justify-center space-x-2 cursor-pointer">
+          <span class="text-base">⚡</span>
+          <span id="briefing-start-label">START MISSION (Enter)</span>
+        </button>
+        <button id="briefing-practice-btn" class="py-3.5 bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-600/70 text-emerald-300 rounded-2xl font-black text-xs uppercase tracking-wider active:scale-98 transition-all cursor-pointer" title="No timer and no damage. Practice runs don't unlock the next area.">
+          🧪 Practice<br><span class="text-[10px] font-bold text-emerald-500 normal-case">no timer · no damage</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- SECTOR CLEARED (between sectors)           -->
+  <!-- ========================================== -->
+  <div id="modal-sector-clear" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-gray-950 border border-emerald-500/60 rounded-3xl w-full max-w-md p-6 shadow-2xl flex flex-col items-center text-center glow-emerald">
+      <div class="text-[10px] font-black uppercase tracking-widest text-emerald-400">Sector Cleared</div>
+      <h2 id="sector-clear-title" class="text-lg font-black uppercase text-white tracking-wide mt-1">Sector 1: The Basics</h2>
+      <div id="sector-clear-stars" class="text-5xl my-3 tracking-widest">★★★</div>
+      <div id="sector-clear-stats" class="text-xs text-gray-300">0 misses · 0 hints</div>
+      <div class="w-full bg-gray-900/80 border border-gray-800 rounded-2xl p-3 mt-4 text-left">
+        <div class="text-[10px] font-black uppercase text-gray-500">Next Up</div>
+        <div id="sector-clear-next" class="text-sm font-black text-cyan-300 mt-0.5">Sector 2</div>
+        <div id="sector-clear-next-desc" class="text-[11px] text-gray-400 mt-0.5"></div>
+      </div>
+      <button id="sector-clear-continue-btn" class="w-full mt-4 py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer">
+        CONTINUE ➔ <span class="opacity-60 font-mono-math">(Enter)</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 1: STATION SHIFT DEBRIEF (End of Run) -->
+  <!-- ========================================== -->
+  <div id="modal-debrief" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-gray-950 border border-cyan-500/60 rounded-3xl w-full max-w-3xl p-5 shadow-2xl flex flex-col items-center text-center max-h-[94vh] overflow-y-auto">
+      <div id="debrief-icon" class="w-16 h-16 rounded-3xl bg-cyan-950 border-2 border-cyan-500/60 flex items-center justify-center text-3xl mb-3 glow-cyan">
+        🏆
+      </div>
+      <h2 id="debrief-title" class="text-xl font-black uppercase text-white tracking-wide">
+        SECTOR GRID STABILIZED!
+      </h2>
+      <p id="debrief-subtitle" class="text-xs text-gray-400 mt-1">
+        All incoming power surges mitigated. Core temperature nominal.
+      </p>
+      <div id="debrief-stars" class="text-sm font-black text-amber-300 mt-2"></div>
+
+      <div class="grid grid-cols-2 gap-4 w-full my-3 text-left">
+      <!-- Stat Grid -->
+      <div class="grid grid-cols-2 gap-2.5 content-start">
+        <div class="bg-gray-900/90 border border-gray-800 p-3 rounded-2xl">
+          <span class="text-[10px] font-black uppercase text-gray-500">Shift Duration</span>
+          <div id="debrief-time" class="text-lg font-black font-mono-math text-white mt-0.5">3m 12s</div>
+        </div>
+        <div class="bg-gray-900/90 border border-gray-800 p-3 rounded-2xl">
+          <span class="text-[10px] font-black uppercase text-gray-500">Total Power Mitigated</span>
+          <div id="debrief-watts" class="text-lg font-black font-mono-math text-cyan-300 mt-0.5">2,500 MW</div>
+        </div>
+        <div class="bg-gray-900/90 border border-gray-800 p-3 rounded-2xl">
+          <span class="text-[10px] font-black uppercase text-gray-500">Peak Combo Chain</span>
+          <div id="debrief-combo" class="text-lg font-black font-mono-math text-indigo-300 mt-0.5">x8 Combo</div>
+        </div>
+        <div class="bg-gray-900/90 border border-gray-800 p-3 rounded-2xl">
+          <span class="text-[10px] font-black uppercase text-gray-500">First-Try Accuracy</span>
+          <div id="debrief-accuracy" class="text-lg font-black font-mono-math text-emerald-300 mt-0.5">100%</div>
+        </div>
+      </div>
+
+      <!-- Skill Breakdown (on screen only; nothing here is saved or sent) -->
+      <div class="bg-gray-900/90 border border-gray-800 p-3 rounded-2xl">
+        <div class="text-[10px] font-black uppercase text-gray-500 mb-1.5">Skills (first-try correct)</div>
+        <div id="debrief-skills" class="space-y-1.5 text-xs"></div>
+        <div class="text-[10px] font-black uppercase text-gray-500 mt-3 mb-1">Mistakes to review</div>
+        <div id="debrief-mistakes" class="text-[11px] text-gray-300 space-y-0.5"></div>
+      </div>
+      </div>
+
+      <!-- Backup Cores Summary Banner -->
+      <div class="w-full bg-gray-900/70 border border-gray-800 px-3 py-2 rounded-xl flex items-center justify-between text-xs mb-4">
+        <span class="text-gray-400 font-bold uppercase text-[10px]">Backup Cores Remaining:</span>
+        <div id="debrief-cores" class="font-mono-math font-black text-amber-300 flex items-center space-x-1">
+          <span>3 / 3</span>
+        </div>
+        <span class="text-gray-400 font-bold uppercase text-[10px]">Hints Used:</span>
+        <span id="debrief-hints" class="font-mono-math font-black text-amber-300">0</span>
+      </div>
+
+      <!-- Action Button (Instant Restart Loop) -->
+      <button id="debrief-restart-btn" class="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-600/30 transition-all cursor-pointer">
+        PLAY AGAIN (NEW PROBLEMS)
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 2: FIELD GUIDE (Unobtrusive Reference)-->
+  <!-- ========================================== -->
+  <div id="modal-field-guide" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-gray-950 border border-cyan-700/60 rounded-2xl w-full max-w-xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">📖</span>
+          <h3 class="text-sm font-black uppercase text-cyan-400 tracking-wider">Field Guide: Exponent Protocols</h3>
+        </div>
+        <button id="close-field-guide-btn" class="w-7 h-7 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white flex items-center justify-center font-bold">✕</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs">
+        <div class="bg-gray-900/60 p-3 rounded-xl border border-cyan-900/40">
+          <h4 class="font-black text-cyan-300 text-sm mb-1">1. What is an Exponent?</h4>
+          <p class="text-gray-300 leading-relaxed">
+            In <strong class="text-white font-mono-math">bˣ</strong>, the base <strong class="text-cyan-400">b</strong> is the repeated factor, and the exponent <strong class="text-amber-400">x</strong> tells how many times to multiply it.
+          </p>
+          <div class="mt-2 font-mono-math font-bold text-cyan-400 bg-black/40 p-2 rounded text-center">
+            2³ = 2 × 2 × 2 = 8 MW
+          </div>
+        </div>
+
+        <div class="bg-gray-900/60 p-3 rounded-xl border border-rose-900/40">
+          <h4 class="font-black text-rose-300 text-sm mb-1">2. The Multiplication Trap!</h4>
+          <p class="text-gray-300 leading-relaxed">
+            Don't multiply the base by the exponent! <strong class="text-rose-400">4³ is NOT 4 × 3 = 12</strong>. It's 4 × 4 × 4 = 64.
+          </p>
+        </div>
+
+        <div class="bg-gray-900/60 p-3 rounded-xl border border-amber-900/40">
+          <h4 class="font-black text-amber-300 text-sm mb-1">3. Powers of 10 Rule</h4>
+          <p class="text-gray-300 leading-relaxed">
+            10ⁿ always has 1 followed by exactly n zeros. 10⁴ = 10,000 MW (4 zeros).
+          </p>
+        </div>
+
+        <div class="bg-gray-900/60 p-3 rounded-xl border border-emerald-900/40">
+          <h4 class="font-black text-emerald-300 text-sm mb-1">4. Zero Exponent Rule (b⁰ = 1)</h4>
+          <p class="text-gray-300 leading-relaxed">
+            Any non-zero base to the power 0 equals 1. So 7⁰ = 1, not 0 and not 7.
+          </p>
+        </div>
+
+        <div class="bg-gray-900/60 p-3 rounded-xl border border-indigo-900/40">
+          <h4 class="font-black text-indigo-300 text-sm mb-1">5. Exponent of 1 and Base of 1</h4>
+          <p class="text-gray-300 leading-relaxed">
+            b¹ = b (the base used once): 6¹ = 6. And 1 to any power is 1: 1⁵ = 1 × 1 × 1 × 1 × 1 = 1.
+          </p>
+        </div>
+
+        <div class="bg-gray-900/60 p-3 rounded-xl border border-cyan-900/40">
+          <h4 class="font-black text-cyan-300 text-sm mb-1">6. Swapping Changes the Value</h4>
+          <p class="text-gray-300 leading-relaxed">
+            2⁵ = 32 but 5² = 25. Always work out each power before you compare. Sometimes different powers ARE equal: 2⁶ = 4³ = 8² = 64.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT BOOTSTRAP (Cache-busted for student Chromebooks) -->
+  <script type="module" src="js/game.js?v=3.3"></script>
+</body>
+</html>

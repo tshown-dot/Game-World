@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Variable Vault · Evaluate Algebraic Expressions</title>
+<meta name="description" content="A heist game for enVision 2.0 Grade 6, Lesson 3-5: Evaluate Algebraic Expressions.">
+<style>
+:root{
+  --bg:#0a0f22; --panel:#131a35; --panel2:#1a2347; --line:#2d3b70;
+  --text:#e9edff; --muted:#9aa6d4; --gold:#ffc94d; --gold2:#ffe39a;
+  --teal:#3ef0c8; --red:#ff4d6d; --blue:#5aa9ff;
+  --math:"Cambria Math","Cambria","Times New Roman",Georgia,serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);
+  font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,system-ui,sans-serif}
+body{background:radial-gradient(1100px 650px at 50% -12%,#1d2c63 0%,var(--bg) 62%) fixed;overflow-x:hidden}
+.hidden{display:none!important}
+button{font:inherit;cursor:pointer;border:0;color:inherit}
+.btn{background:linear-gradient(180deg,#ffd970,#f0a628);color:#2a1800;font-weight:800;
+  padding:.75rem 1.4rem;font-size:1.08rem;border-radius:14px;letter-spacing:.5px;
+  box-shadow:0 4px 0 #a46a0e,0 10px 26px rgba(255,201,77,.22);transition:transform .08s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #a46a0e}
+.btn.teal{background:linear-gradient(180deg,#6ff7d8,#22c9a3);color:#03241c;box-shadow:0 4px 0 #128a6f,0 10px 26px rgba(62,240,200,.2)}
+.btn.ghost{background:transparent;color:var(--text);border:2px solid var(--line);box-shadow:none;font-weight:700}
+.btn:disabled{filter:grayscale(1) brightness(.6);cursor:not-allowed}
+.screen{max-width:1200px;margin:0 auto;padding:14px 18px 22px;min-height:100vh;display:flex;flex-direction:column}
+.center{align-items:center;justify-content:center;text-align:center}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:20px;
+  box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.label{font-size:.72rem;letter-spacing:.18em;font-weight:800;color:var(--muted);text-transform:uppercase;margin:.2rem 0 .4rem}
+
+/* ---------- Title ---------- */
+.lesson-tag{display:inline-block;font-size:.8rem;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);
+  padding:.35rem .8rem;border-radius:999px;background:rgba(255,255,255,.03)}
+.logo{font-size:clamp(2.8rem,8vw,5.4rem);margin:.6rem 0 0;line-height:.95;font-weight:900;letter-spacing:.04em;
+  background:linear-gradient(180deg,#fff 10%,#9fb4ff 90%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo span{display:block;background:linear-gradient(180deg,var(--gold2),#e89a14);-webkit-background-clip:text;background-clip:text;letter-spacing:.2em}
+.tag{color:var(--muted);font-size:1.15rem;margin:.6rem 0 1.2rem}
+.title-door{width:150px;margin:0 auto .2rem;filter:drop-shadow(0 10px 30px rgba(90,169,255,.35));animation:float 4s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-8px)}}
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-width:820px;margin:0 auto 1.3rem}
+.how .card{padding:14px 14px 12px;text-align:left}
+.how b{display:block;color:var(--gold);font-size:1rem;margin-bottom:.25rem}
+.how small{color:var(--muted);font-size:.9rem;line-height:1.35}
+.how .n{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--gold);color:#2a1800;font-weight:900;margin-bottom:.4rem}
+.start-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center}
+.start-row input,.start-row select{font:inherit;font-size:1.05rem;padding:.7rem .9rem;border-radius:12px;border:2px solid var(--line);
+  background:#0c1229;color:var(--text);min-width:230px}
+.start-row select{min-width:0}
+.best{margin-top:1rem;color:var(--muted);font-size:.9rem}
+
+/* ---------- Progress strip ---------- */
+.strip{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:.3rem 0 1rem}
+.chip{display:flex;align-items:center;gap:.45rem;padding:.4rem .75rem;border-radius:999px;border:1px solid var(--line);
+  font-size:.82rem;color:var(--muted);background:rgba(255,255,255,.02)}
+.chip .dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;background:#222c55}
+.chip.done{color:var(--teal);border-color:rgba(62,240,200,.4)} .chip.done .dot{background:var(--teal);color:#03241c}
+.chip.now{color:var(--gold);border-color:var(--gold);background:rgba(255,201,77,.08)} .chip.now .dot{background:var(--gold);color:#2a1800}
+
+/* ---------- Briefing ---------- */
+.brief{max-width:860px;margin:0 auto;padding:22px 26px;width:100%}
+.kicker{color:var(--gold);font-weight:800;letter-spacing:.14em;font-size:.8rem}
+.brief h2{font-size:2.2rem;margin:.2rem 0 .5rem}
+.intel{font-size:1.12rem;line-height:1.5;margin:.2rem 0 .6rem}
+.tipbox{background:rgba(62,240,200,.08);border:1px solid rgba(62,240,200,.35);border-radius:14px;padding:.7rem 1rem;margin:.6rem 0 1rem;font-size:1.02rem}
+.tipbox b{color:var(--teal)}
+.demo{background:#0a0f22;border:1px solid var(--line);border-radius:16px;padding:12px 16px;margin-bottom:1.1rem}
+.demo .q{font-size:1.05rem;margin-bottom:.4rem}
+.brief .go{display:flex;justify-content:flex-end;gap:10px}
+
+/* ---------- HUD ---------- */
+.hud{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border-radius:16px;margin-bottom:12px}
+.hud .vt{flex:1;min-width:220px;font-size:.95rem;color:var(--muted)}
+.hud .vt b{color:var(--text);font-size:1.08rem}
+.stat{background:#0c1229;border:1px solid var(--line);border-radius:12px;padding:.35rem .7rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat.loot{color:var(--gold)} .stat.fire{color:#ff9a4d}
+.iconbtn{background:#0c1229;border:1px solid var(--line);border-radius:12px;padding:.35rem .6rem}
+.lights{display:flex;gap:6px}
+.light{width:16px;height:16px;border-radius:50%;background:#26305a;border:2px solid #3a4780}
+.light.on{background:var(--teal);border-color:#bfffee;box-shadow:0 0 10px var(--teal)}
+.light.half{background:var(--gold);border-color:#fff1c2;box-shadow:0 0 10px var(--gold)}
+.light.bust{background:var(--red);border-color:#ffc2cd}
+.light.cur{border-color:var(--gold);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 4px rgba(255,201,77,.25)}}
+
+/* ---------- Play layout ---------- */
+.play{display:grid;grid-template-columns:300px 1fr;gap:14px;flex:1}
+.side{padding:14px;display:flex;flex-direction:column;gap:12px}
+.main{padding:14px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.doorwrap{position:relative;width:100%;max-width:240px;aspect-ratio:1/1;margin:0 auto;perspective:900px}
+.doorwrap .behind{position:absolute;inset:7%;border-radius:50%;display:grid;place-items:center;font-size:3.6rem;
+  background:radial-gradient(circle,#fff6c9 0%,#ffc94d 38%,#8a5500 74%,#1b1200 100%);box-shadow:inset 0 0 30px #000}
+.leaf{position:absolute;inset:0;transform-origin:6% 50%;transition:transform 1.05s cubic-bezier(.6,.05,.3,1)}
+.leaf svg{width:100%;height:100%;display:block}
+.doorwrap.open .leaf{transform:rotateY(-108deg)}
+.dial{transform-origin:100px 100px;transition:transform .75s cubic-bezier(.3,.1,.2,1)}
+.doorwrap.spin .dial{transform:rotate(600deg)}
+.handle{transform-origin:100px 100px;transition:transform .5s .35s}
+.doorwrap.spin .handle{transform:rotate(-90deg)}
+.bolt{transition:opacity .3s .5s}
+.doorwrap.spin .bolt{opacity:.15}
+.doorwrap.shake{animation:shake .45s}
+@keyframes shake{20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+.crew{background:#0a0f22;border:1px solid var(--line);border-radius:16px;padding:10px 12px;font-size:1rem;line-height:1.42;min-height:120px}
+.crew .who{font-size:.72rem;letter-spacing:.16em;font-weight:900;color:var(--teal);margin-bottom:.25rem}
+.crew.warn{border-color:var(--gold)} .crew.warn .who{color:var(--gold)}
+.crew.bad{border-color:var(--red);background:#1c0a14} .crew.bad .who{color:var(--red)}
+.crew.good{border-color:var(--teal)}
+.pemdas{display:flex;gap:4px;justify-content:center;flex-wrap:wrap}
+.pemdas span{font-size:.72rem;font-weight:800;letter-spacing:.05em;padding:.25rem .45rem;border-radius:8px;background:#1b2550;color:#c4ceff}
+
+.story{background:rgba(90,169,255,.08);border:1px solid rgba(90,169,255,.35);border-radius:14px;padding:.65rem .9rem;font-size:1.06rem;line-height:1.45}
+.story .fname{display:block;font-size:.72rem;letter-spacing:.16em;font-weight:900;color:var(--blue);margin-bottom:.2rem;text-transform:uppercase}
+.expr{font-family:var(--math);font-size:2.5rem;line-height:1.5;text-align:center;padding:.45rem .8rem;background:#0a0f22;
+  border:2px solid var(--line);border-radius:16px;min-height:4.4rem;word-break:keep-all}
+.expr.sm{font-size:1.9rem;min-height:0;padding:.3rem .6rem;border-color:rgba(62,240,200,.45)}
+.expr .lhs{color:#c9d2ff}
+i.var{color:var(--gold2);font-style:italic}
+.slot{display:inline-block;min-width:1.25em;padding:0 .14em;border:2px dashed var(--gold);border-radius:10px;color:var(--gold2);
+  font-style:italic;text-align:center;margin:0 .04em;line-height:1.2;cursor:pointer;background:rgba(255,201,77,.09);
+  transition:transform .12s,background .12s;vertical-align:baseline}
+.slot.over,.slot.ready{background:rgba(62,240,200,.22);border-color:var(--teal);transform:scale(1.08)}
+.slot.filled{border-style:solid;border-color:var(--teal);color:var(--teal);font-style:normal;background:rgba(62,240,200,.1);cursor:default;animation:pop .25s}
+.slot.shake{animation:shake .4s;border-color:var(--red)}
+@keyframes pop{0%{transform:scale(1.35)}100%{transform:scale(1)}}
+.sv{color:var(--teal)}
+.op{margin:0 .1em}
+sup{font-size:.58em;vertical-align:.9em;line-height:0}
+.fr{display:inline-flex;flex-direction:column;vertical-align:middle;font-size:.6em;line-height:1.05;text-align:center;margin:0 .06em}
+.fr>span:first-child{border-bottom:2px solid currentColor;padding:0 .12em}
+.hl{background:rgba(255,201,77,.2);outline:2px solid var(--gold);border-radius:8px;padding:0 .1em}
+
+.tiles{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;padding:4px 0 2px}
+.tile{touch-action:none;user-select:none;-webkit-user-select:none;background:linear-gradient(180deg,#26326a,#1a2350);
+  border:2px solid #4c60b0;border-radius:14px;padding:.45rem .95rem;font-family:var(--math);font-size:1.7rem;cursor:grab;
+  box-shadow:0 5px 0 #0b1130;transition:transform .1s,border-color .1s}
+.tile:hover{transform:translateY(-2px)}
+.tile i{color:var(--gold2)} .tile .u{font-family:"Segoe UI",Roboto,sans-serif;font-size:.85rem;color:var(--muted);margin-left:.3rem}
+.tile.sel{border-color:var(--teal);box-shadow:0 0 0 4px rgba(62,240,200,.35),0 5px 0 #0b1130}
+.tiles.spent .tile{opacity:.35;pointer-events:none}
+.dragghost{position:fixed!important;pointer-events:none;z-index:60;transform:rotate(-4deg) scale(1.1);opacity:.95;margin:0}
+.instr{text-align:center;color:var(--muted);font-size:.95rem}
+.instr b{color:var(--gold)}
+
+.stage2{display:grid;grid-template-columns:1fr 250px;gap:14px;align-items:start;margin-top:4px}
+.stage2.locked{opacity:.28;pointer-events:none;filter:grayscale(.6)}
+.codecol{display:flex;flex-direction:column;gap:8px}
+.lcdrow{display:flex;gap:10px;align-items:stretch}
+.lcd{flex:1;font-family:"Consolas","Courier New",monospace;font-size:2.1rem;font-weight:700;letter-spacing:.12em;color:#7dffb0;
+  background:#04120b;border:2px solid #1e5a3c;border-radius:12px;padding:.35rem .8rem;min-height:3.4rem;display:flex;align-items:center;
+  text-shadow:0 0 10px rgba(125,255,176,.55);overflow:hidden;white-space:pre}
+.lcd .cur{display:inline-block;width:.55em;height:1.1em;background:#7dffb0;margin-left:3px;animation:blink 1s steps(1) infinite;vertical-align:middle}
+@keyframes blink{50%{opacity:0}}
+.lcd.err{color:#ff8197;border-color:#7a2235;background:#1a0509;text-shadow:0 0 10px rgba(255,77,109,.6)}
+.tries{font-size:.85rem;color:var(--muted)}
+.keypad{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.key{background:linear-gradient(180deg,#2a3567,#1b2350);border:1px solid #3d4c8f;border-radius:11px;padding:.6rem 0;font-size:1.25rem;font-weight:800;
+  box-shadow:0 3px 0 #0b1130}
+.key:active{transform:translateY(2px);box-shadow:none}
+.key.s{font-size:.8rem;letter-spacing:.04em}
+.key.z{grid-column:span 2}
+.key.warn{color:#ffb3c0}
+
+/* ---------- Modal ---------- */
+.modal{position:fixed;inset:0;background:rgba(3,6,18,.72);backdrop-filter:blur(3px);display:grid;place-items:center;z-index:40;padding:16px}
+.mbox{max-width:680px;width:100%;max-height:92vh;overflow:auto;padding:22px 24px;animation:rise .3s}
+@keyframes rise{from{transform:translateY(20px);opacity:0}}
+.mbox h3{margin:.1rem 0 .4rem;font-size:1.9rem}
+.mbox h3.good{color:var(--teal)} .mbox h3.bad{color:var(--red)} .mbox h3.gold{color:var(--gold)}
+.mbox .btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.pts{font-size:1.3rem;font-weight:900;color:var(--gold)}
+.steps{font-family:var(--math);font-size:1.55rem;line-height:1.55;background:#0a0f22;border:1px solid var(--line);border-radius:14px;padding:.6rem 1rem;margin-top:.5rem}
+.st{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+.st .eq{width:1.1em;color:var(--muted);flex:none;text-align:right}
+.st .note{font-family:"Segoe UI",Roboto,sans-serif;font-size:.78rem;color:var(--muted);letter-spacing:.05em;margin-left:auto;padding-left:.8rem;text-transform:uppercase}
+.st.final{color:var(--teal);font-weight:700}
+details summary{cursor:pointer;color:var(--muted);margin-top:.6rem}
+.stars{font-size:2.6rem;letter-spacing:.1em;margin:.2rem 0}
+.stars .off{opacity:.2;filter:grayscale(1)}
+
+/* ---------- Report ---------- */
+.report{max-width:820px;margin:0 auto;padding:24px 28px;width:100%}
+.rank{font-size:2.4rem;font-weight:900;color:var(--gold);margin:.1rem 0}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:1rem 0}
+.big{background:#0a0f22;border:1px solid var(--line);border-radius:14px;padding:.7rem;text-align:center}
+.big b{display:block;font-size:1.7rem;color:var(--text)} .big small{color:var(--muted);font-size:.78rem;letter-spacing:.1em;text-transform:uppercase}
+.vrow{display:flex;justify-content:space-between;align-items:center;padding:.45rem .2rem;border-bottom:1px solid var(--line);font-size:1.02rem}
+.vrow:last-child{border:0}
+.vrow .s{font-size:1.25rem;letter-spacing:.08em}
+.review{margin-top:1rem;background:rgba(255,201,77,.07);border:1px solid rgba(255,201,77,.35);border-radius:14px;padding:.7rem 1rem;line-height:1.5}
+
+#flash{position:fixed;inset:0;pointer-events:none;z-index:30;background:radial-gradient(circle,transparent 30%,rgba(255,30,70,.55));opacity:0}
+#flash.on{animation:alarm .9s}
+@keyframes alarm{0%,50%{opacity:1}25%,75%,100%{opacity:0}}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:45;width:100%;height:100%}
+
+@media (max-width:920px){
+  .play{grid-template-columns:1fr}
+  .side{flex-direction:row;align-items:stretch}
+  .doorwrap{max-width:140px;flex:none}
+  .crew{flex:1;min-height:0}
+  .side .pemdas{display:none}
+  .stage2{grid-template-columns:1fr}
+  .how{grid-template-columns:1fr}
+  .grid4{grid-template-columns:repeat(2,1fr)}
+  .expr{font-size:2rem}
+}
+@media (max-height:700px){ .expr{font-size:2.1rem;min-height:0} .doorwrap{max-width:190px} .key{padding:.45rem 0} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="flash"></div>
+<canvas id="fx"></canvas>
+<div id="modal" class="modal hidden"><div class="mbox card" id="mbox"></div></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   VARIABLE VAULT  ·  enVision 2.0 Grade 6 · Lesson 3-5
+   Evaluate Algebraic Expressions (substitution + order of operations)
+   ===================================================================== */
+
+/* ---------------- Exact rational numbers ---------------- */
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){const t=a%b;a=b;b=t;}return a||1;}
+class Q{
+  constructor(n,d=1,dec=false){ if(d===0) throw new Error('divide by zero'); if(d<0){n=-n;d=-d;}
+    const g=gcd(n,d); this.n=n/g; this.d=d/g; this.dec=dec; }
+  add(o){return new Q(this.n*o.d+o.n*this.d,this.d*o.d,this.dec||o.dec);}
+  sub(o){return new Q(this.n*o.d-o.n*this.d,this.d*o.d,this.dec||o.dec);}
+  mul(o){return new Q(this.n*o.n,this.d*o.d,this.dec||o.dec);}
+  div(o){return new Q(this.n*o.d,this.d*o.n,this.dec||o.dec);}
+  pow(o){let r=new Q(1,1,this.dec);for(let i=0;i<o.n;i++)r=r.mul(this);return r;}
+  eq(o){return this.n===o.n&&this.d===o.d;}
+  get whole(){return this.d===1;}
+  get num(){return this.n/this.d;}
+}
+const q=(n,d=1)=>new Q(n,d);
+const dq=s=>{s=String(s);const [i,f='']=s.split('.');return new Q(parseInt((i||'0')+f,10),Math.pow(10,f.length),true);};
+function terminating(d){while(d%2===0)d/=2;while(d%5===0)d/=5;return d===1;}
+function decStr(x){return String(parseFloat((x.n/x.d).toFixed(6)));}
+function qText(x){
+  if(x.whole) return String(x.n);
+  if(x.dec&&terminating(x.d)) return decStr(x);
+  const w=Math.floor(x.n/x.d), r=x.n-w*x.d;
+  return w>0?`${w} ${r}/${x.d}`:`${r}/${x.d}`;
+}
+function qHTML(x){
+  if(x.whole) return String(x.n);
+  if(x.dec&&terminating(x.d)) return decStr(x);
+  const w=Math.floor(x.n/x.d), r=x.n-w*x.d;
+  const fr=`<span class="fr"><span>${r}</span><span>${x.d}</span></span>`;
+  return w>0?`${w}${fr}`:fr;
+}
+function parseAnswer(s){
+  if(s === null || s === undefined) return null;
+  s=String(s).replace(/\$/g,'').replace(/,/g,'').trim().replace(/\s+/g,' '); let m;
+  if(/^\d+$/.test(s)) return q(parseInt(s,10));
+  if((m=s.match(/^(\d*)\.(\d+)$/))) return dq((m[1]||'0')+'.'+m[2]);
+  if((m=s.match(/^(\d+)\.$/))) return q(parseInt(m[1],10));
+  if((m=s.match(/^(\d+)\/(\d+)$/))){const d=+m[2];return d?q(+m[1],d):null;}
+  if((m=s.match(/^(\d+) (\d+)\/(\d+)$/))){const d=+m[3];return d?q(+m[1]*d+ +m[2],d):null;}
+  return null;
+}
+
+/* ---------------- Expression trees ---------------- */
+const wrapN=x=>(typeof x==='number'||x instanceof Q)?N(x):x;
+const N=v=>({t:'num',v:(v instanceof Q)?v:q(v)});
+const V=name=>({t:'var',name});
+const G=x=>({t:'grp',x});
+const B=(op,a,b,imp=false)=>({t:'bin',op,a:wrapN(a),b:wrapN(b),imp});
+const add=(a,b)=>B('+',a,b), sub=(a,b)=>B('-',a,b), imul=(a,b)=>B('*',a,b,true),
+      dvd=(a,b)=>B('/',a,b), pw=(a,b)=>B('^',a,b);
+const PREC={'+':1,'-':1,'*':2,'/':2,'^':3};
+const OPNAME={'+':'add','-':'subtract','*':'multiply','/':'divide','^':'exponent'};
+function apply(op,a,b){switch(op){case '+':return a.add(b);case '-':return a.sub(b);case '*':return a.mul(b);case '/':return a.div(b);case '^':return a.pow(b);}}
+
+function subst(n,vals){
+  switch(n.t){
+    case 'var': return {t:'num',v:vals[n.name],fromVar:n.name};
+    case 'grp': return G(subst(n.x,vals));
+    case 'bin': return {...n,a:subst(n.a,vals),b:subst(n.b,vals)};
+    default: return n;
+  }
+}
+function collectVars(n,arr){
+  if(n.t==='var') arr.push(n.name);
+  else if(n.t==='grp') collectVars(n.x,arr);
+  else if(n.t==='bin'){collectVars(n.a,arr);collectVars(n.b,arr);}
+  return arr;
+}
+/* Pick the next operation by order of operations:
+   deepest parentheses first, then exponent > multiply/divide > add/subtract, then left-most. */
+function nextOp(root){
+  let best=null,order=0;
+  (function walk(n,depth){
+    if(n.t==='grp'){walk(n.x,depth+1);return;}
+    if(n.t!=='bin')return;
+    walk(n.a,depth); const my=order++; walk(n.b,depth);
+    if(n.a.t==='num'&&n.b.t==='num'){
+      const c={n,depth,p:PREC[n.op],o:my};
+      if(!best||c.depth>best.depth||(c.depth===best.depth&&(c.p>best.p||(c.p===best.p&&c.o<best.o))))best=c;
+    }
+  })(root,0);
+  return best&&best.n;
+}
+function reduce(n,target){
+  if(n===target) return {t:'num',v:apply(n.op,n.a.v,n.b.v)};
+  if(n.t==='grp'){const x=reduce(n.x,target);return x.t==='num'?x:G(x);}
+  if(n.t==='bin') return {...n,a:reduce(n.a,target),b:reduce(n.b,target)};
+  return n;
+}
+function solve(tree,wholeOnly){
+  const lines=[]; let t=tree, ok=true;
+  for(let g=0;g<60;g++){
+    const op=nextOp(t); lines.push({t,hl:op}); if(!op)break;
+    let v; try{v=apply(op.op,op.a.v,op.b.v);}catch(e){ok=false;break;}
+    if(v.n<0||v.num>2500)ok=false;
+    if(wholeOnly&&!v.whole)ok=false;
+    t=reduce(t,op);
+  }
+  return {lines,value:t.v,ok:ok&&t.t==='num'};
+}
+
+/* ---------------- Rendering math as HTML ---------------- */
+const vname=n=>n==='l'?'ℓ':n;
+function render(n,o={},ctx=''){
+  let h;
+  const wrap=(node,html)=>o.hl===node?`<span class="hl">${html}</span>`:html;
+  switch(n.t){
+    case 'num':{
+      const s=qHTML(n.v);
+      const par=ctx==='impR'||(ctx==='base'&&!n.v.whole);
+      h=par?`(${s})`:s;
+      if(n.fromVar) h=`<span class="sv">${h}</span>`;
+      break;
+    }
+    case 'var':{
+      if(o.slots){
+        const i=o.slotIdx.i++; const val=o.filled&&o.filled[i];
+        if(val){
+          const s=qHTML(val); const par=ctx==='impR'||(ctx==='base'&&!val.whole);
+          h=`<span class="slot filled" data-i="${i}" data-var="${n.name}">${par?'(':''}${s}${par?')':''}</span>`;
+        } else h=`<span class="slot" data-i="${i}" data-var="${n.name}" role="button" aria-label="variable ${n.name}">${vname(n.name)}</span>`;
+      } else h=`<i class="var">${vname(n.name)}</i>`;
+      break;
+    }
+    case 'grp': h=`(${render(n.x,o,'')})`; break;
+    case 'bin':{
+      if(n.op==='^'){ h=`${render(n.a,o,'base')}<sup>${render(n.b,o,'exp')}</sup>`; break; }
+      const L=render(n.a,o,n.imp?'impL':'');
+      if(n.imp){
+        const b=n.b;
+        if(b.t==='num'||b.t==='var') h=L+render(b,o,'impR');
+        else if(b.t==='grp') h=L+render(b,o,'');
+        else if(b.t==='bin'&&b.op==='^'&&(b.a.t==='var'||b.a.t==='grp')) h=L+render(b,o,'');
+        else if(b.t==='bin'&&b.op==='^'&&b.a.t==='num') h=L+wrap(b,`(${render(b.a,o,'')})<sup>${render(b.b,o,'exp')}</sup>`);
+        else h=`${L} <span class="op">·</span> ${render(b,o,'')}`;
+      } else {
+        const sym={'+':'+','-':'−','*':'·','/':'÷'}[n.op];
+        h=`${L} <span class="op">${sym}</span> ${render(n.b,o,'')}`;
+      }
+      break;
+    }
+  }
+  return wrap(n,h);
+}
+
+/* ---------------- Mistake detectors ---------------- */
+function ev(n,vals,mode){
+  if(n.t==='num')return n.v;
+  if(n.t==='var')return vals[n.name];
+  if(n.t==='grp')return ev(n.x,vals,mode);
+  if(mode==='ltr'&&n.op!=='^'){
+    const seq=[]; flat(n,seq,vals); let acc=seq[0];
+    for(let i=1;i<seq.length;i+=2)acc=apply(seq[i],acc,seq[i+1]);
+    return acc;
+  }
+  if(n.op==='^'&&mode==='pow')return ev(n.a,vals,mode).mul(ev(n.b,vals,mode));
+  if(n.op==='*'&&n.imp&&n.a.t==='num'&&n.b.t==='var'){
+    const a=n.a.v,x=vals[n.b.name];
+    if(mode==='concat'&&a.whole&&x.whole)return q(Number(String(a.n)+String(x.n)));
+    if(mode==='impadd')return a.add(x);
+  }
+  return apply(n.op,ev(n.a,vals,mode),ev(n.b,vals,mode));
+}
+function flat(n,seq,vals){
+  if(n.t==='bin'&&n.op!=='^'){flat(n.a,seq,vals);seq.push(n.op);flat(n.b,seq,vals);}
+  else seq.push(ev(n,vals,'ltr'));
+}
+function findNode(n,pred){
+  if(pred(n))return n;
+  if(n.t==='grp')return findNode(n.x,pred);
+  if(n.t==='bin')return findNode(n.a,pred)||findNode(n.b,pred);
+  return null;
+}
+function diagnose(p,ans){
+  for(const m of ['pow','concat','impadd','ltr']){
+    try{const v=ev(p.ast,p.vals,m); if(!v.eq(p.answer)&&v.eq(ans))return m;}catch(e){}
+  }
+  return null;
+}
+function hintFor(p,mode){
+  const T=x=>qText(x);
+  if(mode==='concat'||mode==='impadd'){
+    const nd=findNode(p.ast,n=>n.t==='bin'&&n.imp&&n.a.t==='num'&&n.b.t==='var');
+    const a=nd.a.v, x=p.vals[nd.b.name], vn=vname(nd.b.name);
+    const wrong=mode==='concat'?`${T(a)}${T(x)}`:`${T(a)} + ${T(x)}`;
+    return `<b>${T(a)}<i>${vn}</i> means ${T(a)} <u>times</u> <i>${vn}</i>.</b> With <i>${vn}</i> = ${T(x)}, that's ${T(a)} × ${T(x)} = ${T(a.mul(x))}, not ${wrong}. Write it as ${T(a)}(${T(x)}) so you don't mash the numbers together.`;
+  }
+  if(mode==='pow'){
+    const nd=findNode(p.ast,n=>n.t==='bin'&&n.op==='^');
+    const b=ev(nd.a,p.vals,'ok'), e=nd.b.v.n;
+    const rep=Array(e).fill(T(b)).join(' × ');
+    return `<b>Exponents mean repeated multiplication.</b> ${T(b)}<sup>${e}</sup> = ${rep} = ${T(b.pow(nd.b.v))}, not ${T(b)} × ${e}.`;
+  }
+  if(mode==='ltr')
+    return `<b>Looks like you went straight left to right.</b> Follow the order of operations: Parentheses → Exponents → Multiply/Divide → Add/Subtract.`;
+  const first=p.sol.lines[0];
+  return `<b>Not quite.</b> Start with the highlighted step and work in order:<div class="expr sm" style="margin-top:.4rem">${render(first.t,{hl:first.hl})}</div>`;
+}
+const MISTAKE_TXT={
+  concat:'Reading 3x as a two-digit number (3x means 3 × x)',
+  impadd:'Adding instead of multiplying (3x means 3 × x)',
+  pow:'Exponents (n² means n × n, not n × 2)',
+  ltr:'Order of operations (multiply/divide before add/subtract)',
+  other:'Careful step-by-step calculation'
+};
+
+/* ---------------- Random helpers ---------------- */
+const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const LET=k=>shuffle(['x','y','n','m','p','k','t','a','b','c','r','w','h','g','d']).slice(0,k);
+
+/* ---------------- Problem templates by vault ---------------- */
+const TEMPLATES=[
+  /* Vault 1 · one variable */
+  [
+    ()=>{const [x]=LET(1);return{ast:add(imul(ri(2,9),V(x)),ri(1,25)),vals:{[x]:q(ri(2,12))}};},
+    ()=>{const [x]=LET(1),a=ri(2,9),v=ri(3,12);return{ast:sub(imul(a,V(x)),ri(1,a*v-1)),vals:{[x]:q(v)}};},
+    ()=>{const [x]=LET(1);return{ast:add(ri(2,30),imul(ri(2,9),V(x))),vals:{[x]:q(ri(2,12))}};},
+    ()=>{const [x]=LET(1),a=ri(2,6);return{ast:add(dvd(V(x),a),ri(1,20)),vals:{[x]:q(a*ri(2,10))}};},
+    ()=>{const [x]=LET(1),v=ri(4,15);return{ast:sub(ri(v+1,v+40),V(x)),vals:{[x]:q(v)}};},
+  ],
+  /* Vault 2 · two or more variables */
+  [
+    ()=>{const [x,y]=LET(2);return{ast:add(imul(ri(2,7),V(x)),imul(ri(2,7),V(y))),vals:{[x]:q(ri(2,10)),[y]:q(ri(2,10))}};},
+    ()=>{const [x,y]=LET(2),a=ri(2,9),b=ri(2,9);return{ast:sub(imul(V(x),V(y)),ri(1,a*b-1)),vals:{[x]:q(a),[y]:q(b)}};},
+    ()=>{const [x,y]=LET(2);return{ast:imul(ri(2,6),G(add(V(x),V(y)))),vals:{[x]:q(ri(1,12)),[y]:q(ri(1,12))}};},
+    ()=>{const [x,y]=LET(2),d=ri(2,6);return{ast:add(dvd(V(x),V(y)),ri(1,15)),vals:{[x]:q(d*ri(2,9)),[y]:q(d)}};},
+    ()=>{const [x,y,z]=LET(3);return{ast:add(V(x),imul(V(y),V(z))),vals:{[x]:q(ri(2,20)),[y]:q(ri(2,9)),[z]:q(ri(2,9))}};},
+    ()=>{const [x,y]=LET(2);return{ast:sub(imul(ri(3,8),V(x)),V(y)),vals:{[x]:q(ri(3,10)),[y]:q(ri(1,15))}};},
+  ],
+  /* Vault 3 · exponents + order of operations */
+  [
+    ()=>{const [n]=LET(1),v=ri(4,10);return{ast:sub(pw(V(n),2),imul(ri(1,v-1),V(n))),vals:{[n]:q(v)}};},
+    ()=>{const [x]=LET(1);return{ast:add(imul(ri(2,5),pw(V(x),2)),ri(1,20)),vals:{[x]:q(ri(2,7))}};},
+    ()=>{const [x]=LET(1),a=ri(1,5),v=ri(1,6);return{ast:sub(pw(G(add(V(x),a)),2),ri(1,(v+a)*(v+a)-1)),vals:{[x]:q(v)}};},
+    ()=>{const [x,y]=LET(2);return{ast:add(pw(V(x),3),V(y)),vals:{[x]:q(ri(2,5)),[y]:q(ri(1,20))}};},
+    ()=>{const [x,y]=LET(2);return{ast:add(pw(V(x),2),pw(V(y),2)),vals:{[x]:q(ri(2,9)),[y]:q(ri(2,9))}};},
+    ()=>{const [y]=LET(1),b=ri(1,8);return{ast:imul(ri(2,4),pw(G(sub(V(y),b)),2)),vals:{[y]:q(b+ri(1,6))}};},
+  ],
+  /* Vault 4 · decimals and fractions */
+  [
+    ()=>{const [x]=LET(1);return{ast:add(imul(ri(2,6),V(x)),N(dq(ri(1,9)+pick(['.5','.25','.75'])))),vals:{[x]:dq(ri(1,8)+pick(['.5','.25','.75']))}};},
+    ()=>{const [y]=LET(1);let v;do{v=ri(11,49);}while(v%10===0);
+         return{ast:add(N(dq(ri(1,9)+'.'+ri(1,9))),imul(ri(2,5),V(y))),vals:{[y]:dq((v/10).toFixed(1))}};},
+    ()=>{const [x]=LET(1);const [n,d]=pick([[1,2],[1,3],[2,3],[1,4],[3,4],[2,5],[3,5],[5,6]]);
+         return{ast:add(imul(d*ri(2,5),V(x)),ri(1,12)),vals:{[x]:q(n,d)}};},
+    ()=>{const [x,y]=LET(2);const fam=pick([[2,4,8],[3,6],[2,3,6],[2,4]]);const d1=pick(fam),d2=pick(fam);
+         return{ast:add(V(x),V(y)),vals:{[x]:q(ri(1,2)*d1+ri(1,d1-1),d1),[y]:q(ri(1,d2-1),d2)}};},
+    ()=>{const [x,y]=LET(2);const [n,d]=pick([[1,2],[3,4],[2,3],[1,4],[5,6],[3,8]]);
+         return{ast:imul(V(x),V(y)),vals:{[x]:q(n,d),[y]:q(d*ri(2,6))}};},
+    ()=>{const [x]=LET(1);const d=pick([2,3]);
+         return{ast:add(imul(d*d*ri(1,4),pw(V(x),2)),ri(1,9)),vals:{[x]:q(1,d)}};},
+    ()=>{const [x,y]=LET(2);
+         return{ast:sub(imul(V(x),V(y)),N(dq(ri(0,3)+pick(['.5','.25','.75'])))),vals:{[x]:dq(pick(['0.5','1.5','2.5','3.5'])),[y]:q(2*ri(1,6))}};},
+  ],
+  /* Vault 5 · formulas and word problems */
+  [
+    ()=>{const l=ri(6,20),w=ri(3,12);return{ast:add(imul(2,V('l')),imul(2,V('w'))),vals:{l:q(l),w:q(w)},lhs:'P',fname:'Perimeter of a rectangle',
+      story:`A laser fence surrounds a rectangular diamond display that is <b>${l} feet</b> long and <b>${w} feet</b> wide. How many feet of laser must the crew shut down?`,unit:'feet',units:{l:'ft',w:'ft'}};},
+    ()=>{const s=ri(4,15);return{ast:pw(V('s'),2),vals:{s:q(s)},lhs:'A',fname:'Area of a square',
+      story:`The floor safe has a square door with sides <b>${s} inches</b> long. What is the area of the door?`,unit:'square inches',units:{s:'in.'}};},
+    ()=>{const r=ri(6,15),f=ri(5,25),h=ri(2,6);return{ast:add(imul(r,V('h')),f),vals:{h:q(h)},lhs:'C',fname:'Rental cost',
+      story:`The getaway van costs <b>$${f}</b> to reserve plus <b>$${r} per hour</b>. The crew needs it for <b>${h} hours</b>. What is the total cost?`,unit:'dollars',units:{h:'hr'}};},
+    ()=>{const r=pick([30,35,40,45,50,55,60]),t=ri(2,5);return{ast:imul(V('r'),V('t')),vals:{r:q(r),t:q(t)},lhs:'d',fname:'Distance = rate × time',
+      story:`The armored truck travels at <b>${r} miles per hour</b> for <b>${t} hours</b>. How far does it travel?`,unit:'miles',units:{r:'mph',t:'hr'}};},
+    ()=>{const b=2*ri(3,10),h=ri(3,12);return{ast:imul(imul(q(1,2),V('b')),V('h')),vals:{b:q(b),h:q(h)},lhs:'A',fname:'Area of a triangle',
+      story:`A triangular glass panel guards the crown. Its base is <b>${b} inches</b> and its height is <b>${h} inches</b>. What is its area?`,unit:'square inches',units:{b:'in.',h:'in.'}};},
+    ()=>{const s=ri(2,6);return{ast:pw(V('s'),3),vals:{s:q(s)},lhs:'V',fname:'Volume of a cube',
+      story:`A cube-shaped lockbox has edges that are <b>${s} inches</b> long. What is its volume?`,unit:'cubic inches',units:{s:'in.'}};},
+    ()=>{const st=5*ri(4,12),wk=5*ri(2,6),w=ri(3,10);return{ast:add(st,imul(wk,V('w'))),vals:{w:q(w)},lhs:'T',fname:'Savings plan',
+      story:`The crew's fund starts at <b>$${st}</b> and grows by <b>$${wk} each week</b>. How much is in it after <b>${w} weeks</b>?`,unit:'dollars',units:{w:'wk'}};},
+  ],
+];
+
+const VAULTS=[
+  {name:'The Lobby Lockbox',skill:'One variable',icon:'🗝️',
+   intel:'To <b>evaluate</b> an expression, <b>substitute</b> (replace) the variable with its value, then calculate.',
+   tip:'<b>Heads up:</b> a number right next to a variable means multiply. 4<i>x</i> means 4 × <i>x</i>. When <i>x</i> = 6, write 4(6) = 24, <u>not</u> 46.'},
+  {name:'Twin-Key Treasury',skill:'Two or more variables',icon:'🔐',
+   intel:'Some locks use more than one variable. Each variable gets its <b>own</b> value. Plug in every one before you calculate.',
+   tip:'<b>Heads up:</b> <i>xy</i> means <i>x</i> × <i>y</i>. Parentheses like 3(<i>a</i> + <i>b</i>) mean: add inside first, then multiply by 3.'},
+  {name:'The Power Core',skill:'Exponents & order of operations',icon:'⚡',
+   intel:'Exponents show repeated multiplication: <i>n</i><sup>2</sup> = <i>n</i> × <i>n</i> and <i>n</i><sup>3</sup> = <i>n</i> × <i>n</i> × <i>n</i>.',
+   tip:'<b>Order of operations:</b> Parentheses → Exponents → Multiply/Divide (left to right) → Add/Subtract (left to right).'},
+  {name:'The Fraction & Decimal Den',skill:'Decimals and fractions',icon:'💠',
+   intel:'Same moves, trickier numbers. Variables can stand for decimals and fractions too.',
+   tip:'<b>Entering codes:</b> type decimals like <b>2.5</b>, fractions like <b>3/4</b>, or mixed numbers like <b>1 1/2</b> (use the SPACE key). Any equivalent form works.'},
+  {name:'The Grand Vault',skill:'Formulas & word problems',icon:'👑',
+   intel:'A <b>formula</b> is an expression with real meaning. Find each variable’s value in the story, substitute, and evaluate.',
+   tip:'<b>Heads up:</b> ½<i>bh</i> means ½ × <i>b</i> × <i>h</i>. Multiply in any order that makes it easy!'},
+];
+const LOCKS_PER_VAULT=3;
+
+function genProblem(level,ti){
+  for(let k=0;k<500;k++){
+    const p=TEMPLATES[level][ti]();
+    const sub=subst(p.ast,p.vals);
+    const sol=solve(sub,level!==3);
+    if(!sol.ok)continue;
+    p.sub=sub;p.sol=sol;p.answer=sol.value;p.level=level;p.ti=ti;
+    p.slotVars=collectVars(p.ast,[]);
+    p.varOrder=[...new Set(p.slotVars)];
+    return p;
+  }
+  throw new Error('Could not generate problem '+level+'/'+ti);
+}
+
+function stepsHTML(p){
+  const L=p.sol.lines; const lhs=p.lhs?`<i class="var">${p.lhs}</i> = `:'';
+  let h='<div class="steps">';
+  h+=`<div class="st"><span class="eq"></span><span>${lhs}${render(p.ast,{})}</span><span class="note">expression</span></div>`;
+  L.forEach((ln,i)=>{
+    const last=i===L.length-1;
+    const note=i===0?'substitute':OPNAME[L[i-1].hl.op];
+    const body=last?`${qHTML(p.answer)}${p.unit?` <span style="font-family:Segoe UI,Roboto,sans-serif;font-size:.7em">${p.unit}</span>`:''}`:render(ln.t,{hl:ln.hl});
+    h+=`<div class="st${last?' final':''}"><span class="eq">=</span><span>${body}</span><span class="note">${note}</span></div>`;
+  });
+  return h+'</div>';
+}
+function valsText(p){
+  return p.varOrder.map(v=>`<i class="var">${vname(v)}</i> = ${qHTML(p.vals[v])}`).join(', ');
+}
+
+/* =====================================================================
+   GAME (browser only)
+   ===================================================================== */
+if(typeof window!=='undefined'){
+
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v);}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+};
+const $=s=>document.querySelector(s);
+const app=$('#app');
+const S={muted:store.get('vv_muted',false)};
+window.__vv=S; // handy for debugging in the browser console
+
+/* ---------------- Sound ---------------- */
+let AC=null;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC;}
+function tone(f,dur,type='sine',vol=.14,when=0){
+  if(S.muted)return; const c=ac(); if(!c)return;
+  const t=c.currentTime+when,o=c.createOscillator(),g=c.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+  o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.03);
+}
+const SFX={
+  key:()=>tone(1000,.04,'square',.04),
+  pick:()=>tone(700,.06,'triangle',.1),
+  place:()=>{tone(520,.08,'triangle',.13);tone(780,.12,'triangle',.11,.06);},
+  buzz:()=>tone(150,.22,'square',.08),
+  open:()=>{tone(90,.25,'square',.12);[523,659,784,1047].forEach((f,i)=>tone(f,.28,'triangle',.13,.25+i*.09));},
+  alarm:()=>{for(let i=0;i<5;i++)tone(i%2?620:900,.17,'sawtooth',.07,i*.17);},
+  win:()=>{[523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,.32,'triangle',.13,i*.11));},
+};
+
+/* ---------------- FX ---------------- */
+function flash(){const f=$('#flash');f.classList.remove('on');void f.offsetWidth;f.classList.add('on');}
+function confetti(big){
+  const cv=$('#fx'),cx=cv.getContext('2d');cv.width=innerWidth;cv.height=innerHeight;
+  const cols=['#ffc94d','#3ef0c8','#5aa9ff','#ff6fa8','#ffffff','#ffe39a'];
+  const P=Array.from({length:big?220:90},()=>({x:innerWidth/2+(Math.random()-.5)*innerWidth*.5,y:innerHeight*.35,
+    vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,s:4+Math.random()*7,c:pick(cols),r:Math.random()*6,vr:(Math.random()-.5)*.4,coin:Math.random()<.25}));
+  const t0=performance.now();
+  (function fr(t){
+    cx.clearRect(0,0,cv.width,cv.height);
+    P.forEach(p=>{p.vy+=.35;p.x+=p.vx;p.y+=p.vy;p.vx*=.99;p.r+=p.vr;cx.save();cx.translate(p.x,p.y);cx.rotate(p.r);cx.fillStyle=p.c;
+      if(p.coin){cx.beginPath();cx.arc(0,0,p.s*.8,0,7);cx.fillStyle='#ffc94d';cx.fill();cx.strokeStyle='#a46a0e';cx.lineWidth=2;cx.stroke();}
+      else cx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);cx.restore();});
+    if(t-t0<(big?3200:1900))requestAnimationFrame(fr);else cx.clearRect(0,0,cv.width,cv.height);
+  })(t0);
+}
+
+/* ---------------- Door graphic ---------------- */
+function doorSVG(){
+  let bolts='',ticks='';
+  for(let i=0;i<8;i++){const a=i*45;bolts+=`<rect class="bolt" x="94" y="6" width="12" height="18" rx="3" fill="#8b9bd6" transform="rotate(${a} 100 100)"/>`;}
+  for(let i=0;i<24;i++){const a=i*15;ticks+=`<line x1="100" y1="70" x2="100" y2="${i%6?75:78}" stroke="#c9d3ff" stroke-width="${i%6?1.2:2.2}" transform="rotate(${a} 100 100)"/>`;}
+  return `<svg viewBox="0 0 200 200" aria-hidden="true">
+  <defs>
+    <radialGradient id="dg" cx="45%" cy="35%"><stop offset="0" stop-color="#6c7cb4"/><stop offset=".65" stop-color="#36427a"/><stop offset="1" stop-color="#1d2550"/></radialGradient>
+    <radialGradient id="kg" cx="40%" cy="35%"><stop offset="0" stop-color="#e9eeff"/><stop offset="1" stop-color="#7d8cc6"/></radialGradient>
+  </defs>
+  <circle cx="100" cy="100" r="97" fill="#0b1029" stroke="#3a4a8c" stroke-width="3"/>
+  ${bolts}
+  <circle cx="100" cy="100" r="84" fill="url(#dg)" stroke="#a9b6ee" stroke-width="3"/>
+  <circle cx="100" cy="100" r="74" fill="none" stroke="#24306a" stroke-width="2" stroke-dasharray="3 5"/>
+  <g class="handle"><g stroke="#cfd8ff" stroke-width="7" stroke-linecap="round">
+    <line x1="100" y1="100" x2="100" y2="40"/><line x1="100" y1="100" x2="152" y2="130"/><line x1="100" y1="100" x2="48" y2="130"/></g>
+    <circle cx="100" cy="40" r="7" fill="#ffc94d"/><circle cx="152" cy="130" r="7" fill="#ffc94d"/><circle cx="48" cy="130" r="7" fill="#ffc94d"/></g>
+  <g class="dial"><circle cx="100" cy="100" r="34" fill="url(#kg)" stroke="#2a356c" stroke-width="3"/>${ticks}
+    <circle cx="100" cy="100" r="22" fill="#1c2452"/><polygon points="100,72 95,84 105,84" fill="#ff4d6d"/>
+    <text x="100" y="106" text-anchor="middle" font-size="15" font-weight="900" fill="#ffc94d" font-family="Georgia,serif" font-style="italic">x</text></g>
+  </svg>`;
+}
+
+/* ---------------- Crew messages ---------------- */
+function crew(html,kind=''){const c=$('#crew');if(!c)return;c.className='crew '+kind;c.innerHTML=`<div class="who">🕶️ CIPHER · YOUR CREW HACKER</div>${html}`;}
+const NICE=['Smooth.','Like butter.','The crew is impressed.','Textbook crack.','Clean work, agent.','Nailed it.'];
+
+/* ---------------- Modal ---------------- */
+let modalBtns=[];
+function showModal(html,btns){
+  modalBtns=btns;
+  $('#mbox').innerHTML=html+`<div class="btns">${btns.map((b,i)=>`<button class="btn ${b.cls||''}" data-b="${i}">${b.label}</button>`).join('')}</div>`;
+  $('#modal').classList.remove('hidden');
+  $('#mbox').querySelectorAll('[data-b]').forEach(el=>el.onclick=()=>{hideModal();btns[+el.dataset.b].fn();});
+  setTimeout(()=>{const b=$('#mbox [data-b="0"]');b&&b.focus();},50);
+}
+function hideModal(){$('#modal').classList.add('hidden');modalBtns=[];}
+
+/* ---------------- Formatting ---------------- */
+const money=n=>'$'+n.toLocaleString();
+const clock=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function elapsed(){return Math.floor((Date.now()-S.t0)/1000);}
+
+/* ================= TITLE ================= */
+function showTitle(){
+  clearInterval(S.timer);
+  const best=store.get('vv_best',0), name=store.get('vv_name','');
+  app.innerHTML=`<div class="screen center">
+    <div class="lesson-tag">enVision 2.0 · Topic 3 · Lesson 3-5 · Evaluate Algebraic Expressions</div>
+    <div class="title-door" style="margin-top:1rem">${doorSVG()}</div>
+    <h1 class="logo">VARIABLE<span>VAULT</span></h1>
+    <p class="tag">Substitute. Evaluate. Crack the code.</p>
+    <div class="how">
+      <div class="card"><span class="n">1</span><b>Read the lock</b><small>Every vault lock is protected by an algebraic expression.</small></div>
+      <div class="card"><span class="n">2</span><b>Plug in the intel</b><small>Drag each value onto its matching variable. That's substitution!</small></div>
+      <div class="card"><span class="n">3</span><b>Crack the code</b><small>Evaluate using the order of operations and enter the code.</small></div>
+    </div>
+    <div class="start-row">
+      <input id="cn" maxlength="18" placeholder="Agent codename (your first name)" value="${esc(name)}" aria-label="Agent codename">
+      <select id="sv" aria-label="Starting vault">${VAULTS.map((v,i)=>`<option value="${i}">Start: Vault ${i+1}</option>`).join('')}</select>
+      <button class="btn" id="go">START THE HEIST ▶</button>
+      <button class="btn ghost" id="townExit" title="Exit to Expression Town">⬅ RETURN TO TOWN</button>
+    </div>
+    <div class="best">${best?`Best loot on this device: <b style="color:var(--gold)">${money(best)}</b>`:'5 vaults · 15 locks · about 10 minutes'}</div>
+  </div>`;
+  $('#go').onclick=()=>{ac();startGame($('#cn').value.trim()||'Agent X',+$('#sv').value);};
+  $('#cn').addEventListener('keydown',e=>{if(e.key==='Enter')$('#go').click();});
+  const te=$('#townExit');
+  if(te){te.onclick=()=>{try{window.parent.postMessage({type:'CARTRIDGE_EXIT_REQUEST'},'*');}catch(e){console.warn(e);}};}
+}
+
+function startGame(name,startVault){
+  store.set('vv_name',name);
+  Object.assign(S,{name,start:startVault,vault:startVault,score:0,streak:0,bestStreak:0,subs:0,correct:0,
+    mistakes:{concat:0,impadd:0,pow:0,ltr:0,other:0},vstats:VAULTS.map(()=>({res:[],loot:0})),t0:Date.now()});
+  clearInterval(S.timer);
+  S.timer=setInterval(()=>{const el=$('#clock');if(el)el.textContent='⏱ '+clock(elapsed());},1000);
+  showBrief();
+}
+
+function strip(){
+  return `<div class="strip">${VAULTS.map((v,i)=>{
+    const cls=i<S.vault&&i>=S.start?'done':i===S.vault?'now':'';
+    return `<div class="chip ${cls}"><span class="dot">${cls==='done'?'✓':i+1}</span>${v.name}</div>`;}).join('')}</div>`;
+}
+
+/* ================= BRIEFING ================= */
+function showBrief(){
+  const v=VAULTS[S.vault], ex=genProblem(S.vault,0);
+  app.innerHTML=`<div class="screen">${strip()}
+    <div class="brief card">
+      <div class="kicker">${v.icon} VAULT ${S.vault+1} OF 5 · ${v.skill.toUpperCase()}</div>
+      <h2>${v.name}</h2>
+      <p class="intel">${v.intel}</p>
+      <div class="tipbox">${v.tip}</div>
+      <div class="demo"><div class="label">Crew demo · watch how Cipher cracks one</div>
+        ${ex.story?`<div class="q">${ex.story}</div>`:''}
+        <div class="q">Evaluate ${ex.lhs?`<i class="var">${ex.lhs}</i> = `:''}<span style="font-family:var(--math);font-size:1.2em">${render(ex.ast,{})}</span> when ${valsText(ex)}.</div>
+        ${stepsHTML(ex)}
+      </div>
+      <div class="go"><button class="btn ghost" id="quit">Quit</button><button class="btn" id="crack">CRACK IT ▶</button></div>
+    </div></div>`;
+  $('#crack').onclick=()=>{
+    S.tpls=shuffle(TEMPLATES[S.vault].map((_,i)=>i)).slice(0,LOCKS_PER_VAULT);
+    S.lockIdx=0; newLock(false);
+  };
+  $('#quit').onclick=showTitle;
+  setTimeout(()=>$('#crack')&&$('#crack').focus(),50);
+}
+
+/* ================= PLAY ================= */
+function newLock(replacement){
+  S.p=genProblem(S.vault,S.tpls[S.lockIdx]);
+  S.filled=new Array(S.p.slotVars.length).fill(null);
+  S.phase='sub';S.tries=0;S.code='';S.replacement=replacement;S.sel=null;
+  renderPlay();
+}
+function lightsHTML(){
+  const res=S.vstats[S.vault].res;
+  return Array.from({length:LOCKS_PER_VAULT},(_,i)=>{
+    const r=res[i];const cls=r==='first'?'on':r==='later'?'half':r==='bust'?'bust':i===S.lockIdx?'cur':'';
+    return `<span class="light ${cls}" title="Lock ${i+1}"></span>`;}).join('');
+}
+function hudHTML(){
+  const v=VAULTS[S.vault];
+  return `<div class="hud card">
+    <div class="vt">${v.icon} VAULT ${S.vault+1}/5 · <b>${v.name}</b> · Lock ${S.lockIdx+1} of ${LOCKS_PER_VAULT}${S.replacement?' <span style="color:var(--gold)">(backup lock)</span>':''}</div>
+    <div class="lights" id="lights">${lightsHTML()}</div>
+    <div class="stat loot" id="loot">💰 ${money(S.score)}</div>
+    <div class="stat fire" id="streak" title="Streak">🔥 ${S.streak}</div>
+    <div class="stat" id="clock">⏱ ${clock(elapsed())}</div>
+    <button class="iconbtn" id="mute" title="Sound on/off" aria-label="Toggle sound">${S.muted?'🔇':'🔊'}</button>
+  </div>`;
+}
+function renderPlay(){
+  const p=S.p;
+  const keys=[['7'],['8'],['9'],['⌫','back','warn'],['4'],['5'],['6'],['/','/'],['1'],['2'],['3'],['.','.'],['0','0','z'],['SPACE','space','s'],['CLR','clr','s warn']];
+  app.innerHTML=`<div class="screen">${hudHTML()}
+   <div class="play">
+    <div class="side card">
+      <div class="doorwrap" id="door"><div class="behind">💎</div><div class="leaf">${doorSVG()}</div></div>
+      <div class="crew" id="crew"></div>
+      <div class="pemdas"><span>( ) PARENTHESES</span><span>x² EXPONENTS</span><span>× ÷ LEFT→RIGHT</span><span>+ − LEFT→RIGHT</span></div>
+    </div>
+    <div class="main card">
+      ${p.story?`<div class="story"><span class="fname">📋 Mission file · ${p.fname}</span>${p.story}</div>`:''}
+      <div class="label">🔒 Lock expression</div>
+      <div class="expr" id="expr"></div>
+      <div class="label">🛰️ Intel · drag each value onto its matching variable (or tap a card, then tap the variable)</div>
+      <div class="tiles" id="tiles">${shuffle(p.varOrder).map(v=>`<div class="tile" data-var="${v}" tabindex="0"><i>${vname(v)}</i> = ${qHTML(p.vals[v])}${p.units&&p.units[v]?`<span class="u">${p.units[v]}</span>`:''}</div>`).join('')}</div>
+      <div class="instr" id="instr"><b>Step 1:</b> Substitute. Fill every variable slot.</div>
+      <div class="stage2 locked" id="stage2">
+        <div class="codecol">
+          <div class="label">✅ Substituted · now evaluate</div>
+          <div class="expr sm" id="subexpr">${p.lhs?`<span class="lhs"><i class="var">${p.lhs}</i> = </span>`:''}${render(p.sub,{})}</div>
+          <div class="label">🔢 Enter the code${p.unit?` (in ${p.unit})`:''}</div>
+          <div class="lcdrow"><div class="lcd" id="lcd"></div><button class="btn teal" id="open">OPEN</button></div>
+          <div class="tries" id="tries"></div>
+        </div>
+        <div class="keypad">${keys.map(k=>`<button class="key ${k[2]||''}" data-k="${k[1]||k[0]}">${k[0]}</button>`).join('')}</div>
+      </div>
+    </div>
+   </div></div>`;
+  $('#mute').onclick=()=>{S.muted=!S.muted;store.set('vv_muted',S.muted);$('#mute').textContent=S.muted?'🔇':'🔊';};
+  document.querySelectorAll('.tile').forEach(t=>{
+    t.addEventListener('pointerdown',e=>startDrag(e,t));
+    t.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectTile(t.dataset.var);}});
+  });
+  document.querySelectorAll('.key').forEach(k=>k.onclick=()=>pressKey(k.dataset.k));
+  $('#open').onclick=submit;
+  updateExpr(); updateLCD();
+  const multi=p.slotVars.length>p.varOrder.length;
+  crew(S.replacement?'Backup lock, same type. You\'ve got this. Substitute first, then evaluate step by step.'
+    :S.lockIdx===0&&S.vault===S.start?`Welcome, <b>${esc(S.name)}</b>. Drag the intel cards onto the matching variables in the lock. That's how you <b>substitute</b>.`
+    :multi?'Watch out: a variable shows up <b>more than once</b> here. Every copy needs a value.'
+    :pick(['New lock. Intel is in. Substitute, then evaluate.','Plug in the values first. Calculate second.','Remember: a number touching a variable means multiply.','Every variable slot needs its value before the keypad wakes up.']));
+}
+function updateExpr(){
+  const p=S.p;
+  $('#expr').innerHTML=(p.lhs?`<span class="lhs"><i class="var">${p.lhs}</i> = </span>`:'')+render(p.ast,{slots:true,filled:S.filled,slotIdx:{i:0}});
+  document.querySelectorAll('#expr .slot:not(.filled)').forEach(s=>{
+    s.addEventListener('click',()=>{ if(S.phase!=='sub')return;
+      if(S.sel)tryFill(s,S.sel); else {crew('Pick an intel card first, then tap the variable it belongs to.','warn');SFX.buzz();} });
+    if(S.sel&&s.dataset.var===S.sel)s.classList.add('ready');
+  });
+}
+function selectTile(v){
+  if(S.phase!=='sub')return;
+  S.sel=S.sel===v?null:v; SFX.pick();
+  document.querySelectorAll('.tile').forEach(t=>t.classList.toggle('sel',t.dataset.var===S.sel));
+  updateExpr();
+}
+function tryFill(slot,v){
+  const i=+slot.dataset.i, need=slot.dataset.var;
+  if(need!==v){
+    slot.classList.add('shake');SFX.buzz();setTimeout(()=>slot.classList.remove('shake'),420);
+    crew(`Wrong slot! That spot is for <i class="var">${vname(need)}</i>, but you're holding <i class="var">${vname(v)}</i>. Match the letters.`,'warn');
+    return;
+  }
+  S.filled[i]=S.p.vals[v]; SFX.place(); updateExpr();
+  if(S.filled.every(Boolean)) substituted();
+}
+function substituted(){
+  S.phase='code';S.sel=null;
+  $('#tiles').classList.add('spent');
+  document.querySelectorAll('.tile').forEach(t=>t.classList.remove('sel'));
+  $('#stage2').classList.remove('locked');
+  $('#instr').innerHTML='<b>Step 2:</b> Evaluate using the order of operations, then type the code and press OPEN (or Enter).';
+  crew('Substitution complete! ✅ Now evaluate. Exponents first, then multiply/divide, then add/subtract. Scratch paper is your friend.','good');
+  updateLCD();
+}
+
+/* ---- drag & drop (mouse, trackpad, touch) ---- */
+let drag=null;
+function startDrag(e,t){
+  if(S.phase!=='sub')return;
+  e.preventDefault(); ac();
+  const r=t.getBoundingClientRect();
+  drag={t,x0:e.clientX,y0:e.clientY,ox:e.clientX-r.left,oy:e.clientY-r.top,ghost:null};
+  window.addEventListener('pointermove',onDrag);
+  window.addEventListener('pointerup',endDrag,{once:true});
+  window.addEventListener('pointercancel',endDrag,{once:true});
+}
+function onDrag(e){
+  if(!drag)return;
+  if(!drag.ghost&&Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)>6){
+    const g=drag.t.cloneNode(true);g.classList.add('dragghost');g.classList.remove('sel');
+    g.style.width=drag.t.offsetWidth+'px';document.body.appendChild(g);drag.ghost=g;SFX.pick();
+  }
+  if(drag.ghost){
+    drag.ghost.style.left=(e.clientX-drag.ox)+'px';drag.ghost.style.top=(e.clientY-drag.oy)+'px';
+    document.querySelectorAll('.slot.over').forEach(x=>x.classList.remove('over'));
+    const el=document.elementFromPoint(e.clientX,e.clientY);const s=el&&el.closest('.slot:not(.filled)');
+    if(s)s.classList.add('over');
+  }
+}
+function endDrag(e){
+  window.removeEventListener('pointermove',onDrag);
+  window.removeEventListener('pointerup',endDrag);window.removeEventListener('pointercancel',endDrag);
+  const d=drag;drag=null;if(!d)return;
+  document.querySelectorAll('.slot.over').forEach(x=>x.classList.remove('over'));
+  if(d.ghost){
+    d.ghost.remove();
+    if(e.type==='pointercancel')return;
+    const el=document.elementFromPoint(e.clientX,e.clientY);const s=el&&el.closest('.slot:not(.filled)');
+    if(s)tryFill(s,d.t.dataset.var);
+  } else selectTile(d.t.dataset.var);
+}
+
+/* ---- keypad ---- */
+function pressKey(k){
+  if(S.phase!=='code')return;
+  SFX.key(); const c=S.code;
+  if(k==='back')S.code=c.slice(0,-1);
+  else if(k==='clr')S.code='';
+  else if(k==='space'){if(c&&!c.includes(' ')&&!c.includes('/')&&!c.includes('.'))S.code=c+' ';}
+  else if(c.length<11)S.code=c+k;
+  $('#lcd').classList.remove('err');updateLCD();
+}
+function updateLCD(){
+  const l=$('#lcd');if(!l)return;
+  l.innerHTML=esc(S.code)+(S.phase==='code'?'<span class="cur"></span>':'');
+  const t=$('#tries');if(t)t.textContent=S.phase==='code'?(S.tries===0?'2 tries before lockdown':'⚠️ 1 try left before lockdown!'):'';
+  const o=$('#open');if(o)o.disabled=S.phase!=='code';
+}
+function submit(){
+  if(S.phase!=='code')return;
+  if(!S.code.trim()){crew('Type a code first.','warn');return;}
+  const a=parseAnswer(S.code);
+  if(!a){crew('That code format won\'t work. Try a whole number (42), a decimal (2.5), a fraction (3/4), or a mixed number (1 1/2).','warn');SFX.buzz();return;}
+  S.subs++;
+  if(a.eq(S.p.answer))success(); else fail(a);
+}
+function success(){
+  S.phase='done';S.correct++;S.streak++;S.bestStreak=Math.max(S.bestStreak,S.streak);
+  const first=S.tries===0;
+  let pts=S.replacement?(first?40:20):(first?100:50);
+  const bonus=first&&!S.replacement?Math.min(S.streak-1,5)*20:0; pts+=bonus;
+  S.score+=pts; const vs=S.vstats[S.vault]; vs.loot+=pts;
+  vs.res[S.lockIdx]=(first&&!S.replacement)?'first':'later';
+  updateHud();
+  const door=$('#door');door.classList.add('spin');SFX.open();
+  setTimeout(()=>door.classList.add('open'),650);
+  crew(`<b>${pick(NICE)}</b> The code was <b>${qText(S.p.answer)}</b>.`,'good');
+  updateLCD();
+  setTimeout(()=>{
+    confetti(false);
+    const last=S.lockIdx===LOCKS_PER_VAULT-1;
+    showModal(`<h3 class="good">🔓 Lock cracked!</h3>
+      <div class="pts">+${money(pts)} loot${bonus?` <span style="color:#ff9a4d;font-size:.9rem">(includes 🔥 streak bonus +${bonus})</span>`:''}</div>
+      <details><summary>See the crack, step by step</summary>${stepsHTML(S.p)}</details>`,
+      [{label:last?'FINISH VAULT ▶':'NEXT LOCK ▶',fn:advance}]);
+  },1500);
+}
+function fail(a){
+  S.streak=0;S.tries++;
+  const m=diagnose(S.p,a)||'other'; S.mistakes[m]++;
+  updateHud(); flash(); SFX.alarm();
+  const door=$('#door');door.classList.remove('shake');void door.offsetWidth;door.classList.add('shake');
+  $('#lcd').classList.add('err');
+  if(S.tries<2){
+    crew(`🚨 <b>ALARM!</b> ${esc(S.code)} is not the code. ${hintFor(S.p,m==='other'?null:m)}<div style="margin-top:.35rem;color:var(--gold)">One more try before lockdown.</div>`,'bad');
+    S.code='';setTimeout(()=>{$('#lcd')&&$('#lcd').classList.remove('err');updateLCD();},700);updateLCD();
+  } else {
+    S.phase='busted';updateLCD();
+    crew('🚨 <b>LOCKDOWN.</b> Study how the crew cracks it, then try again.','bad');
+    const canRetry=!S.replacement;
+    setTimeout(()=>showModal(`<h3 class="bad">🚨 Lockdown!</h3>
+      <p style="margin:.2rem 0 .4rem">The code was <b style="color:var(--teal);font-size:1.2rem">${qText(S.p.answer)}</b>. Here's how the crew cracks it. Read each step:</p>
+      ${stepsHTML(S.p)}
+      ${m!=='other'?`<div class="tipbox" style="margin:.8rem 0 0">${hintFor(S.p,m)}</div>`:''}
+      ${canRetry?'<p style="color:var(--muted);margin:.7rem 0 0">Security is swapping in a <b>backup lock</b> of the same type. Show them what you learned.</p>':''}`,
+      [{label:canRetry?'TRY THE BACKUP LOCK ▶':'NEXT LOCK ▶',fn:canRetry?()=>newLock(true):()=>{S.vstats[S.vault].res[S.lockIdx]='bust';advance();}}]),900);
+  }
+}
+function updateHud(){
+  const l=$('#loot');if(l)l.textContent='💰 '+money(S.score);
+  const s=$('#streak');if(s)s.textContent='🔥 '+S.streak;
+  const li=$('#lights');if(li)li.innerHTML=lightsHTML();
+}
+function advance(){
+  S.lockIdx++;
+  if(S.lockIdx<LOCKS_PER_VAULT){newLock(false);return;}
+  const vs=S.vstats[S.vault], stars=vs.res.filter(r=>r==='first').length;
+  confetti(true);SFX.win();
+  const lastVault=S.vault===VAULTS.length-1;
+  showModal(`<div style="text-align:center">
+    <div style="font-size:3rem">${VAULTS[S.vault].icon}</div>
+    <h3 class="gold">VAULT ${S.vault+1} CRACKED!</h3>
+    <div style="color:var(--muted)">${VAULTS[S.vault].name}</div>
+    <div class="stars">${[0,1,2].map(i=>`<span class="${i<stars?'':'off'}">⭐</span>`).join('')}</div>
+    <div style="color:var(--muted);font-size:.9rem;margin-bottom:.4rem">⭐ = a lock cracked on the first try</div>
+    <div class="pts">${money(vs.loot)} loot from this vault</div></div>`,
+    [{label:lastVault?'SEE HEIST REPORT ▶':'NEXT VAULT ▶',fn:()=>{S.vault++; if(S.vault>=VAULTS.length)showReport(); else showBrief();}},
+     {label:'HEIST REPORT & EXIT ➔',cls:'ghost',fn:showReport}]);
+}
+
+/* ================= REPORT ================= */
+function showReport(){
+  clearInterval(S.timer);
+  const time=elapsed(), acc=S.subs?Math.round(100*S.correct/S.subs):0;
+  const played=VAULTS.map((v,i)=>i).filter(i=>i>=S.start);
+  const totalStars=played.reduce((s,i)=>s+S.vstats[i].res.filter(r=>r==='first').length,0), maxStars=played.length*3;
+  const rank=acc>=90&&totalStars>=maxStars*.8?['🕴️','MASTERMIND']:acc>=75?['🦊','MASTER SAFECRACKER']:acc>=55?['🕵️','FIELD AGENT']:['🎒','ROOKIE RECRUIT'];
+  const best=store.get('vv_best',0); const newBest=S.score>best; if(newBest)store.set('vv_best',S.score);
+  const rev=Object.entries(S.mistakes).filter(([,n])=>n>0).sort((a,b)=>b[1]-a[1]);
+  app.innerHTML=`<div class="screen">
+    <div class="report card">
+      <div class="kicker">HEIST REPORT · LESSON 3-5 · EVALUATE ALGEBRAIC EXPRESSIONS</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px">
+        <div><div style="color:var(--muted)">Agent <b style="color:var(--text)">${esc(S.name)}</b> · ${new Date().toLocaleDateString()}</div>
+        <div class="rank">${rank[0]} ${rank[1]}</div></div>
+        ${newBest?'<div class="stat loot">🏆 New best on this device!</div>':''}
+      </div>
+      <div class="grid4">
+        <div class="big"><b style="color:var(--gold)">${money(S.score)}</b><small>Total loot</small></div>
+        <div class="big"><b>${acc}%</b><small>Code accuracy</small></div>
+        <div class="big"><b>${totalStars}/${maxStars}</b><small>First-try stars</small></div>
+        <div class="big"><b>${clock(time)}</b><small>Heist time</small></div>
+      </div>
+      <div class="label">Vaults</div>
+      ${played.map(i=>{const r=S.vstats[i].res;return `<div class="vrow"><span>${VAULTS[i].icon} ${VAULTS[i].name} <span style="color:var(--muted);font-size:.85rem">· ${VAULTS[i].skill}</span></span><span class="s">${[0,1,2].map(k=>r[k]==='first'?'⭐':r[k]==='later'?'🔓':r[k]==='bust'?'🚨':'·').join(' ')}</span></div>`;}).join('')}
+      <div style="color:var(--muted);font-size:.82rem;margin-top:.4rem">⭐ first try · 🔓 cracked after a retry · 🚨 lockdown</div>
+      ${rev.length?`<div class="review"><b style="color:var(--gold)">🎯 Skills to sharpen:</b><br>${rev.map(([k,n])=>`• ${MISTAKE_TXT[k]} <span style="color:var(--muted)">(${n}×)</span>`).join('<br>')}</div>`
+        :'<div class="review" style="border-color:rgba(62,240,200,.4);background:rgba(62,240,200,.07)"><b style="color:var(--teal)">Flawless!</b> No alarms tripped. You are a substitution specialist.</div>'}
+      <div class="btns" style="display:flex;gap:10px;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap">
+        <button class="btn ghost" id="home">Title Screen</button>
+        <button class="btn ghost" id="again">Play Again</button>
+        <button class="btn" id="townDone" style="background:var(--gold);color:#0c1024;font-weight:900">SAVE &amp; RETURN TO TOWN ➔</button>
+      </div>
+    </div></div>`;
+  confetti(true);SFX.win();
+  $('#again').onclick=()=>startGame(S.name,S.start);
+  $('#home').onclick=showTitle;
+  $('#townDone').onclick=()=>{
+    try {
+      window.parent.postMessage({
+        type: 'CARTRIDGE_COMPLETE',
+        payload: {
+          lessonId: 'G06_U03_L05',
+          score: Math.max(1, S.correct || 10),
+          total: Math.max(1, S.subs || 15),
+          stars: Math.max(1, Math.min(3, Math.round((totalStars / Math.max(1, maxStars)) * 3))),
+          accuracy: acc,
+          bossDefeated: S.vault >= VAULTS.length - 1,
+        }
+      }, '*');
+    } catch(e) { console.warn(e); }
+  };
+}
+
+/* ---------------- Keyboard ---------------- */
+document.addEventListener('keydown',e=>{
+  if(!$('#modal').classList.contains('hidden')){
+    if(e.key==='Enter'&&modalBtns[0]){e.preventDefault();const b=modalBtns[0];hideModal();b.fn();}
+    return;
+  }
+  if(S.phase!=='code'||!$('#lcd'))return;
+  if(/^[0-9]$/.test(e.key))pressKey(e.key);
+  else if(e.key==='.'||e.key==='/')pressKey(e.key);
+  else if(e.key===' '){e.preventDefault();pressKey('space');}
+  else if(e.key==='Backspace'){e.preventDefault();pressKey('back');}
+  else if(e.key==='Escape')pressKey('clr');
+  else if(e.key==='Enter'){e.preventDefault();submit();}
+});
+
+showTitle();
+
+// Post CARTRIDGE_READY to parent harness if embedded
+try {
+  window.parent.postMessage({ type: 'CARTRIDGE_READY' }, '*');
+} catch(e) {}
+
+// Listen for HUB_INIT from Expression Town parent window
+window.addEventListener('message', (event) => {
+  if (!event.data || typeof event.data !== 'object') return;
+  if (event.data.type === 'HUB_INIT') {
+    const p = event.data.payload || {};
+    if (typeof p.isMuted === 'boolean') {
+      S.muted = p.isMuted;
+      const muteEl = $('#mute');
+      if (muteEl) muteEl.textContent = S.muted ? '🔇' : '🔊';
+    }
+  }
+});
+}
+</script>
+</body>
+</html>
