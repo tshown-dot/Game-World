@@ -8,11 +8,11 @@ Students pick a town on the **Super Map**. Each town is one textbook topic, with
 | Town | Topic | Status |
 |---|---|---|
 | Expression Town | Topic 3: Numeric & Algebraic Expressions | Built. Lives in `towns/topic-3-expression-town/` with code sign-in and cloud saving |
-| Equation Valley | Topic 4: Equations & Inequalities | Open. Lesson 4-2 Counterweight is built; other lessons coming |
+| Equation Valley | Topic 4: Equations & Inequalities | Open. Lessons 4-1 Key Fitter and 4-2 Counterweight are built; other lessons coming |
 | Six more towns | To be decided | Planned |
 
 ## Status
-The Super Map, Expression Town (Topic 3) and Equation Valley (Topic 4, first game 4-2) are live, with code sign-in and cloud saving. See `CLAUDE.md` for the design rules and project structure, and `docs/lessons.md` for the Topic 4 lesson list.
+The Super Map, Expression Town (Topic 3) and Equation Valley (Topic 4, lessons 4-1 and 4-2) are live, with code sign-in and cloud saving. See `CLAUDE.md` for the design rules and project structure, and `docs/lessons.md` for the Topic 4 lesson list.
 
 ## Principles
 - The math concept picks the game genre.

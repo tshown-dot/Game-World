@@ -44,6 +44,14 @@ const scaleLift = `
   <circle cx="0" cy="-94" r="6" fill="${PALETTE.red}" ${O2}/>
   <path d="M6 -40 L6 -26 M-6 -40 L-6 -26" stroke="#8a5a2b" stroke-width="3"/>`;
 
+const keyVault = `
+  <ellipse cx="0" cy="-16" rx="46" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <path d="M-46 -18 L-40 -86 Q0 -104 40 -86 L46 -18 Z" fill="#c8673a" ${O}/>
+  <circle cx="0" cy="-52" r="26" fill="#8b90a3" ${O}/>
+  <circle cx="0" cy="-52" r="17" fill="#6b6f80" ${O2}/>
+  <circle cx="0" cy="-56" r="5" fill="${K}"/><rect x="-2.5" y="-56" width="5" height="11" fill="${K}"/>
+  <g class="sway"><g transform="translate(30 -30)"><circle r="7" fill="${PALETTE.gold}" ${O2}/><rect x="-2" y="6" width="4" height="14" fill="${PALETTE.gold}" ${O2}/></g></g>`;
+
 const construction = () => `
   <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
   <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
@@ -62,5 +70,6 @@ export function buildingSvg(stage, state) {
   if (stage.isBoss) return golemFort + (state === 'wip' ? construction() : '');
   if (!stage.built) return construction();
   if (stage.building === 'scale_lift') return scaleLift;
+  if (stage.building === 'key_vault') return keyVault;
   return construction();
 }

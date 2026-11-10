@@ -44,6 +44,21 @@ await test('first BUILT stage is open; unbuilt stages are "wip"; later stages wa
   assert.equal(s.stageState('boss'), 'wip');
 });
 
+await test('a stage a student already cleared stays open even if an earlier stage is built later', async () => {
+  const stages = STAGES.map((s) => ({ ...s }));
+  stages[0].built = true;                     // 4-1 gets built after the student already cleared 4-2
+  const s = new TownState({ townId: 'topic_4', label: 'topic-4', stages, store: fakeStore({ K7M2QX: {
+    open: [false, false, false, true], progress: { towns: { topic_4: { nodeRecords: { s2: { cleared: true, stars: 2 } } } } },
+  } }) });
+  await s.load('K7M2QX');
+  assert.equal(s.stageState('s1'), 'open', 'the new first stage is open');
+  assert.equal(s.stageState('s2'), 'open', 'the stage they already cleared is still open');
+  assert.equal(s.stageState('s4'), 'open', 'and so is the one after it');
+  const fresh = new TownState({ townId: 'topic_4', label: 'topic-4', stages, store: fakeStore({ NEW222: { open: [false, false, false, true] } }) });
+  await fresh.load('NEW222');
+  assert.equal(fresh.stageState('s2'), 'locked', 'a new student starts at the new first stage');
+});
+
 await test('clearing a stage opens the next built one, skipping unbuilt ones', async () => {
   const store = fakeStore({ K7M2QX: { open: [false, false, false, true] } });
   const s = make(store);

@@ -28,8 +28,11 @@ tests/                             math-logic tests, runnable with plain `node`
 docs/lessons.md                    lesson lists from the textbook database
 ```
 - Equation Valley (`towns/topic-4-equation-valley/`, Topic 4) is built on the shared town engine. A town only supplies
-  its building list (`js/valley.js`) and art (`js/valleyArt.js`). Only 4-2 Counterweight is built; the other
-  buildings show "under construction" and are skipped in the unlock chain until they exist.
+  its building list (`js/valley.js`) and art (`js/valleyArt.js`). Built so far: 4-1 Key Fitter and 4-2 Counterweight;
+  the other buildings show "under construction" and are skipped in the unlock chain until they exist.
+- Every game links `shared/game/game.css` (top bar, side panel, controls, briefing, report) plus its own small
+  `style.css` for its scene. Game flow code (zones, timer, lives, report, town messages) is still written per game;
+  pull it into `shared/game/` once a third game needs the same pieces.
 - Topic 3 ("Expression Town") started in the separate `tactics-math-arena` repo and now lives here as
   `towns/topic-3-expression-town/`. It was copied (the original repo was never edited). The 8 games are unchanged;
   the hub signs in with a code and saves through `shared/progressStore.js`. Expression Town still runs its own
