@@ -24,7 +24,10 @@ export const STAGES = [
     built: true, building: 'gear_shift', url: './games/4-4-gear-shift/index.html',
     description: 'The canyon mine train runs on a gearbox. A hidden drive wheel turns, a gear multiplies or divides its speed, and the output spins. Write the gearbox as an equation, shift to the opposite gear, and work out the hidden speed. Then free the Stuck Gearbox.',
   }),
-  stage(5, 'Food Truck', 'Write and Solve Equations with Rational Numbers', { x: 990, y: 555 }),
+  stage(5, 'Food Truck', 'Write and Solve Equations with Rational Numbers', { x: 990, y: 555 }, {
+    built: true, building: 'food_truck', url: './games/4-5-food-truck/index.html',
+    description: 'Run the order window at the canyon taco truck. Every order is an equation with decimals or fractions. Drop the opposite block on the ticket, work out the answer, and keep the line moving through the Lunch Rush.',
+  }),
   stage(6, 'Ride Gate', 'Understand and Write Inequalities', { x: 1200, y: 585 }),
   stage(7, 'Force Field', 'Solve Inequalities', { x: 1240, y: 400 }),
   stage(8, 'Cause and Effect Lab', 'Understand Dependent and Independent Variables', { x: 1030, y: 320 }),
