@@ -1,0 +1,32 @@
+/* Golem Fort (Topic 4 boss): the golem, the stone tablet and the controls. Shared looks are in shared/game/game.css. */
+#golem { transform-box: fill-box; transform-origin: 210px 430px; }
+#golem.hit { animation: golemHit 0.5s ease-out; }
+@keyframes golemHit { 20% { transform: translateX(-10px) rotate(-2deg); } 50% { transform: translateX(8px) rotate(1.5deg); } 80% { transform: translateX(-4px); } }
+#golem.punch .arm-r { animation: punch 0.6s ease-in-out; transform-box: fill-box; transform-origin: top center; }
+@keyframes punch { 40% { transform: rotate(-70deg) translateY(-10px); } }
+.target { animation: glow 1.4s ease-in-out infinite; }
+@keyframes glow { 50% { filter: drop-shadow(0 0 8px #ffd23f); } }
+.core { animation: corePulse 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes corePulse { 50% { transform: scale(1.08); } }
+.mono { font-family: ui-monospace, 'Courier New', monospace; }
+.prompt .mono { white-space: nowrap; }
+
+/* ---- typed answers and rule boxes ---- */
+.rule-row { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 56px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
+  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 24px; font-weight: 900; color: var(--ink); }
+.rule-row .empty { font-family: Nunito, system-ui, sans-serif; font-size: 14px; font-weight: 800; color: #a99a74; }
+.rbox { width: 76px; height: 44px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900;
+  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
+.rbox.wide { width: 140px; }
+.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }
+.shapes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.shape { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink);
+  font-family: ui-monospace, 'Courier New', monospace; font-size: 16px; font-weight: 900; color: var(--ink); }
+.shape.on { background: #ffe680; outline: 4px solid var(--gold); outline-offset: 2px; }
+.shape .sq { color: #8f3f22; }
+
+/* ---- inequality graph buttons ---- */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pair button { height: 48px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink); font-size: 16px; font-weight: 900; }
+.pair button b { display: inline-block; width: 22px; height: 22px; line-height: 18px; margin-right: 8px; border: 2px solid var(--ink); border-radius: 6px; background: var(--gold); font-size: 11px; }
+.pair button.on { background: #ffe680; outline: 4px solid var(--gold); outline-offset: 2px; }

@@ -31,8 +31,9 @@ tests/                             math-logic tests, runnable with plain `node`
 docs/lessons.md                    lesson lists from the textbook database
 ```
 - Equation Valley (`towns/topic-4-equation-valley/`, Topic 4) is built on the shared town engine. A town only supplies
-  its building list (`js/valley.js`) and art (`js/valleyArt.js`). Built so far: 4-1 Key Fitter, 4-2 Counterweight, 4-3 Undo Machine, 4-4 Gear Shift, 4-5 Food Truck, 4-6 Ride Gate, 4-7 Force Field, 4-8 Cause and Effect Lab, 4-9 Rune Machine and 4-10 Trail Mapper;
-  the other buildings show "under construction" and are skipped in the unlock chain until they exist.
+  its building list (`js/valley.js`) and art (`js/valleyArt.js`). Built so far: 4-1 Key Fitter, 4-2 Counterweight, 4-3 Undo Machine, 4-4 Gear Shift, 4-5 Food Truck, 4-6 Ride Gate, 4-7 Force Field, 4-8 Cause and Effect Lab, 4-9 Rune Machine, 4-10 Trail Mapper
+  and the Golem Fort boss (`games/4-boss-golem-fort/`, a review of 4-1 to 4-10). Every Equation Valley building is built.
+  In other towns, unbuilt buildings show "under construction" and are skipped in the unlock chain until they exist.
 - Every game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the
   page layout from an existing game's `index.html` (the shell needs its ids, including `lives` for the 3 lives).
@@ -52,7 +53,9 @@ docs/lessons.md                    lesson lists from the textbook database
   Super Map (`index.html?from=<town id>` puts the hero outside that town). EXIT anywhere signs out.
 - Inside a town, buildings unlock in order; unbuilt buildings are skipped; a full_access code opens every built one.
   Only stage records are saved, and what is open is worked out from them, so adding buildings never locks anyone out.
-- Practice-mode runs still count as clearing a building (same as Expression Town). The owner may want to change this.
+- Practice-mode runs still count as clearing a building (same as Expression Town). Owner decision: a town BOSS is only
+  defeated by a timed run. A practice-only boss clear keeps its star but is saved with `practiceOnly: true`, and
+  `townSummary` in `shared/towns.js` does not count it, so it does not open the next town.
 - Write shared code once in `shared/`. Do not copy the map engine or audio code into each town.
 
 ## Progress and unlocks (owner decisions)
