@@ -20,14 +20,16 @@ const starText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
  * config = {
  *   townId: 'topic_4', label: 'topic-4', number: 4, name: 'Equation Valley', topic: 'Topic 4: ...',
  *   superMapUrl: '../../index.html',
- *   stages: [{ id, lessonCode, title, subtitle, description, built, url, coords: {x, y}, building, xpReward, coinsReward, isBoss }],
+ *   stages: [{ id, lessonCode, title, subtitle, description, built, url, coords: {x, y}, building, xpReward, coinsReward, isBoss,
+ *              via }],   via (optional): corner points on the road from the PREVIOUS stage to this one, e.g. [{x, y}]
  *   terrainSvg(): string,                       background art (1366 x 768)
  *   buildingSvg(stage, state): string,          a building, origin at the stage tile, drawn above it
+ *   legacyIds (optional): { oldStageId: newStageId } for stages renamed since older saves
  * }
  */
 export function startTown(config) {
   const station = startStation(config.townId);         // ?station: no sign-in, everything open (shared/station.js)
-  const state = new TownState({ townId: config.townId, label: config.label, stages: config.stages });
+  const state = new TownState({ townId: config.townId, label: config.label, stages: config.stages, legacyIds: config.legacyIds });
   const ui = buildDom(config);
   const hub = { config, state, ui, current: 0, walking: false, raf: null, pendingWalk: null, station };
   if (lockedToTown(station, config.townId)) ui.worldMapBtn.classList.add('hidden');   // a town-only station stays here
@@ -149,15 +151,16 @@ async function signIn(hub) {
 /* ------------------------------------------------------------------ */
 /* Map                                                                 */
 /* ------------------------------------------------------------------ */
+/** The road from stage i to stage i + 1: its start, any corner points (the next stage's `via`), and its end. */
+const roadPoints = (stages, i) => [stages[i].coords, ...(stages[i + 1].via || []), stages[i + 1].coords];
 function roadSvg(stages, state) {
   let out = '';
   for (let i = 0; i < stages.length - 1; i++) {
-    const a = stages[i].coords, b = stages[i + 1].coords;
     const lit = state.stageState(stages[i].id) === 'open' && state.stageState(stages[i + 1].id) === 'open';
-    const d = `M${a.x} ${a.y} L${b.x} ${b.y}`;
-    out += `<path d="${d}" stroke="${K}" stroke-width="22" stroke-linecap="round"/>
-      <path d="${d}" stroke="${lit ? PALETTE.road : PALETTE.roadLocked}" stroke-width="16" stroke-linecap="round"/>
-      <path d="${d}" stroke="${lit ? PALETTE.roadDot : PALETTE.roadLockedDot}" stroke-width="3" stroke-dasharray="2 13" stroke-linecap="round"/>`;
+    const d = roadPoints(stages, i).map((p, k) => `${k ? 'L' : 'M'}${p.x} ${p.y}`).join(' ');
+    out += `<path d="${d}" stroke="${K}" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="${d}" stroke="${lit ? PALETTE.road : PALETTE.roadLocked}" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="${d}" stroke="${lit ? PALETTE.roadDot : PALETTE.roadLockedDot}" stroke-width="3" stroke-dasharray="2 13" stroke-linecap="round" fill="none"/>`;
   }
   return out;
 }
@@ -233,7 +236,11 @@ function walkTo(hub, target) {
   if (target < 0 || target >= stages.length || target === hub.current || hub.walking) return;
   const step = target > hub.current ? 1 : -1;
   const legs = [];
-  for (let i = hub.current; i !== target; i += step) legs.push([stages[i].coords, stages[i + step].coords, i + step]);
+  // each leg is one straight piece of road; only the last piece of a road arrives at a stage (its index), corners get null
+  for (let i = hub.current; i !== target; i += step) {
+    const pts = step > 0 ? roadPoints(stages, i) : [...roadPoints(stages, i - 1)].reverse();
+    for (let k = 0; k < pts.length - 1; k++) legs.push([pts[k], pts[k + 1], k === pts.length - 2 ? i + step : null]);
+  }
   hub.walking = true;
   const hero = $('townHero');
   hero.classList.add('walking');
@@ -244,8 +251,8 @@ function walkTo(hub, target) {
     const [a, b] = legs[leg];
     t += (WALK_SPEED * dt) / Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
     if (t >= 1) {
-      hub.current = legs[leg][2]; hubAudio.playStep(); leg += 1; t = 0;
-      updatePanel(hub);
+      if (legs[leg][2] !== null) { hub.current = legs[leg][2]; hubAudio.playStep(); updatePanel(hub); }
+      leg += 1; t = 0;
       if (leg >= legs.length) {
         hub.heroPos = { ...stages[hub.current].coords };
         hero.setAttribute('transform', `translate(${hub.heroPos.x} ${hub.heroPos.y - 6})`);
