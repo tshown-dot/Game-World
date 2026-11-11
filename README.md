@@ -20,4 +20,5 @@ The Super Map, Expression Town (Topic 3) and Equation Valley (Topic 4, lessons 4
 - Runs on school Chromebooks. Students sign in with a code from the teacher: no names, no emails, no student personal information.
 
 ## Running the tests
-`npm test` runs all tests (needs Node 18 or newer).
+- `npm test` runs all the math and progress tests (needs Node 18 or newer).
+- `npm run test:browser` plays every game and town in a hidden browser (needs Playwright; see `tests/browser/README.md`).

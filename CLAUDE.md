@@ -22,6 +22,9 @@ shared/                            code used by every town: progressStore.js (si
                                    cartridgeHarness.js (opens a game inside a town)
 shared/town/                       the shared town engine: townState.js (progress and unlock rules inside a
                                    town), townHub.js (map, walking, briefings, victory, My Progress), town.css
+shared/game/                       the shared game parts: gameShell.js (zones, timer meter, 3 lives, scoring,
+                                   feedback, worked solution + backup, report, town messages), drag.js (drag
+                                   or tap a piece), game.css (top bar, side panel, controls, briefing, report)
 towns/<town-name>/index.html       a town map (one building per lesson)
 towns/<town-name>/games/<lesson>/  one folder per game
 tests/                             math-logic tests, runnable with plain `node`
@@ -30,9 +33,11 @@ docs/lessons.md                    lesson lists from the textbook database
 - Equation Valley (`towns/topic-4-equation-valley/`, Topic 4) is built on the shared town engine. A town only supplies
   its building list (`js/valley.js`) and art (`js/valleyArt.js`). Built so far: 4-1 Key Fitter, 4-2 Counterweight and 4-3 Undo Machine;
   the other buildings show "under construction" and are skipped in the unlock chain until they exist.
-- Every game links `shared/game/game.css` (top bar, side panel, controls, briefing, report) plus its own small
-  `style.css` for its scene. Game flow code (zones, timer, lives, report, town messages) is still written per game;
-  a third game (4-3) now repeats them, so pulling them into `shared/game/` is the next clean-up.
+- Every game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
+  solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the
+  page layout from an existing game's `index.html` (the shell needs its ids, including `lives` for the 3 lives).
+  Each game also links `shared/game/game.css` plus its own small `style.css` for its scene. Use `shared/game/drag.js`
+  for anything a student drags or taps into place. Never copy the shell's code into a game.
 - Topic 3 ("Expression Town") started in the separate `tactics-math-arena` repo and now lives here as
   `towns/topic-3-expression-town/`. It was copied (the original repo was never edited). The 8 games are unchanged;
   the hub signs in with a code and saves through `shared/progressStore.js`. Expression Town still runs its own
@@ -135,6 +140,10 @@ maintainable by an LLM plus a novice owner. Guardrails:
 - Each game's math logic (generators, answer checking, misconception detection) lives in its own module with a `test_*.js` file runnable with plain `node`.
 - Test answer parsing with multiple formats and with common wrong answers.
 - Before saying a game is done: run the tests, load it in a headless browser at 1366x768, confirm no console errors and no vertical scroll.
+- Browser tests live in `tests/browser/` (one `*.test.cjs` per game or town, run with `npm run test:browser`, or
+  `npm run test:browser -- <name>` for one). Every new game gets one: play all zones through the real controls,
+  one wrong answer, two misses (worked solution + backup), practice mode, fail and retry, the town messages,
+  no scroll and no errors. They answer the sheet with a stand-in and never touch the real sheet.
 
 ## Git
 - Commit messages are short and descriptive. One logical change per commit.
