@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Game World · Station links (for teachers)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@700;800;900&display=swap">
+  <style>
+    :root { --ink: #1d1433; --cream: #fff4d6; --gold: #ffd23f; --green: #2fbf71; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #2a1f4a; color: var(--ink); font-family: 'Nunito', system-ui, sans-serif; display: flex; justify-content: center; padding: 28px 16px; }
+    .px { font-family: 'Press Start 2P', ui-monospace, monospace; }
+    main { width: 100%; max-width: 860px; }
+    h1 { color: var(--gold); font-size: 20px; margin: 0 0 6px; }
+    .sub { color: #e3e7f5; font-weight: 800; margin: 0 0 18px; line-height: 1.5; }
+    .card { background: var(--cream); border: 4px solid var(--ink); border-radius: 16px; box-shadow: 0 6px 0 var(--ink); padding: 14px 16px; margin-bottom: 14px; }
+    .card h2 { font-size: 12px; margin: 0 0 8px; color: #8f3f22; }
+    .card p { margin: 0 0 10px; font-weight: 800; line-height: 1.45; }
+    .row { display: flex; gap: 8px; align-items: stretch; }
+    .row input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 15px; font-weight: 900; border: 3px solid var(--ink); border-radius: 10px; padding: 10px; background: #fff; }
+    .row button, .row a { border: 3px solid var(--ink); border-radius: 10px; padding: 0 14px; font-family: 'Press Start 2P', monospace; font-size: 10px; box-shadow: 0 3px 0 var(--ink); cursor: pointer; display: flex; align-items: center; text-decoration: none; color: var(--ink); }
+    .row button { background: var(--gold); }
+    .row a { background: #fff; }
+    .row button.done { background: var(--green); color: #fff; }
+    .note { background: #fff3c4; }
+    .note ul { margin: 6px 0 0; padding-left: 20px; font-weight: 800; line-height: 1.5; }
+  </style>
+</head>
+<body>
+<main>
+  <h1 class="px">STATION LINKS</h1>
+  <p class="sub">For classroom stations: no codes, every built building open. Paste a link into Google Classroom or on the board.
+    Nothing is saved to your sheet, and nothing counts toward any student's real progress.</p>
+
+  <div id="links"></div>
+
+  <div class="card note">
+    <h2 class="px">GOOD TO KNOW</h2>
+    <ul>
+      <li>Stars earned at a station last only until the tab is closed, so the next student at that Chromebook starts fresh.</li>
+      <li>A town link keeps students in that town: the "world map" sign is hidden. EXIT starts the town again.</li>
+      <li>A station tab shows a <b>STATION: ALL OPEN</b> banner, so you can tell which mode a Chromebook is in.</li>
+      <li>To go back to normal sign-in in the same tab, add <b>?station=off</b> to the address (or just close the tab).</li>
+      <li>These links are hidden, not locked: anyone who has one can open every building.</li>
+    </ul>
+  </div>
+</main>
+<script type="module">
+  import { TOWNS } from './shared/towns.js';
+  const here = (path) => new URL(path, location.href).href;
+  const rows = [
+    { title: 'THE WHOLE WORLD', text: 'The Super Map with every built town and every building open.', url: here('index.html?station') },
+    ...TOWNS.filter((t) => t.built).map((t) => ({
+      title: `TOWN ${t.number}: ${t.name.toUpperCase()}`,
+      text: `${t.topic}. Every building open; students stay in this town.`,
+      url: here(`${t.url}?station`),
+    })),
+  ];
+  const box = document.getElementById('links');
+  box.innerHTML = rows.map((r, i) => `<div class="card"><h2 class="px">${r.title}</h2><p>${r.text}</p>
+    <div class="row"><input id="u${i}" readonly value="${r.url}"><button type="button" data-copy="${i}">COPY</button><a href="${r.url}" target="_blank" rel="noopener">OPEN</a></div></div>`).join('');
+  box.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
+    const input = document.getElementById(`u${b.dataset.copy}`);
+    try { await navigator.clipboard.writeText(input.value); } catch (e) { input.select(); document.execCommand('copy'); }
+    b.textContent = 'COPIED'; b.classList.add('done');
+    setTimeout(() => { b.textContent = 'COPY'; b.classList.remove('done'); }, 1500);
+  }));
+</script>
+</body>
+</html>

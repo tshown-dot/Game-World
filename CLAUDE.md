@@ -85,6 +85,13 @@ docs/lessons.md                    lesson lists from the textbook database
   a code removed from the sheet is signed out. Never make the Super Map wait on the sheet when coming back from a town.
 - Planned, not built yet: a short "save code" the student can copy and paste to restore progress if the sheet is
   unreachable.
+- **Station Mode** (owner decision, for classroom stations): any page opened with `?station` skips sign-in and opens every
+  built town and building (`index.html?station` for the whole world; `towns/<town>/index.html?station` for one town,
+  with the world-map sign hidden so students stay there). Nothing is sent to the sheet and nothing counts toward real
+  progress; stars last only until the tab closes (sessionStorage). `?station=off` returns the tab to normal sign-in.
+  Teachers get the links from `stations.html` (not linked from the game). It lives in `shared/station.js` plus a few
+  lines in `shared/progressStore.js`; the station "code" is `STATION`, which can never be a real code. The links are
+  hidden, not locked. Every new town must call `startStation(townId)` (the shared town engine already does).
 - Students see their own progress in-game (the "MY STARS" button opens a "My Progress" screen with stars, badges and
   save status). Every town gets the same screen. No printing. A screenshot is how a student shares progress with the
   teacher.
