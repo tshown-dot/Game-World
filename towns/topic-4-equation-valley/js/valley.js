@@ -20,7 +20,10 @@ export const STAGES = [
     built: true, building: 'undo_machine', url: './games/4-3-undo-machine/index.html',
     description: 'A canyon ore machine swallows a hidden crate, does one step and pushes out a number. Write the machine as an equation, then run it backward with the opposite step to find what went in. Finish by fixing the Jammed Machine.',
   }),
-  stage(4, 'Gear Shift', 'Write and Solve Multiplication and Division Equations', { x: 780, y: 600 }),
+  stage(4, 'Gear Shift', 'Write and Solve Multiplication and Division Equations', { x: 780, y: 600 }, {
+    built: true, building: 'gear_shift', url: './games/4-4-gear-shift/index.html',
+    description: 'The canyon mine train runs on a gearbox. A hidden drive wheel turns, a gear multiplies or divides its speed, and the output spins. Write the gearbox as an equation, shift to the opposite gear, and work out the hidden speed. Then free the Stuck Gearbox.',
+  }),
   stage(5, 'Food Truck', 'Write and Solve Equations with Rational Numbers', { x: 990, y: 555 }),
   stage(6, 'Ride Gate', 'Understand and Write Inequalities', { x: 1200, y: 585 }),
   stage(7, 'Force Field', 'Solve Inequalities', { x: 1240, y: 400 }),

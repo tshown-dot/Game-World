@@ -61,6 +61,14 @@ const undoMachine = `
   <g class="sway"><circle cx="-18" cy="-28" r="9" fill="#6b6f80" ${O2}/><circle cx="18" cy="-28" r="9" fill="#6b6f80" ${O2}/></g>
   <rect x="-58" y="-34" width="18" height="16" rx="3" fill="#3a8ef0" ${O2}/><rect x="40" y="-34" width="18" height="16" rx="3" fill="#c4935a" ${O2}/>`;
 
+const gearHouse = `
+  <ellipse cx="0" cy="-16" rx="46" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <rect x="-40" y="-62" width="80" height="46" rx="6" fill="#c8673a" ${O}/>
+  <path d="M-44 -62 L0 -82 L44 -62 Z" fill="#8f3f22" ${O}/>
+  <g class="sway"><circle cx="-12" cy="-40" r="14" fill="#8b90a3" ${O2}/><circle cx="-12" cy="-40" r="5" fill="${PALETTE.gold}" ${O2}/>
+    <circle cx="14" cy="-34" r="9" fill="#8b90a3" ${O2}/><circle cx="14" cy="-34" r="3" fill="${PALETTE.gold}"/></g>
+  <path d="M-14 -55 v-6 M-1 -45 h6 M-25 -45 h-6" stroke="${K}" stroke-width="3"/>`;
+
 const construction = () => `
   <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
   <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
@@ -81,5 +89,6 @@ export function buildingSvg(stage, state) {
   if (stage.building === 'scale_lift') return scaleLift;
   if (stage.building === 'key_vault') return keyVault;
   if (stage.building === 'undo_machine') return undoMachine;
+  if (stage.building === 'gear_shift') return gearHouse;
   return construction();
 }
