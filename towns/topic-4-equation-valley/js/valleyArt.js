@@ -86,6 +86,13 @@ const rideGate = `
   <rect x="-26" y="-30" width="34" height="14" rx="3" fill="${PALETTE.gold}" ${O2}/>
   <g class="sway"><rect x="-6" y="-24" width="30" height="6" rx="3" fill="${PALETTE.red}" ${O2}/></g>`;
 
+const forceField = `
+  <ellipse cx="0" cy="-14" rx="50" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <path d="M-48 -16 A48 48 0 0 1 48 -16 Z" fill="#3ad0f0" opacity="0.35" ${O2}/>
+  <rect x="-20" y="-36" width="40" height="22" rx="4" fill="#8b90a3" ${O2}/>
+  <path d="M-12 -36 A12 12 0 0 1 12 -36" fill="${PALETTE.gold}" ${O2}/>
+  <g class="sway"><circle cx="30" cy="-74" r="7" fill="#c4935a" ${O2}/><path d="M36 -80 l10 -10" stroke="#ff9f43" stroke-width="3"/></g>`;
+
 const construction = () => `
   <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
   <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
@@ -109,5 +116,6 @@ export function buildingSvg(stage, state) {
   if (stage.building === 'gear_shift') return gearHouse;
   if (stage.building === 'food_truck') return foodTruck;
   if (stage.building === 'ride_gate') return rideGate;
+  if (stage.building === 'force_field') return forceField;
   return construction();
 }
