@@ -139,7 +139,7 @@ export function createStore(options = {}) {
     }
   }
 
-  return {
+  const api = {
     normalizeCode,
 
     /**
@@ -148,7 +148,20 @@ export function createStore(options = {}) {
      *   { ok: false, error: 'bad_code' }   the code is not in the sheet
      *   { ok: false, error: 'offline' }    cannot reach the sheet and this device has never seen the code
      */
-    async loadStudent(code) {
+    /**
+     * Signs a code in. With { fast: true } and a copy already on this device, answers at once from that copy
+     * (no waiting on the sheet), then checks the sheet in the background and calls onFresh(result) when it answers.
+     * Without a device copy it always waits for the sheet (a code's first sign-in on a device needs the internet).
+     */
+    loadStudent(code, { fast = false, onFresh = null } = {}) {
+      const local = fast ? readLocal(code) : null;
+      if (!local) return api.loadFromSheet(code);
+      const fresh = api.loadFromSheet(code);
+      fresh.then((res) => { if (onFresh) onFresh(res); }).catch(() => {});
+      return Promise.resolve({ ok: true, source: 'device', open: local.open || [], fullAccess: Boolean(local.fullAccess), progress: local.progress || null, fresh });
+    },
+
+    async loadFromSheet(code) {
       let cloud = null;
       try {
         cloud = await call(`${endpoint}?action=load&code=${encodeURIComponent(code)}`);
@@ -192,6 +205,7 @@ export function createStore(options = {}) {
     },
 
     flushQueue,
+    hasDeviceCopy: (code) => Boolean(readLocal(code)),
     pendingCount: (code) => readQueue(code).length,
 
     // The last code used on this device, so students do not retype it every day. Not secret.
@@ -199,6 +213,7 @@ export function createStore(options = {}) {
     setActiveCode: (code) => { try { storage.setItem('gw_active_code', code); } catch (e) { /* ignore */ } },
     clearActiveCode: () => { try { storage.removeItem('gw_active_code'); } catch (e) { /* ignore */ } },
   };
+  return api;
 }
 
 // The store the games use. Tests build their own with createStore({...}).

@@ -37,10 +37,10 @@ export class TownState {
   }
 
   /** Signs a code in and loads its progress. Resolves to { success, error?, townLocked?, reason? }. */
-  async load(rawCode) {
+  async load(rawCode, options = {}) {
     const code = normalizeCode(rawCode);
     if (!code) return { success: false, error: 'bad_shape' };
-    const res = await this.store.loadStudent(code);
+    const res = await this.store.loadStudent(code, options);   // options: { fast, onFresh } (see progressStore)
     if (!res.ok) return { success: false, error: res.error };
     this.code = code;
     this.townOpen = res.open || [];

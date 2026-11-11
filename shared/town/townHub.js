@@ -114,7 +114,10 @@ function buildDom(c) {
 async function signIn(hub) {
   const code = progressStore.getActiveCode();
   if (!code) { location.href = hub.config.superMapUrl; return; }
-  const res = await hub.state.load(code);
+  // Coming from the Super Map, this device already has the code's copy: open at once, check the sheet behind it.
+  const res = await hub.state.load(code, { fast: true, onFresh: (fresh) => {
+    if (!fresh.ok && fresh.error === 'bad_code') { progressStore.clearActiveCode(); location.href = hub.config.superMapUrl; }
+  } });
   if (!res.success) {
     progressStore.clearActiveCode();
     if (res.error === 'offline') {

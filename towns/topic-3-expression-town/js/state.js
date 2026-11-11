@@ -34,13 +34,13 @@ export class PlayerState {
     return this.level * 100;
   }
 
-  async loadPlayer(rawCode) {
+  async loadPlayer(rawCode, options = {}) {
     const code = normalizeCode(rawCode);
     if (!code) {
       return { success: false, error: 'Your code has 6 letters and numbers, like K7M2QX. Check your sticky note.' };
     }
 
-    const res = await this.store.loadStudent(code);
+    const res = await this.store.loadStudent(code, options);   // options: { fast, onFresh } (see progressStore)
     if (!res.ok) {
       return {
         success: false,

@@ -336,13 +336,19 @@ class NumeriaHub {
   async loginWithCode(rawCode) {
     if (this.loggingIn) return;
     this.loggingIn = true;
+    const label = this.dom.loginBtn?.querySelector('span');
     if (this.dom.loginBtn) this.dom.loginBtn.disabled = true;
+    if (label) label.textContent = 'SIGNING IN…';
     let result;
     try {
-      result = await playerState.loadPlayer(rawCode);
+      // Coming from the Super Map, this device already has the code's copy: open at once, check the sheet behind it.
+      result = await playerState.loadPlayer(rawCode, { fast: true, onFresh: (fresh) => {
+        if (!fresh.ok && fresh.error === 'bad_code') { progressStore.clearActiveCode(); location.href = SUPER_MAP_URL; }
+      } });
     } finally {
       this.loggingIn = false;
       if (this.dom.loginBtn) this.dom.loginBtn.disabled = false;
+      if (label) label.textContent = '▶ PRESS START';
     }
     if (!result || !result.success) {
       hubAudio.playLockRattle();

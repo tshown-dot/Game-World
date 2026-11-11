@@ -52,7 +52,7 @@ function world(extra = {}) {
   const sleeps = [];
   let tick = 0;
   const store = createStore({
-    endpoint: 'https://example.test/exec', fetchImpl: server.fetch, storage,
+    endpoint: 'https://example.test/exec', fetchImpl: (...a) => server.fetch(...a), storage,
     sleep: async (ms) => { sleeps.push(ms); }, random: () => 0.5,
     now: () => `2026-01-01T00:00:${String(tick++).padStart(2, '0')}.000Z`,
   });
@@ -226,6 +226,38 @@ await test('nothing but the code and game data is ever sent', async () => {
   await store.logResult(CODE, { town: 'topic-3', lesson: '3-1', game: 'node_3_1', score: 1, accuracy: 100 });
   const keys = new Set(bodies.flatMap((b) => Object.keys(JSON.parse(b))));
   assert.deepEqual([...keys].sort(), ['accuracy', 'game', 'lesson', 'progress', 'score', 'student_code', 'town', 'type']);
+});
+
+await test('fast sign-in: a code this device knows opens at once, then the sheet is checked in the background', async () => {
+  const { server, store } = world();
+  await store.loadStudent(CODE);                                   // first sign-in on this device: from the sheet
+  let release;
+  const slow = server.fetch;
+  server.fetch = (url, init) => new Promise((r) => { release = () => r(slow(url, init)); });
+  server.students[CODE].open[3] = true;                           // a teacher ticks Town 4 meanwhile
+  let fresh = null;
+  const res = await store.loadStudent(CODE, { fast: true, onFresh: (f) => { fresh = f; } });
+  assert.equal(res.ok, true);
+  assert.equal(res.source, 'device', 'answered from the device without waiting');
+  assert.equal(res.open[3], false, 'the device copy does not know about the new tick yet');
+  assert.equal(fresh, null);
+  release(); await res.fresh;
+  assert.equal(fresh.source, 'sheet', 'then the sheet answers in the background');
+  assert.equal(fresh.open[3], true, 'and brings the teacher tick');
+});
+
+await test('fast sign-in: a brand-new code on this device still waits for the sheet; a removed code is reported', async () => {
+  const { server, store } = world();
+  const first = await store.loadStudent(CODE, { fast: true });
+  assert.equal(first.source, 'sheet', 'no device copy, so it asked the sheet');
+  const bad = await store.loadStudent('ABCDEF', { fast: true });
+  assert.equal(bad.ok, false); assert.equal(bad.error, 'bad_code');
+  delete server.students[CODE];                                  // teacher deletes the row
+  let fresh = null;
+  const res = await store.loadStudent(CODE, { fast: true, onFresh: (f) => { fresh = f; } });
+  assert.equal(res.ok, true);
+  await res.fresh;
+  assert.equal(fresh.ok, false); assert.equal(fresh.error, 'bad_code', 'the background check says the code is gone');
 });
 
 console.log(`\n${passed} tests passed`);

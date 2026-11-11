@@ -35,12 +35,15 @@ async function signIn(raw) {
     showLoginError('Your code has 6 letters and numbers, like K7M2QX. Check your sticky note.');
     return;
   }
-  ui.loginBtn.disabled = true;
+  setSigningIn(true);
   let res;
-  try { res = await progressStore.loadStudent(code); } finally { ui.loginBtn.disabled = false; }
+  // A code this Chromebook already knows opens at once from the device copy; the sheet is checked behind it.
+  try { res = await progressStore.loadStudent(code, { fast: true, onFresh: (fresh) => applyFresh(code, fresh) }); } finally { setSigningIn(false); }
   if (!res.ok) {
     hubAudio.playLockRattle();
     progressStore.clearActiveCode();
+    ui.world.classList.add('hidden');
+    ui.login.classList.remove('hidden');
     showLoginError(res.error === 'bad_code'
       ? "That code isn't in the system. Check your sticky note or ask your teacher."
       : "Can't reach the server. Connect to the internet to sign in on this device the first time.");
@@ -52,6 +55,33 @@ async function signIn(raw) {
   ui.login.classList.add('hidden');
   ui.world.classList.remove('hidden');
   buildWorld();
+}
+
+/** The button says "SIGNING IN…" while the sheet is being asked (first sign-in on a device can take a few seconds). */
+function setSigningIn(on) {
+  ui.loginBtn.disabled = on;
+  ui.codeInput.readOnly = on;
+  ui.loginBtn.querySelector('span').textContent = on ? 'SIGNING IN…' : '▶ PRESS START';
+}
+
+/** The sheet answered in the background: pick up teacher ticks, or sign out if the code was removed. */
+function applyFresh(code, fresh) {
+  if (game.code !== code) return;
+  if (!fresh.ok) {
+    if (fresh.error === 'bad_code') { signOut(); showLoginError("That code isn't in the system any more. Ask your teacher."); }
+    return;                                              // offline: keep playing from the device copy
+  }
+  const before = JSON.stringify([game.open, game.fullAccess, game.progress && game.progress.savedAt]);
+  Object.assign(game, { progress: fresh.progress, open: fresh.open || [], fullAccess: fresh.fullAccess });
+  if (JSON.stringify([game.open, game.fullAccess, game.progress && game.progress.savedAt]) !== before) refreshWorld();
+}
+function refreshWorld() {
+  if (!game.code) return;
+  if (game.walking) { setTimeout(refreshWorld, 300); return; }
+  game.entries = townStates({ progress: game.progress, open: game.open, fullAccess: game.fullAccess });
+  drawLand(ui.land, TOWNS, stateMap());
+  render();
+  ui.teacher.classList.toggle('hidden', !game.fullAccess);
 }
 
 function signOut() {
@@ -256,6 +286,10 @@ function init() {
   const remembered = progressStore.getActiveCode();
   if (remembered) {
     ui.codeInput.value = remembered;
+    if (progressStore.hasDeviceCopy(remembered)) {    // coming back from a town: go straight to the map
+      ui.login.classList.add('hidden');
+      ui.world.classList.remove('hidden');
+    }
     signIn(remembered);
   } else {
     ui.codeInput.focus();

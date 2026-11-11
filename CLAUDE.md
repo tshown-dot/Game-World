@@ -75,6 +75,9 @@ docs/lessons.md                    lesson lists from the textbook database
   delay if the script says `busy`, and queues writes on the device while offline.
 - Signing in on a device that has never seen the code needs the internet once. After that, play works offline and
   saves wait in a queue on the device until the network is back.
+- A code this device already knows opens at once from the device copy (Super Map and towns), and the sheet is
+  checked in the background (`loadStudent(code, { fast: true, onFresh })`). Teacher ticks show up a moment later;
+  a code removed from the sheet is signed out. Never make the Super Map wait on the sheet when coming back from a town.
 - Planned, not built yet: a short "save code" the student can copy and paste to restore progress if the sheet is
   unreachable.
 - Students see their own progress in-game (the "MY STARS" button opens a "My Progress" screen with stars, badges and
