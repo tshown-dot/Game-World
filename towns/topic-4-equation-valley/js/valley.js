@@ -40,7 +40,10 @@ export const STAGES = [
     built: true, building: 'cause_lab', url: './games/4-8-cause-effect-lab/index.html',
     description: 'Run experiments in the canyon science lab. Put the cause (independent variable) on the DIAL and the effect (dependent variable) on the METER, hunt for factors, predict what the meter does, and tame the Runaway Experiment.',
   }),
-  stage(9, 'Rune Machine', 'Use Patterns to Write and Solve Equations', { x: 800, y: 290 }),
+  stage(9, 'Rune Machine', 'Use Patterns to Write and Solve Equations', { x: 800, y: 290 }, {
+    built: true, building: 'rune_machine', url: './games/4-9-rune-machine/index.html',
+    description: 'An ancient machine changes inputs into outputs by a hidden rule. Crack the rule as an equation, fill its table, read far ahead, and crack the Ancient Runes.',
+  }),
   stage(10, 'Trail Mapper', 'Relate Tables, Graphs, and Equations', { x: 570, y: 320 }),
   {
     id: 'node_4_boss', lessonCode: 'BOSS', title: 'Golem Fort', subtitle: 'Topic 4 boss: The Equation Golem',

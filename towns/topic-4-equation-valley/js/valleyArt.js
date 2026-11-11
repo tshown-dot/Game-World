@@ -100,6 +100,14 @@ const causeLab = `
   <path d="M8 -30 A12 12 0 0 1 32 -30" fill="#fff4d6" ${O2}/><path d="M20 -30 l8 -8" stroke="${K}" stroke-width="3"/>
   <g class="sway"><path d="M-6 -60 v-16 h12 v16" fill="#9fe6ff" ${O2}/><circle cx="0" cy="-82" r="4" fill="#fff"/></g>`;
 
+const runeMachine = `
+  <ellipse cx="0" cy="-14" rx="46" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <path d="M-38 -16 L-32 -86 L32 -86 L38 -16 Z" fill="#8c7c6b" ${O}/>
+  <rect x="-24" y="-78" width="48" height="16" rx="3" fill="#3b3049" ${O2}/>
+  <text x="0" y="-66" text-anchor="middle" font-size="11" font-weight="900" fill="${PALETTE.gold}" font-family="ui-monospace, monospace">y=?</text>
+  <path d="M-20 -52 H20 M-20 -40 H20 M-20 -28 H20 M0 -56 V-24" stroke="#5b4a3a" stroke-width="3"/>
+  <circle class="sway" cx="-30" cy="-92" r="4" fill="${PALETTE.gold}"/><circle class="sway" cx="30" cy="-92" r="4" fill="${PALETTE.gold}"/>`;
+
 const construction = () => `
   <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
   <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
@@ -125,5 +133,6 @@ export function buildingSvg(stage, state) {
   if (stage.building === 'ride_gate') return rideGate;
   if (stage.building === 'force_field') return forceField;
   if (stage.building === 'cause_lab') return causeLab;
+  if (stage.building === 'rune_machine') return runeMachine;
   return construction();
 }

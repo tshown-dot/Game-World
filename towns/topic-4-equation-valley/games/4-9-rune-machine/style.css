@@ -1,0 +1,28 @@
+/* Rune Machine (Lesson 4-9): the stone machine, its table and the rule boxes. Shared looks are in shared/game/game.css. */
+.rune { transition: fill 0.4s; }
+.rune.lit { fill: #ffd23f; animation: runeGlow 0.9s ease-out; }
+@keyframes runeGlow { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 1; } }
+.row-lit { animation: rowIn 0.35s ease-out; }
+@keyframes rowIn { from { opacity: 0.4; } }
+
+/* ---- the hint strip under the machine ---- */
+.eq-strip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; min-width: 440px; width: max-content; max-width: 94%;
+  background: #fff4d6; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 6px 16px; text-align: center; }
+.eq-line { font-family: ui-monospace, 'Courier New', monospace; font-size: 23px; font-weight: 900; color: var(--ink); line-height: 1.35; }
+.eq-line.small { font-size: 16px; color: #5e5640; white-space: normal; }
+.prompt .story { display: block; font-size: 15px; font-weight: 800; background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 7px 10px; margin-top: 6px; }
+
+/* ---- rule shapes and number boxes ---- */
+.shapes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.shape { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink);
+  font-family: ui-monospace, 'Courier New', monospace; font-size: 19px; font-weight: 900; color: var(--ink); }
+.shape.on { background: #ffe680; outline: 4px solid var(--gold); outline-offset: 2px; }
+.shape .sq { color: #8f3f22; }
+.rule-row { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 56px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
+  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 24px; font-weight: 900; color: var(--ink); }
+.rule-row .empty { font-family: Nunito, system-ui, sans-serif; font-size: 14px; color: #a99a74; }
+.rbox { width: 76px; height: 44px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900;
+  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
+.rbox.wide { width: 120px; }
+.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }
+.fills { display: grid; gap: 8px; }
