@@ -60,13 +60,14 @@ const s = (q) => show(q, G.problem?.eq.style || 'fraction');
 
 function customer(x, i) {
   const shirt = ['#e5484d', '#3a8ef0', '#7b4bff', '#2fbf71', '#ff9f43'][i % 5];
-  return `<g transform="translate(${x} 0)" class="${i === 0 ? 'bob' : ''}">
+  return `<g transform="translate(${x} 0)">
     <ellipse cx="0" cy="452" rx="20" ry="5" fill="rgba(0,0,0,0.2)"/>
     <rect x="-15" y="398" width="30" height="52" rx="10" fill="${shirt}" ${O}/>
     <circle cx="0" cy="384" r="15" fill="#ffd3a8" ${O}/><circle cx="-5" cy="382" r="2.5" fill="${K}"/><circle cx="5" cy="382" r="2.5" fill="${K}"/></g>`;
 }
+const queueSize = () => 1 + Math.min(4, Math.floor((G.meter || 0) / 22));
 function queue() {
-  const n = 1 + Math.min(4, Math.floor((G.meter || 0) / 22));
+  const n = queueSize();
   return Array.from({ length: n }, (_, i) => customer(640 + i * 38, i)).join('');
 }
 /**
@@ -110,8 +111,13 @@ function drawTruck({ label, plate = '?', plateColor = '#fff4d6', slip = null, st
     </g>
     <g id="queue">${queue()}</g>`;
 }
-// The line of customers grows with the meter.
-setInterval(() => { const q = $('queue'); if (q && G.problem) q.innerHTML = queue(); }, 600);
+// The line of customers grows with the meter. Redraw only when someone joins or leaves, so nothing flickers.
+setInterval(() => {
+  const q = $('queue');
+  if (!q || !G.problem) return;
+  const n = String(queueSize());
+  if (q.dataset.n !== n) { q.dataset.n = n; q.innerHTML = queue(); }
+}, 600);
 
 function strip(lines) {
   const el = $('eqStrip');
