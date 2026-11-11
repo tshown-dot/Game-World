@@ -131,7 +131,7 @@ export function genRebalance(rnd, { ops = ['+', '-'], variable = false } = {}) {
       id: id(), type: 'rebalance', start, sabotage: { side: sabSide, op, n }, after,
       fixSide: sabSide === 'left' ? 'right' : 'left',
       prompt: `The Saboteur ${{ '+': `added ${n} to the ${sabSide} side`, '-': `took ${n} away from the ${sabSide} side`,
-        '×': `multiplied the ${sabSide} side by ${n}`, '÷': `divided the ${sabSide} side by ${n}` }[op]}. Fix the ${sabSide === 'left' ? 'right' : 'left'} side so the scale balances.`,
+        '×': `multiplied the ${sabSide} side by ${n}`, '÷': `divided the ${sabSide} side by ${n}` }[op]}. Build a block and drop it where it will balance the scale.`,
     };
   }
 }
@@ -148,7 +148,7 @@ export function genIsolate(rnd) {
   const answer = kind === 'times' ? { op: '÷', n: left.a } : kind === 'plus' ? { op: '-', n: left.b } : { op: '+', n: -left.b };
   return {
     id: id(), type: 'isolate', kind, start, answer,
-    prompt: 'Get one x-block alone on the left. Whatever you do happens to BOTH sides.',
+    prompt: 'Get one x-block alone on the left. Drop the same block on BOTH pans, one at a time.',
   };
 }
 
@@ -301,7 +301,38 @@ export function checkRebalance(problem, op, n) {
   return { correct, key, message, result: fixed };
 }
 
+/**
+ * Rebalance by dragging a block onto a pan. Dropping on the pan the Saboteur already changed is a mistake,
+ * even if it happens to level the scale (undoing his move is not the property of equality).
+ */
+export function checkRebalanceDrop(problem, side, op, n) {
+  const { sabotage: s, after } = problem;
+  if (side !== s.side) return checkRebalance(problem, op, n);
+  const result = { ...after, [side]: applyOp(after[side], op, n) };
+  const undid = op === INVERSE[s.op] && n === s.n;
+  return {
+    correct: false,
+    key: undid ? 'undid_it' : 'same_side',
+    result,
+    message: undid
+      ? `That undoes the Saboteur's ${show(s.op, s.n)}, but his block stays on the lift. Keep it, and give the OTHER side ${show(s.op, s.n)} too.`
+      : `The ${side} side already got ${show(s.op, s.n)}. The OTHER side needs the same block, ${show(s.op, s.n)}, to balance.`,
+  };
+}
+
 /** Isolate: the student applies `op n` to BOTH sides; correct when one x-block is alone on the left. */
+/**
+ * Two blocks, one on each pan, that are not the same block. Returns null when they match
+ * (then the usual check for that problem decides). Used in "free one x-block" and "one clever step".
+ */
+export function checkPair(first, second) {
+  if (first.op === second.op && first.n === second.n) return null;
+  return {
+    correct: false, key: first.op === second.op ? 'different_amount' : 'different_op',
+    message: `The ${first.side} pan got ${show(first.op, first.n)} but the ${second.side} pan got ${show(second.op, second.n)}. Both pans need the SAME block, or the scale tips.`,
+  };
+}
+
 export function checkIsolate(problem, op, n) {
   const { start, kind, answer } = problem;
   const result = { left: applyOp(start.left, op, n), right: applyOp(start.right, op, n), x: start.x };

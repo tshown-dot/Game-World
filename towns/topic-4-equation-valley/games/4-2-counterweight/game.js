@@ -1,7 +1,7 @@
 // Counterweight (Lesson 4-2): screen, controls and game flow. The math lives in balance.js.
 import {
   ZONES, PROPERTIES, MISTAKES, OP_SIGN, genZone, genBackup, weigh, isBalanced, eqText, settled, parseAmount, applyOp,
-  checkRebalance, checkIsolate, checkProperty, checkStamp, checkMistake, checkPartial, checkChain, workedSolution,
+  checkRebalanceDrop, checkPair, checkIsolate, checkProperty, checkStamp, checkMistake, checkPartial, checkChain, workedSolution,
 } from './balance.js';
 import { hubAudio } from '../../../../shared/audio.js';
 
@@ -19,7 +19,7 @@ const TIMED = new Set(['rebalance', 'chain']);         // the scale is tipping d
 const G = {
   rnd: Math.random, practice: false, startZone: 0, zone: 0, queue: [], problem: null, attempts: 0, locked: false,
   crates: 3, tilt: 0, score: 0, firstTry: 0, answered: 0, mistakes: {}, zoneStats: [], bossHits: 0, started: 0,
-  sel: { op: null, amount: '', moves: [], stamped: null }, ticker: null, last: 0,
+  sel: { op: null, amount: '', moves: [], stamped: null, first: null, armed: false }, ticker: null, last: 0,
   theta: 0, intro: false, introTimers: [],
 };
 
@@ -228,7 +228,6 @@ function endIntro() {
   G.introTimers.forEach(clearTimeout); G.introTimers = [];
   G.intro = false; G.locked = false;
   showProblemState();
-  refreshApply();
 }
 
 /* ================================================================== */
@@ -269,7 +268,7 @@ function nextProblem() {
 
 function loadProblem(p, isBackup) {
   Object.assign(G, { problem: p, attempts: 0, locked: false, isBackup });
-  G.sel = { op: null, amount: '', moves: [], stamped: null };
+  G.sel = { op: null, amount: '', moves: [], stamped: null, first: null, armed: false };
   G.tilt = TIMED.has(p.type) && !G.practice ? Math.max(G.tilt, 10) : G.tilt;
   UI.feedback.classList.add('hidden');
   UI.taskTag.textContent = `${TAGS[p.type]}${isBackup ? ' · BACKUP' : ''}`;
@@ -326,87 +325,211 @@ function renderControls() {
     }
     return;
   }
-  // Operation + amount problems
-  const target = p.type === 'rebalance' ? `${p.fixSide.toUpperCase()} SIDE` : p.type === 'chain' ? 'RIGHT SIDE' : 'BOTH SIDES';
-  const movesRow = p.type === 'chain'
-    ? `<div class="label px">YOUR TWO MOVES (IN ORDER)</div><div class="moves">${[0, 1].map((i) => `<div class="move-slot ${G.sel.moves[i] ? 'filled' : ''}">${G.sel.moves[i] ? `${OP_SIGN[G.sel.moves[i].op]} ${G.sel.moves[i].n}` : `move ${i + 1}`}</div>`).join('')}</div>`
-    : '';
+  // Block problems: build a block (operation + number), then drag it onto a pan.
+  const n = parseAmount(G.sel.amount, G.sel.op);
+  const ready = G.sel.op && n !== null;
+  const label = G.sel.op ? `${OP_SIGN[G.sel.op]} ${G.sel.amount || '?'}` : '? ?';
   UI.controls.innerHTML = `
     <div class="label px">1. PICK AN OPERATION</div>
     <div class="op-row">${['+', '-', '×', '÷'].map((op, i) => `<button type="button" class="op-btn ${G.sel.op === op ? 'on' : ''}" data-op="${op}">${OP_SIGN[op]}<small>${i + 1}</small></button>`).join('')}</div>
     <div class="label px">2. HOW MUCH?</div>
-    <div class="amount-row"><input id="amount" class="amount" inputmode="numeric" maxlength="2" value="${G.sel.amount}" placeholder="?" autocomplete="off"></div>
     <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((d) => `<button type="button" data-digit="${d}">${d}</button>`).join('')}</div>
-    ${movesRow}
-    <button type="button" id="applyBtn" class="apply px">${p.type === 'chain' ? (G.sel.moves.length === 0 ? 'ADD MOVE 1' : 'ADD MOVE 2 + APPLY') : `APPLY TO ${target}`} (ENTER)</button>`;
+    <div class="label px">3. DRAG YOUR BLOCK ONTO A PAN</div>
+    <div class="tray">
+      <button type="button" id="block" class="block ${ready ? 'ready' : 'empty'} ${G.sel.armed ? 'armed' : ''}" aria-label="Your block ${label}">${label}</button>
+      <button type="button" id="clearBlock" class="clear-block" title="Clear (Backspace)">⌫</button>
+    </div>
+    <div id="trayHelp" class="tray-help">${trayHelp()}</div>`;
   UI.controls.querySelectorAll('[data-op]').forEach((b) => b.addEventListener('click', () => pickOp(b.dataset.op)));
   UI.controls.querySelectorAll('[data-digit]').forEach((b) => b.addEventListener('click', () => typeDigit(String(b.dataset.digit))));
-  const input = $('amount');
-  input.addEventListener('input', () => { G.sel.amount = input.value.replace(/\D/g, '').slice(0, 2); input.value = G.sel.amount; refreshApply(); });
-  $('applyBtn').addEventListener('click', submitMove);
-  refreshApply();
+  $('clearBlock').addEventListener('click', backspace);
+  $('block').addEventListener('pointerdown', startDrag);
 }
 
-function refreshApply() {
-  const btn = $('applyBtn');
-  if (btn) btn.disabled = G.locked || G.intro || !G.sel.op || parseAmount(G.sel.amount, G.sel.op) === null;
+/** The line under the tray: what to do next. */
+function trayHelp() {
+  const p = G.problem;
+  if (G.sel.armed) return '<b>Now tap the LEFT or RIGHT pan.</b>';
+  if (G.sel.first) return `<b>${G.sel.first.side === 'left' ? 'Left' : 'Right'} pan done. Now the ${G.sel.first.side === 'left' ? 'RIGHT' : 'LEFT'} pan needs the same block.</b>`;
+  if (p.type === 'chain' && G.sel.moves.length === 1) return `<b>Move 1 is on. Build move 2 and drop it on the same pan.</b>`;
+  if (p.type === 'chain') return 'Copy his two moves, in order, one block at a time.';
+  if (p.type === 'isolate' || p.type === 'partial') return 'One block on EACH pan, one at a time.';
+  return 'Drag it, or tap it and then tap a pan. Keys: <kbd>←</kbd> <kbd>→</kbd>';
+}
+
+/** Redraws only the block and the help line (keeps buttons in place while typing). */
+function refreshBlock() {
+  const b = $('block');
+  if (!b) return;
+  const ready = G.sel.op && parseAmount(G.sel.amount, G.sel.op) !== null;
+  b.textContent = G.sel.op ? `${OP_SIGN[G.sel.op]} ${G.sel.amount || '?'}` : '? ?';
+  b.className = `block ${ready ? 'ready' : 'empty'} ${G.sel.armed ? 'armed' : ''}`;
+  UI.controls.querySelectorAll('[data-op]').forEach((x) => x.classList.toggle('on', x.dataset.op === G.sel.op));
+  $('trayHelp').innerHTML = trayHelp();
 }
 function pickOp(op) {
   if (G.locked) return;
   hubAudio.playSelect();
-  G.sel.op = op;
-  UI.controls.querySelectorAll('[data-op]').forEach((b) => b.classList.toggle('on', b.dataset.op === op));
-  refreshApply();
+  G.sel.op = op; G.sel.armed = false;
+  refreshBlock();
 }
 function typeDigit(d) {
   if (G.locked) return;
   G.sel.amount = (G.sel.amount + d).replace(/^0+(?=\d)/, '').slice(0, 2);
-  const input = $('amount');
-  if (input) input.value = G.sel.amount;
-  refreshApply();
+  G.sel.armed = false;
+  refreshBlock();
+}
+function backspace() {
+  if (G.locked) return;
+  if (G.sel.amount) G.sel.amount = G.sel.amount.slice(0, -1); else G.sel.op = null;
+  G.sel.armed = false;
+  refreshBlock();
+}
+/** A gentle reminder in the help line (not a miss). */
+function nudge(text) {
+  const h = $('trayHelp');
+  if (!h) return;
+  h.innerHTML = `<span class="warn">${text}</span>`;
+  hubAudio.playTone(220, 'square', 0.12, 0.05);
+}
+function blockReady() {
+  if (G.sel.op && parseAmount(G.sel.amount, G.sel.op) !== null) return true;
+  nudge(G.sel.op ? 'Type a number for your block first (not 0).' : 'Build a block first: pick + − × ÷ and a number.');
+  return false;
+}
+
+/* ================================================================== */
+/* Dragging the block: mouse, touch and trackpad all send pointer events */
+/* ================================================================== */
+/** Which pan a screen point is over: the left or right half of the scale picture, or null. */
+function sideAt(x, y) {
+  const r = UI.scene.getBoundingClientRect();
+  if (x < r.left || x > r.right || y < r.top || y > r.bottom) return null;
+  return x < r.left + r.width / 2 ? 'left' : 'right';
+}
+function highlightPan(side) {
+  ['panL', 'panR'].forEach((id) => $(id)?.classList.toggle('drop-target', side === (id === 'panL' ? 'left' : 'right')));
+}
+function startDrag(e) {
+  if (G.locked || G.intro) return;
+  if (!blockReady()) return;
+  e.preventDefault();
+  const src = e.currentTarget;
+  const x0 = e.clientX, y0 = e.clientY;
+  let ghost = null, over = null;
+  const move = (ev) => {
+    if (!ghost && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 8) return;   // a tap, not a drag (yet)
+    if (!ghost) {
+      ghost = src.cloneNode(true);
+      ghost.removeAttribute('id');
+      ghost.className = 'block ready ghost';
+      document.body.appendChild(ghost);
+      src.classList.add('lifted');
+      UI.scene.classList.add('dragging');
+    }
+    ghost.style.left = `${ev.clientX}px`; ghost.style.top = `${ev.clientY}px`;
+    over = sideAt(ev.clientX, ev.clientY);
+    highlightPan(over);
+  };
+  const up = (ev) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    UI.scene.classList.remove('dragging');
+    highlightPan(null);
+    if (!ghost) {                                      // tap: arm the block, then tap a pan
+      G.sel.armed = !G.sel.armed;
+      if (G.sel.armed) hubAudio.playSelect();
+      refreshBlock();
+      return;
+    }
+    ghost.remove();
+    src.classList.remove('lifted');
+    if (ev.type === 'pointerup' && over) drop(over);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
 }
 
 /* ================================================================== */
 /* Answers                                                             */
 /* ================================================================== */
-function submitMove() {
+/** The student's block lands on one pan. */
+function drop(side) {
   const p = G.problem;
-  if (G.locked || !G.sel.op) return;
-  const n = parseAmount(G.sel.amount, G.sel.op);
-  if (n === null) return;
-  const op = G.sel.op;
-  if (p.type === 'chain' && G.sel.moves.length === 0) {
-    G.sel.moves.push({ op, n });
-    G.sel.op = null; G.sel.amount = '';
-    hubAudio.playSelect();
-    renderControls();
-    const partial = { ...p.after, right: applyOp(p.start.right, op, n) };
-    drawScale(partial, { saboteur: { side: 'left' }, chips: [{ side: 'right', op, n, who: 'you' }] });
-    strip(chainHtml(p.start.left.text, p.moves, 'sab'), chainHtml(p.start.right.text, [{ op, n }], 'you'), partial);
+  if (G.locked || G.intro || !['rebalance', 'isolate', 'partial', 'chain'].includes(p.type)) return;
+  if (!blockReady()) return;
+  const op = G.sel.op, n = parseAmount(G.sel.amount, op);
+  G.sel.armed = false;
+  hubAudio.playTone(330, 'triangle', 0.12, 0.08);
+  let res;
+  if (p.type === 'rebalance') {
+    res = checkRebalanceDrop(p, side, op, n);
+    showRebalanceDrop(p, side, op, n, res.result);
+    return settle(res);
+  }
+  if (p.type === 'chain') {
+    if (side === 'left') {
+      const eq = { ...p.after, left: applyOp(p.after.left, op, n) };
+      drawScale(eq, { saboteur: { side: 'left' }, chips: [{ side: 'left', op, n, who: 'you' }] });
+      return settle({ correct: false, key: 'same_side', message: 'The Saboteur already did his two moves to the LEFT pan. Copy them onto the RIGHT pan.' });
+    }
+    if (G.sel.moves.length === 0) {                     // move 1 lands; the scale is still off
+      G.sel.moves.push({ op, n });
+      G.sel.op = null; G.sel.amount = '';
+      renderControls();
+      const partial = { ...p.after, right: applyOp(p.start.right, op, n) };
+      drawScale(partial, { saboteur: { side: 'left' }, chips: [{ side: 'right', op, n, who: 'you' }] });
+      strip(chainHtml(p.start.left.text, p.moves, 'sab'), chainHtml(p.start.right.text, [{ op, n }], 'you'), partial);
+      return;
+    }
+    res = checkChain(p, [...G.sel.moves, { op, n }]);
+    if (res.result) showMove(p, op, n, res.result);
+    return settle(res);
+  }
+  // isolate and partial: one block on each pan, one at a time
+  const first = G.sel.first;
+  if (!first) {
+    G.sel.first = { side, op, n };
+    const half = { ...p.start, [side]: applyOp(p.start[side], op, n) };
+    drawScale(half, { chips: [{ side, op, n, who: 'you' }] });
+    const html = { left: esc(p.start.left.text), right: esc(p.start.right.text) };
+    html[side] = moveHtml(html[side], p.start[side].text, op, n, 'you');
+    strip(html.left, html.right, half);
+    refreshBlock();                                     // the same block stays ready for the other pan
     return;
   }
-  let res;
-  if (p.type === 'rebalance') res = checkRebalance(p, op, n);
-  else if (p.type === 'isolate') res = checkIsolate(p, op, n);
-  else if (p.type === 'partial') res = checkPartial(p, op, n);
-  else res = checkChain(p, [...G.sel.moves, { op, n }]);
-  if (res.result) showMove(p, op, n, res.result);
+  if (side === first.side) return nudge(`The ${side} pan already has its block. Drop one on the ${side === 'left' ? 'RIGHT' : 'LEFT'} pan.`);
+  const mismatch = checkPair(first, { side, op, n });
+  if (mismatch) {
+    const eq = { ...p.start, [first.side]: applyOp(p.start[first.side], first.op, first.n), [side]: applyOp(p.start[side], op, n) };
+    drawScale(eq, { chips: [{ side, op, n, who: 'you' }] });
+    const html = { [first.side]: moveHtml(esc(p.start[first.side].text), p.start[first.side].text, first.op, first.n, 'you'), [side]: moveHtml(esc(p.start[side].text), p.start[side].text, op, n, 'you') };
+    strip(html.left, html.right, eq);
+    return settle(mismatch);
+  }
+  res = p.type === 'isolate' ? checkIsolate(p, op, n) : checkPartial(p, op, n);
+  if (res.result) showMove(p, op, n, res.result, side);
   settle(res);
 }
 
-/** Animates the student's move on the scale and shows it in blue in the equation strip. */
-function showMove(p, op, n, result) {
-  if (p.type === 'rebalance') {
-    const s = p.sabotage;
-    drawScale(result, { saboteur: { side: s.side }, chips: [{ side: p.fixSide, op, n, who: 'you' }] });
-    const sabHtml = moveHtml(esc(p.start[s.side].text), p.start[s.side].text, s.op, s.n, 'sab');
-    const youHtml = moveHtml(esc(p.after[p.fixSide].text), p.after[p.fixSide].text, op, n, 'you');
-    strip(s.side === 'left' ? sabHtml : youHtml, s.side === 'left' ? youHtml : sabHtml, result);
-  } else if (p.type === 'chain') {
+/** Rebalance: the student's block lands on either pan, after the Saboteur's red block. */
+function showRebalanceDrop(p, side, op, n, result) {
+  const s = p.sabotage;
+  drawScale(result, { saboteur: { side: s.side }, chips: [{ side, op, n, who: 'you' }] });
+  const html = { [s.side]: moveHtml(esc(p.start[s.side].text), p.start[s.side].text, s.op, s.n, 'sab'), [p.fixSide]: esc(p.after[p.fixSide].text) };
+  html[side] = moveHtml(html[side], p.after[side].text, op, n, 'you');
+  strip(html.left, html.right, result);
+}
+
+/** Animates the student's finished move on the scale and shows it in blue in the equation strip. */
+function showMove(p, op, n, result, lastSide = 'right') {
+  if (p.type === 'chain') {
     drawScale(result, { saboteur: { side: 'left' }, chips: [{ side: 'right', op, n, who: 'you' }] });
     strip(chainHtml(p.start.left.text, p.moves, 'sab'), chainHtml(p.start.right.text, [...G.sel.moves, { op, n }], 'you'), result);
   } else {
-    drawScale(result, { chips: [{ side: 'left', op, n, who: 'you' }, { side: 'right', op, n, who: 'you' }] });
+    drawScale(result, { chips: [{ side: lastSide, op, n, who: 'you' }] });
     strip(moveHtml(esc(p.start.left.text), p.start.left.text, op, n, 'you'), moveHtml(esc(p.start.right.text), p.start.right.text, op, n, 'you'), result);
   }
 }
@@ -468,7 +591,7 @@ function settle(res) {
   } else {
     showFeedback(false, `${res.message} Try again!`);
     if (p.type === 'chain') { G.sel.moves = []; }
-    G.sel.op = null; G.sel.amount = ''; G.sel.stamped = null;
+    G.sel.op = null; G.sel.amount = ''; G.sel.stamped = null; G.sel.first = null; G.sel.armed = false;
     renderControls();
     setTimeout(() => { if (!G.locked && G.problem === p) showProblemState(); }, 1400);
   }
@@ -556,6 +679,8 @@ const SKILL_TIPS = {
   different_steps: 'Copy the other side’s steps exactly.',
   wrong_op: 'Think about which operation makes the number smaller.',
   mult_with_sum: 'Undo adding with subtracting, and subtracting with adding.',
+  same_side: 'Put your block on the OTHER pan, not the one that was changed.',
+  undid_it: 'Do not undo the change. Give the other side the same change.',
 };
 
 function finish() {
@@ -634,7 +759,10 @@ function init() {
   const stripEl = document.createElement('div');
   stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
   $('stage').appendChild(stripEl);
-  $('stage').addEventListener('click', () => { if (G.intro) endIntro(); });
+  $('stage').addEventListener('click', (e) => {
+    if (G.intro) return endIntro();
+    if (G.sel.armed) { const side = sideAt(e.clientX, e.clientY); if (side) drop(side); }
+  });
 
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'HUB_INIT' && typeof e.data.payload?.isMuted === 'boolean' && e.data.payload.isMuted !== hubAudio.isMuted) {
@@ -644,7 +772,6 @@ function init() {
   if (IN_TOWN) window.parent.postMessage({ type: 'CARTRIDGE_READY' }, '*');
 
   window.addEventListener('keydown', (e) => {
-    if (e.target && e.target.id === 'amount' && /^[0-9]$/.test(e.key)) return;   // the box handles its own typing
     const key = e.key;
     if (key === 'm' || key === 'M') { $('soundBtn').click(); return; }
     if (key === 'h' || key === 'H') { $('helpBtn').click(); return; }
@@ -667,8 +794,10 @@ function init() {
       if (key === '*' || key === 'x') return pickOp('×');
       if (key === '/') { e.preventDefault(); return pickOp('÷'); }
       if (/^[0-9]$/.test(key)) return typeDigit(key);
-      if (key === 'Backspace') { G.sel.amount = G.sel.amount.slice(0, -1); const i = $('amount'); if (i) i.value = G.sel.amount; refreshApply(); return; }
-      if (key === 'Enter') { e.preventDefault(); return submitMove(); }
+      if (key === 'Backspace') { e.preventDefault(); return backspace(); }
+      if (key === 'ArrowLeft') { e.preventDefault(); return drop('left'); }
+      if (key === 'ArrowRight') { e.preventDefault(); return drop('right'); }
+      if (key === 'Enter') { e.preventDefault(); return nudge('Use ← or → to drop your block on a pan.'); }
     }
   });
 

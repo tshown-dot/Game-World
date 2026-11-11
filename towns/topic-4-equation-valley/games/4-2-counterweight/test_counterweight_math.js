@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   seeded, side, applyOp, weigh, isBalanced, eqText, parseAmount, sameSolutions,
   genRebalance, genIsolate, genProperty, genInspect, genBoss, genZone, genBackup, ZONES, PROPERTIES, MISTAKES, OPS,
-  checkRebalance, checkIsolate, checkProperty, checkStamp, checkMistake, checkPartial, checkChain, workedSolution,
+  checkRebalance, checkRebalanceDrop, checkPair, checkIsolate, checkProperty, checkStamp, checkMistake, checkPartial, checkChain, workedSolution,
 } from './balance.js';
 
 let passed = 0;
@@ -57,6 +57,22 @@ test(`rebalance (number sides, + and −): ${RUNS} problems are fair and checked
     const amt = checkRebalance(p, op, n + 1);
     assert.ok(!amt.correct && amt.key === 'different_amount', 'a different amount is caught');
     assert.ok(noJunk(p.prompt) && noJunk(ok.message) && noJunk(bad.message) && noJunk(amt.message));
+  }
+});
+
+test(`dragging blocks: ${RUNS} problems; only the OTHER pan with the same block is right`, () => {
+  for (let i = 0; i < RUNS; i++) {
+    const p = genRebalance(rnd, { ops: ['+', '-', '×', '÷'] });
+    const { op, n, side } = p.sabotage;
+    const other = side === 'left' ? 'right' : 'left';
+    assert.ok(checkRebalanceDrop(p, other, op, n).correct, 'same block on the other pan balances');
+    const same = checkRebalanceDrop(p, side, op, n);
+    assert.ok(!same.correct && same.key === 'same_side' && same.message.includes('OTHER'), 'dropping on his pan again is caught');
+    const undo = checkRebalanceDrop(p, side, { '+': '-', '-': '+', '×': '÷', '÷': '×' }[op], n);
+    assert.ok(!undo.correct && undo.key === 'undid_it', 'undoing his move on his pan is caught, even though it levels the scale');
+    assert.ok(isBalanced(undo.result), 'undoing really would level it, which is why it needs its own hint');
+    assert.ok(!/Fix the (left|right) side/.test(p.prompt), 'the prompt no longer says which side to fix');
+    assert.ok(noJunk(same.message) && noJunk(undo.message));
   }
 });
 
@@ -192,6 +208,16 @@ test('a full run: 5 zones, 2 property questions, every problem has a worked solu
       assert.ok(noJunk(p.prompt));
     }
   }
+});
+
+test('two pans, two blocks: a different block on each pan is caught', () => {
+  assert.equal(checkPair({ side: 'left', op: '÷', n: 3 }, { side: 'right', op: '÷', n: 3 }), null, 'same block: no complaint');
+  const amt = checkPair({ side: 'left', op: '÷', n: 3 }, { side: 'right', op: '÷', n: 4 });
+  assert.equal(amt.key, 'different_amount');
+  assert.ok(amt.message.includes('÷ 3') && amt.message.includes('÷ 4') && amt.message.includes('SAME'));
+  const op = checkPair({ side: 'right', op: '-', n: 5 }, { side: 'left', op: '+', n: 5 });
+  assert.equal(op.key, 'different_op');
+  assert.ok(op.message.startsWith('The right pan got − 5 but the left pan got + 5'));
 });
 
 test('every operation is offered and named', () => {
