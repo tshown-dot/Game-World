@@ -3,25 +3,46 @@ import {
   ZONES, genRun, genBackup, fmt, lockText, substitute, parseNumber, checkKey, checkMaster, checkForge, workedSolution,
 } from './keys.js';
 import { hubAudio } from '../../../../shared/audio.js';
+import { createGame } from '../../../../shared/game/gameShell.js';
 
-const $ = (id) => document.getElementById(id);
-const UI = {
-  app: $('app'), scene: $('scene'), prompt: $('prompt'), controls: $('controls'), feedback: $('feedback'), taskTag: $('taskTag'),
-  zonePips: $('zonePips'), zoneName: $('zoneName'), meterFill: $('meterFill'), meterBox: $('meterBox'), chances: $('chances'), score: $('score'),
-  briefing: $('briefing'), zoneButtons: $('zoneButtons'), banner: $('banner'), fail: $('fail'), report: $('report'),
-  practiceTag: $('practiceTag'), bossBar: $('bossBar'), bossFill: $('bossFill'),
+let run = null;                                       // this play's problems, all five zones
+
+const SKILL_TIPS = {
+  forward_op: 'Undo the operation in the lock: + becomes −, × becomes ÷.',
+  answer_as_key: 'The key replaces the letter, not the number on the other side.',
+  used_the_number: 'The key replaces the letter, not the number already in the lock.',
+  add_sub_instead: 'Read the operation carefully: 4x means 4 × x.',
+  place_value: 'Line up decimal points when you check a decimal key.',
+  near_miss: 'Check every key: both sides must be exactly equal.',
+  forgot_divide: 'In 6n + 5, multiply 6 × n first, then add 5.',
+  wrong_order: 'Multiply before you add.',
+  ignored_part: 'Use every part of the lock when you check.',
+  missed_key: 'Test each key before deciding no key fits.',
+  concatenation: '5n means 5 × n, not 5 next to n.',
+  said_open: 'A lock only opens when both sides are equal.',
+  said_shut: 'Work out both sides: some locks do open!',
+  forge_wrong: 'Test your own lock: put the key in and check both sides.',
 };
-const IN_TOWN = window.parent !== window;
-const SECONDS = [40, 40, 45, 0, 50];          // alarm: seconds until a guard comes (0 = no timer in that zone)
+
+const shell = createGame({
+  // One run is built at Start (and fresh on a retry), so its 2 "no key fits" locks really are spread over zones 1-3.
+  zones: ZONES, makeZone: (rnd, z) => (run ||= genRun(rnd))[z], makeBackup: genBackup, workedSolution, showProblem,
+  onStart: () => { run = null; }, onRetry: () => { run = null; },
+  seconds: [40, 40, 45, 0, 50],                        // alarm: seconds until a guard comes (0 = no timer in that zone)
+  meterFloor: 8, wrongBump: 34, rightRelief: 30, winDelay: () => 1600,
+  lifeLostText: (left) => (left > 0 ? 'A GUARD SPOTTED YOU!' : 'CAUGHT!'),
+  onLifeLost: () => {
+    const fx = UI.scene.querySelector('#fx');
+    if (fx) fx.innerHTML = `<g class="guard"><g transform="translate(720 440)"><rect x="-18" y="-60" width="36" height="60" rx="8" fill="#2f3a6b" ${O}/><circle cx="0" cy="-74" r="15" fill="#ffd3a8" ${O}/><rect x="-16" y="-92" width="32" height="10" fill="#2f3a6b" ${O}/><circle cx="20" cy="-40" r="9" fill="#ffd23f" ${O}/></g></g>`;
+  },
+  backupText: 'TRY A BACKUP LOCK (ENTER)', skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. Master safecracker!',
+  bossDefeated: () => true, onKey, testName: '__keyfitter',
+});
+const { G, UI, $, showFeedback } = shell;
+Object.assign(G, { tried: new Set(), marks: {}, forge: { op: '+', a: '', c: '', field: 'a' } });
 const K = '#1d1433';
 const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
 const KEY_X = [160, 320, 480, 640];
-
-const G = {
-  rnd: Math.random, practice: false, startZone: 0, zone: 0, run: null, queue: [], problem: null, attempts: 0, locked: false,
-  chances: 3, alarm: 0, score: 0, firstTry: 0, answered: 0, mistakes: {}, zoneStats: [], bossHits: 0, started: 0,
-  tried: new Set(), marks: {}, forge: { op: '+', a: '', c: '', field: 'a' }, ticker: null, last: 0,
-};
 
 /* ================================================================== */
 /* Scene                                                               */
@@ -111,42 +132,12 @@ function drawForge(result = null) {
 }
 
 /* ================================================================== */
-/* HUD                                                                 */
-/* ================================================================== */
-function renderHud() {
-  UI.zonePips.innerHTML = ZONES.map((_, i) => `<div class="zone-pip ${i < G.zone ? 'done' : i === G.zone ? 'now' : ''}"></div>`).join('');
-  UI.zoneName.textContent = `${G.zone + 1}. ${ZONES[G.zone].name}`;
-  UI.chances.innerHTML = [0, 1, 2].map((i) => `<div class="crate ${i >= G.chances ? 'lost' : ''}" title="chance"></div>`).join('');
-  UI.score.textContent = G.score;
-  UI.meterFill.style.width = `${Math.round(Math.min(100, G.alarm))}%`;
-  UI.meterBox.style.visibility = G.practice ? 'hidden' : 'visible';
-  UI.practiceTag.classList.toggle('hidden', !G.practice);
-  UI.bossBar.classList.toggle('hidden', G.zone !== 4);
-  UI.bossFill.style.width = `${Math.max(0, 100 - G.bossHits * 20)}%`;
-}
-
-/* ================================================================== */
 /* Problems                                                            */
 /* ================================================================== */
-function startZone(z, quick = false) {
-  G.zone = z;
-  G.queue = genRun(G.rnd)[z];
-  G.zoneStats[z] = G.zoneStats[z] || { right: 0, total: 0 };
-  if (z === 4) G.bossHits = 0;
-  showBanner(`ZONE ${z + 1}: ${ZONES[z].name.toUpperCase()}`, ZONES[z].blurb, nextProblem, quick ? 600 : 1600);
-}
-
-function nextProblem() {
-  if (!G.queue.length) return zoneCleared();
-  loadProblem(G.queue.shift(), false);
-}
-
-function loadProblem(p, isBackup) {
-  Object.assign(G, { problem: p, attempts: 0, locked: false, isBackup, tried: new Set(), marks: {}, forge: { op: '+', a: '', c: '', field: 'a' } });
-  if (SECONDS[G.zone] && !G.practice) G.alarm = Math.max(G.alarm, 8);
-  UI.feedback.classList.add('hidden');
+/** The shell has set G.problem, G.attempts and G.isBackup; reset this game's own state and draw. */
+function showProblem() {
+  Object.assign(G, { tried: new Set(), marks: {}, forge: { op: '+', a: '', c: '', field: 'a' } });
   render();
-  renderHud();
 }
 
 function render() {
@@ -252,223 +243,45 @@ function submitForge() {
   settle(res, () => drawForge());
 }
 
+/** Right or wrong: the shell scores it. After a first miss, the lock (or the game's own redraw) is shown again. */
 function settle(res, redraw) {
   const p = G.problem;
-  if (res.correct) {
-    G.locked = true;
-    const first = G.attempts === 0 && !G.isBackup;
-    G.answered += 1;
-    G.zoneStats[G.zone].total += 1;
-    if (first) { G.firstTry += 1; G.zoneStats[G.zone].right += 1; }
-    G.score += first ? 100 : 50;
-    if (!G.practice && SECONDS[G.zone]) G.alarm = Math.max(0, G.alarm - 30);
-    hubAudio.playCoinClink();
-    if (G.zone === 4) { G.bossHits += 1; flash('HIT!'); }
-    showFeedback(true, res.message);
-    renderHud();
-    setTimeout(nextProblem, 1600);
-    return;
+  shell.settle(res, { delay: 1300, retry: () => { if (p.type === 'lock') render(); else redraw(); } });
+}
+
+/* ================================================================== */
+/* Keys and start-up                                                   */
+/* ================================================================== */
+/** Keys while a problem is in play (the shell handles Enter on buttons, help, sound and the briefing). */
+function onKey(e) {
+  const key = e.key;
+  const inInput = e.target && (e.target.id === 'fa' || e.target.id === 'fc');
+  const p = G.problem;
+  const n = Number(key);
+  if (p.type === 'lock') {
+    if (n >= 1 && n <= 4) return tryKey(n - 1);
+    if (key === 'n' || key === 'N' || key === '0') return tryKey('none');
+  } else if (p.type === 'master') {
+    if (n >= 1 && n <= 4) return toggleMark(p.locks[n - 1].id);
+    if (key === 'Enter') { e.preventDefault(); return submitMaster(); }
+  } else if (p.type === 'forge') {
+    if (key === 'Enter') { e.preventDefault(); return submitForge(); }
+    if (inInput) return;
+    if (key === '+') { G.forge.op = '+'; return render(); }
+    if (key === '-') { G.forge.op = '-'; return render(); }
+    if (key === '*' || key === 'x') { G.forge.op = '×'; return render(); }
+    if (key === '/') { e.preventDefault(); G.forge.op = '÷'; return render(); }
+    if (/^[0-9.]$/.test(key)) return forgeType(key);
+    if (key === 'Tab') { e.preventDefault(); G.forge.field = G.forge.field === 'a' ? 'c' : 'a'; return render(); }
+    if (key === 'Backspace') { const f = G.forge; f[f.field] = f[f.field].slice(0, -1); return render(); }
   }
-  G.attempts += 1;
-  G.mistakes[res.key] = (G.mistakes[res.key] || 0) + 1;
-  hubAudio.playLockRattle();
-  UI.app.classList.remove('shake'); void UI.app.offsetWidth; UI.app.classList.add('shake');
-  if (!G.practice) bumpAlarm(34);
-  if (G.attempts >= 2) {
-    G.locked = true;
-    showFeedback(false, res.message, workedSolution(p), 'TRY A BACKUP LOCK (ENTER)', () => loadProblem(genBackup(G.rnd, p), true));
-  } else {
-    showFeedback(false, `${res.message} Try again!`);
-    setTimeout(() => { if (!G.locked && G.problem === p) { if (p.type === 'lock') render(); else redraw(); } }, 1300);
-  }
-  renderHud();
 }
-
-function showFeedback(good, message, steps, buttonText, onButton) {
-  UI.feedback.className = `feedback ${good ? 'good' : 'bad'}`;
-  UI.feedback.innerHTML = `${message}${steps ? `<ol class="steps">${steps.map((s) => `<li>${s}</li>`).join('')}</ol>` : ''}${buttonText ? `<button type="button" id="fbBtn" class="px">${buttonText}</button>` : ''}`;
-  if (onButton) $('fbBtn').addEventListener('click', onButton);
-}
-
-/* ================================================================== */
-/* Alarm and chances                                                   */
-/* ================================================================== */
-function bumpAlarm(amount) {
-  G.alarm += amount;
-  if (G.alarm >= 100) loseChance();
-  renderHud();
-}
-function loseChance() {
-  G.alarm = 25;
-  G.chances -= 1;
-  hubAudio.playLockRattle();
-  const fx = UI.scene.querySelector('#fx');
-  if (fx) fx.innerHTML = `<g class="guard"><g transform="translate(720 440)"><rect x="-18" y="-60" width="36" height="60" rx="8" fill="#2f3a6b" ${O}/><circle cx="0" cy="-74" r="15" fill="#ffd3a8" ${O}/><rect x="-16" y="-92" width="32" height="10" fill="#2f3a6b" ${O}/><circle cx="20" cy="-40" r="9" fill="#ffd23f" ${O}/></g></g>`;
-  flash(G.chances > 0 ? 'A GUARD SPOTTED YOU!' : 'CAUGHT!');
-  if (G.chances <= 0) { G.locked = true; setTimeout(() => UI.fail.classList.remove('hidden'), 900); }
-}
-function tick(now) {
-  const dt = Math.min(0.25, (now - G.last) / 1000);
-  G.last = now;
-  const secs = SECONDS[G.zone];
-  if (!G.practice && secs && G.problem && !G.locked && UI.briefing.classList.contains('hidden') && G.chances > 0) {
-    G.alarm += (100 / secs) * dt;
-    if (G.alarm >= 100) loseChance();
-    UI.meterFill.style.width = `${Math.round(Math.min(100, G.alarm))}%`;
-  }
-  G.ticker = requestAnimationFrame(tick);
-}
-
-/* ================================================================== */
-/* Zones, banners, report                                              */
-/* ================================================================== */
-function flash(text) {
-  UI.banner.innerHTML = text;
-  UI.banner.classList.remove('hidden');
-  clearTimeout(flash.t);
-  flash.t = setTimeout(() => UI.banner.classList.add('hidden'), 900);
-}
-function showBanner(title, sub, then, ms = 1600) {
-  UI.banner.innerHTML = `${title}<small>${sub}</small>`;
-  UI.banner.classList.remove('hidden');
-  hubAudio.playQuestOpen();
-  clearTimeout(flash.t);
-  setTimeout(() => { UI.banner.classList.add('hidden'); then(); }, ms);
-}
-function zoneCleared() {
-  if (G.zone >= ZONES.length - 1) return finish();
-  hubAudio.playLevelUp();
-  G.alarm = 0;
-  startZone(G.zone + 1);
-}
-const stars = (ratio) => (ratio >= 0.9 ? 3 : ratio >= 0.7 ? 2 : 1);
-const SKILL_TIPS = {
-  forward_op: 'Undo the operation in the lock: + becomes −, × becomes ÷.',
-  answer_as_key: 'The key replaces the letter, not the number on the other side.',
-  used_the_number: 'The key replaces the letter, not the number already in the lock.',
-  add_sub_instead: 'Read the operation carefully: 4x means 4 × x.',
-  place_value: 'Line up decimal points when you check a decimal key.',
-  near_miss: 'Check every key: both sides must be exactly equal.',
-  forgot_divide: 'In 6n + 5, multiply 6 × n first, then add 5.',
-  wrong_order: 'Multiply before you add.',
-  ignored_part: 'Use every part of the lock when you check.',
-  missed_key: 'Test each key before deciding no key fits.',
-  concatenation: '5n means 5 × n, not 5 next to n.',
-  said_open: 'A lock only opens when both sides are equal.',
-  said_shut: 'Work out both sides: some locks do open!',
-  forge_wrong: 'Test your own lock: put the key in and check both sides.',
-};
-function finish() {
-  cancelAnimationFrame(G.ticker);
-  hubAudio.playLevelUp();
-  const total = Math.max(1, G.answered);
-  const acc = Math.round((G.firstTry / total) * 100);
-  const st = stars(G.firstTry / total);
-  const mins = Math.max(1, Math.round((Date.now() - G.started) / 60000));
-  $('reportStars').textContent = '★'.repeat(st) + '☆'.repeat(3 - st);
-  $('reportStats').innerHTML = [['SCORE', G.score], ['FIRST TRY', `${G.firstTry}/${total}`], ['ACCURACY', `${acc}%`], ['TIME', `${mins} min`]]
-    .map(([l, v]) => `<div class="stat"><div class="px">${l}</div><div>${v}</div></div>`).join('');
-  $('reportZones').innerHTML = ZONES.map((z, i) => {
-    const s = G.zoneStats[i];
-    if (!s || !s.total) return `<div class="rz">${z.name}<div class="s">skipped</div></div>`;
-    const k = stars(s.right / s.total);
-    return `<div class="rz">${z.name}<div class="s">${'★'.repeat(k)}${'☆'.repeat(3 - k)}</div></div>`;
-  }).join('');
-  const top = Object.entries(G.mistakes).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => SKILL_TIPS[k]).filter(Boolean);
-  $('reportSkills').innerHTML = top.length ? `Skills to sharpen:<ul>${top.map((t) => `<li>${t}</li>`).join('')}</ul>` : 'No mistakes to sharpen. Master safecracker!';
-  UI.report.classList.remove('hidden');
-  G.result = { score: G.firstTry, total, accuracy: acc, stars: st, bossDefeated: true, practiceMode: G.practice };
-}
-
-/* ================================================================== */
-/* Start, retry, exit, keyboard                                        */
-/* ================================================================== */
-function begin(practice) {
-  hubAudio.unlockAudio();
-  Object.assign(G, { practice, chances: 3, alarm: 0, score: 0, firstTry: 0, answered: 0, mistakes: {}, zoneStats: [], bossHits: 0, started: Date.now() });
-  UI.briefing.classList.add('hidden'); UI.report.classList.add('hidden'); UI.fail.classList.add('hidden');
-  G.last = performance.now();
-  cancelAnimationFrame(G.ticker);
-  G.ticker = requestAnimationFrame(tick);
-  startZone(G.startZone);
-}
-function retryZone() {
-  UI.fail.classList.add('hidden');
-  Object.assign(G, { chances: 3, alarm: 0, locked: false });
-  G.zoneStats[G.zone] = { right: 0, total: 0 };
-  startZone(G.zone, true);
-}
-function exitToTown() {
-  hubAudio.playSelect();
-  if (IN_TOWN) window.parent.postMessage({ type: 'CARTRIDGE_EXIT_REQUEST' }, '*');
-  else location.href = '../../../../index.html';
-}
-function backToTown() {
-  if (IN_TOWN && G.result) window.parent.postMessage({ type: 'CARTRIDGE_COMPLETE', payload: G.result }, '*');
-  else exitToTown();
-}
-function updateSoundIcon() { $('soundBtn').textContent = hubAudio.isMuted ? '🔇' : '🔊'; }
 
 function init() {
-  UI.zoneButtons.innerHTML = ZONES.map((z, i) => `<button type="button" class="zone-btn ${i === 0 ? 'on' : ''}" data-zone="${i}">${i + 1}. ${z.name}</button>`).join('');
-  UI.zoneButtons.querySelectorAll('[data-zone]').forEach((b) => b.addEventListener('click', () => {
-    G.startZone = Number(b.dataset.zone);
-    UI.zoneButtons.querySelectorAll('[data-zone]').forEach((x) => x.classList.toggle('on', x === b));
-  }));
-  $('startBtn').addEventListener('click', () => begin(false));
-  $('practiceBtn').addEventListener('click', () => begin(true));
-  $('retryBtn').addEventListener('click', retryZone);
-  $('againBtn').addEventListener('click', () => { UI.report.classList.add('hidden'); UI.briefing.classList.remove('hidden'); });
-  $('townBtn').addEventListener('click', backToTown);
-  $('exitBtn').addEventListener('click', exitToTown);
-  $('helpBtn').addEventListener('click', () => { hubAudio.playSelect(); UI.briefing.classList.toggle('hidden'); });
-  $('soundBtn').addEventListener('click', () => { hubAudio.toggleMute(); updateSoundIcon(); });
-  updateSoundIcon();
-  window.addEventListener('message', (e) => {
-    if (e.data && e.data.type === 'HUB_INIT' && typeof e.data.payload?.isMuted === 'boolean' && e.data.payload.isMuted !== hubAudio.isMuted) { hubAudio.toggleMute(); updateSoundIcon(); }
-  });
-  if (IN_TOWN) window.parent.postMessage({ type: 'CARTRIDGE_READY' }, '*');
-
-  window.addEventListener('keydown', (e) => {
-    const inInput = e.target && (e.target.id === 'fa' || e.target.id === 'fc');
-    const key = e.key;
-    if (!inInput && (key === 'm' || key === 'M')) { $('soundBtn').click(); return; }
-    if (!inInput && (key === 'h' || key === 'H')) { $('helpBtn').click(); return; }
-    if (!UI.briefing.classList.contains('hidden')) { if (key === 'Enter') { e.preventDefault(); begin(false); } return; }
-    if (!UI.fail.classList.contains('hidden')) { if (key === 'Enter') { e.preventDefault(); retryZone(); } return; }
-    if (!UI.report.classList.contains('hidden') || !G.problem) return;
-    const fb = $('fbBtn');
-    if (fb && key === 'Enter') { e.preventDefault(); fb.click(); return; }
-    if (G.locked) return;
-    const p = G.problem;
-    const n = Number(key);
-    if (p.type === 'lock') {
-      if (n >= 1 && n <= 4) return tryKey(n - 1);
-      if (key === 'n' || key === 'N' || key === '0') return tryKey('none');
-    } else if (p.type === 'master') {
-      if (n >= 1 && n <= 4) return toggleMark(p.locks[n - 1].id);
-      if (key === 'Enter') { e.preventDefault(); return submitMaster(); }
-    } else if (p.type === 'forge') {
-      if (key === 'Enter') { e.preventDefault(); return submitForge(); }
-      if (inInput) return;
-      if (key === '+') { G.forge.op = '+'; return render(); }
-      if (key === '-') { G.forge.op = '-'; return render(); }
-      if (key === '*' || key === 'x') { G.forge.op = '×'; return render(); }
-      if (key === '/') { e.preventDefault(); G.forge.op = '÷'; return render(); }
-      if (/^[0-9.]$/.test(key)) return forgeType(key);
-      if (key === 'Tab') { e.preventDefault(); G.forge.field = G.forge.field === 'a' ? 'c' : 'a'; return render(); }
-      if (key === 'Backspace') { const f = G.forge; f[f.field] = f[f.field].slice(0, -1); return render(); }
-    }
-  });
-
   // A sample lock behind the briefing.
   G.problem = { type: 'lock', kind: 'add', x: 'd', a: 9, c: 35, money: false, keys: [16, 22, 26, 36].map((value) => ({ value })) };
   drawLock('d + 9 = 35: which key?');
   G.problem = null;
-  renderHud();
 }
 
 init();
-
-// For automated browser tests only (index.html?test): lets a test read the current problem.
-if (new URLSearchParams(location.search).has('test')) window.__keyfitter = { G };

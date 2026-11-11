@@ -11,22 +11,38 @@ import {
   genZone, genBackup, checkWritten, checkUndo, checkCombine, checkTaken, checkSort, workedSolution,
 } from './undo.js';
 import { hubAudio } from '../../../../shared/audio.js';
+import { createGame } from '../../../../shared/game/gameShell.js';
 
-const $ = (id) => document.getElementById(id);
-const UI = {
-  app: $('app'), scene: $('scene'), prompt: $('prompt'), controls: $('controls'), feedback: $('feedback'), taskTag: $('taskTag'),
-  zonePips: $('zonePips'), zoneName: $('zoneName'), meterFill: $('meterFill'), meterBox: $('meterBox'), crates: $('crates'), score: $('score'),
-  briefing: $('briefing'), zoneButtons: $('zoneButtons'), banner: $('banner'), fail: $('fail'), report: $('report'),
-  practiceTag: $('practiceTag'), bossBar: $('bossBar'), bossFill: $('bossFill'),
+const SKILL_TIPS = {
+  did_not_undo: 'Undo a step with its OPPOSITE: undo + with −, and − with +.',
+  wrong_op: 'Match the story: "more" or "added" means +, "gave away" or "dropped" means −.',
+  wrong_amount: 'Undo exactly the machine\'s step, the same amount.',
+  used_total: 'Undo the step the machine does, not the total it puts out.',
+  fewer_trap: '"5 fewer than p" means p − 5. Start with the letter.',
+  order: 'Order matters in subtraction. Start with the amount you began with.',
+  wrong_numbers: 'The total goes alone on one side of the equation.',
+  combine_error: 'Combine the parts you know before you undo.',
+  skipped_combine: 'Combine the parts you know before you undo.',
+  added_both: 'When the letter is taken away, it is the GAP between the start and what is left.',
+  copied_number: 'The answer is the missing amount, not a number from the story.',
+  check_fails: 'Check your answer by putting it back in.',
+  same_numbers: 'Same numbers does not mean the same solution. Solve each one.',
+  number_shows: 'A number showing in an equation is not its solution. Solve it.',
+  missed_match: 'Different numbers can still have the same solution.',
+  sort_solve_first: 'Solve both equations before you compare them.',
 };
-const IN_TOWN = window.parent !== window;              // inside a town's building (iframe) or opened directly
-const SECONDS_TO_BURST = [40, 60, 45, 40, 70];         // pressure meter: seconds until a boiler bursts, per zone
 
-const G = {
-  rnd: Math.random, practice: false, startZone: 0, zone: 0, queue: [], problem: null, attempts: 0, locked: false,
-  boilers: 3, pressure: 0, score: 0, firstTry: 0, answered: 0, mistakes: {}, zoneStats: [], bossHits: 0, started: 0,
-  phase: null, work: null, rail: [], used: [], typed: '', sel: { op: null, amount: '', armed: false }, ticker: null, last: 0,
-};
+const shell = createGame({
+  zones: ZONES, makeZone: genZone, makeBackup: genBackup, workedSolution, showProblem,
+  seconds: [40, 60, 45, 40, 70],                       // pressure: seconds until a boiler bursts, per zone
+  meterFloor: 8, wrongBump: 30, rightRelief: 30, pauseOnBanner: true,
+  lifeLostText: (left) => (left > 0 ? 'A BOILER BURST!' : 'LAST BOILER GONE!'),
+  bossHitText: 'FIXED!', winDelay: (p) => (p.type === 'sort' ? 1100 : 1600),
+  skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. That machine runs like new!',
+  lettersAreInput: () => G.phase === 'write', onKey, testName: '__undo',
+});
+const { G, UI, $, win, miss, showFeedback } = shell;
+Object.assign(G, { phase: null, work: null, rail: [], used: [], typed: '', sel: { op: null, amount: '', armed: false } });
 
 /* ================================================================== */
 /* Drawing the machine                                                 */
@@ -131,21 +147,6 @@ function drawSort(result = null) {
 }
 
 /* ================================================================== */
-/* HUD                                                                 */
-/* ================================================================== */
-function renderHud() {
-  UI.zonePips.innerHTML = ZONES.map((_, i) => `<div class="zone-pip ${i < G.zone ? 'done' : i === G.zone ? 'now' : ''}"></div>`).join('');
-  UI.zoneName.textContent = `${G.zone + 1}. ${ZONES[G.zone].name}`;
-  UI.crates.innerHTML = [0, 1, 2].map((i) => `<div class="crate ${i >= G.boilers ? 'lost' : ''}"></div>`).join('');
-  UI.score.textContent = G.score;
-  UI.meterFill.style.width = `${Math.round(Math.min(100, G.pressure))}%`;
-  UI.meterBox.style.visibility = G.practice ? 'hidden' : 'visible';
-  UI.practiceTag.classList.toggle('hidden', !G.practice);
-  UI.bossBar.classList.toggle('hidden', G.zone !== 4);
-  UI.bossFill.style.width = `${Math.max(0, 100 - G.bossHits * 20)}%`;
-}
-
-/* ================================================================== */
 /* Problems                                                            */
 /* ================================================================== */
 const TAGS = {
@@ -153,26 +154,10 @@ const TAGS = {
   typed: 'STEP 2 · FIND THE MISSING AMOUNT', sort: 'SORT THE CRATE',
 };
 
-function startZone(z, quick = false) {
-  G.zone = z;
-  G.queue = genZone(G.rnd, z);
-  G.zoneStats[z] = G.zoneStats[z] || { right: 0, total: 0 };
-  if (z === 4) G.bossHits = 0;
-  showBanner(`ZONE ${z + 1}: ${ZONES[z].name.toUpperCase()}`, ZONES[z].blurb, () => nextProblem(), quick ? 600 : 1600);
-}
-function nextProblem() {
-  if (!G.queue.length) return zoneCleared();
-  loadProblem(G.queue.shift(), false);
-}
-function loadProblem(p, isBackup) {
-  Object.assign(G, { problem: p, attempts: 0, locked: false, isBackup, rail: [], used: [], typed: '' });
-  G.sel = { op: null, amount: '', armed: false };
-  G.work = p.eq;
-  G.phase = p.type === 'sort' ? 'sort' : p.type === 'undo' ? 'undo' : 'write';
-  G.pressure = !G.practice ? Math.max(G.pressure, 8) : G.pressure;
-  UI.feedback.classList.add('hidden');
-  enterPhase(G.phase);
-  renderHud();
+/** The shell has set G.problem, G.attempts and G.isBackup; set up this game's own steps. */
+function showProblem(p) {
+  Object.assign(G, { rail: [], used: [], typed: '', work: p.eq });
+  enterPhase(p.type === 'sort' ? 'sort' : p.type === 'undo' ? 'undo' : 'write');
 }
 function enterPhase(phase) {
   G.phase = phase;
@@ -370,7 +355,7 @@ function submitWritten() {
   const res = checkWritten(p, G.rail);
   if (res.nudge) return nudge(res.message);
   if (!res.correct) {
-    miss(res, () => { G.rail = []; G.used = []; renderControls(); showState(); });
+    miss(res, { lock: true, delay: 1200, retry: () => { G.rail = []; G.used = []; renderControls(); showState(); } });
     return;
   }
   hubAudio.playCoinClink();
@@ -418,7 +403,7 @@ function dropBlock() {
     strip([`${w.letter} = ${fmt(res.value)}`, `<span class="${ok ? 'good' : 'bad'}">Check: ${esc(checkLine(w, res.value))}${ok ? ' ✓' : ' ✗'}</span>`]);
     G.locked = false;
     if (ok) win(res);
-    else miss(res, () => { enterPhase('undo'); });
+    else miss(res, { lock: true, delay: 1200, retry: () => enterPhase('undo') });
   }, 1700);
 }
 
@@ -429,7 +414,7 @@ function submitTyped() {
   if (G.phase === 'combine') {
     const res = checkCombine(p.eq, G.typed);
     if (res.nudge) return nudge(res.message);
-    if (!res.correct) return miss(res, () => { G.typed = ''; renderControls(); showState(); });
+    if (!res.correct) return miss(res, { lock: true, delay: 1200, retry: () => { G.typed = ''; renderControls(); showState(); } });
     hubAudio.playCoinClink();
     showFeedback(true, res.message);
     G.work = combined(p.eq);
@@ -447,7 +432,7 @@ function submitTyped() {
     drawMachine({ label: exprText(w), inBox: { text: fmt(res.value), color: '#3a8ef0', textColor: '#fff', cls: 'go-fwd' },
       outBox: { text: fmt(runForward(w, res.value)), color: ok ? '#2fbf71' : '#e5484d', textColor: '#fff', cls: 'pop-in', label: ok ? '✓ CHECK' : `✗ NEEDS ${fmt(w.c)}` }, spin: 'fwd' });
     strip([`${w.letter} = ${fmt(res.value)}`, `<span class="${ok ? 'good' : 'bad'}">Check: ${esc(checkLine(w, res.value))}${ok ? ' ✓' : ' ✗'}</span>`]);
-    if (ok) win(res); else miss(res, () => { G.typed = ''; renderControls(); showState(); });
+    if (ok) win(res); else miss(res, { lock: true, delay: 1200, retry: () => { G.typed = ''; renderControls(); showState(); } });
   }
 }
 
@@ -457,262 +442,54 @@ function answerSort(saysMatch) {
   const res = checkSort(G.problem, saysMatch);
   drawSort(saysMatch);
   if (res.correct) return win(res);
-  G.attempts = 1;                                     // a sort is one decision: a miss shows the work, then the next crate
-  miss(res, null, true);
+  miss(res, { oneShot: true, nextText: 'NEXT CRATE (ENTER)' });   // a sort is one decision: show the work, then the next crate
 }
 
 /* ================================================================== */
-/* Right and wrong                                                     */
+/* Keys and start-up                                                   */
 /* ================================================================== */
-function win(res) {
+/** Keys while a problem is in play (the shell handles Enter on buttons, help, sound and the briefing). */
+function onKey(e) {
+  const key = e.key;
   const p = G.problem;
-  G.locked = true;
-  const first = G.attempts === 0 && !G.isBackup;
-  G.answered += 1;
-  G.zoneStats[G.zone].total += 1;
-  if (first) { G.firstTry += 1; G.zoneStats[G.zone].right += 1; }
-  G.score += first ? 100 : 50;
-  if (!G.practice) G.pressure = Math.max(0, G.pressure - 30);
-  hubAudio.playCoinClink();
-  if (G.zone === 4) { G.bossHits += 1; flash('FIXED!'); }
-  showFeedback(true, res.message);
-  renderHud();
-  setTimeout(() => { if (G.problem === p) nextProblem(); }, p.type === 'sort' ? 1100 : 1600);
-}
-/** A wrong answer: hint, shake, pressure. After two misses: the worked solution and a backup problem. */
-function miss(res, retry, oneShot = false) {
-  const p = G.problem;
-  G.attempts += 1;
-  G.mistakes[res.key] = (G.mistakes[res.key] || 0) + 1;
-  hubAudio.playLockRattle();
-  UI.app.classList.remove('shake'); void UI.app.offsetWidth; UI.app.classList.add('shake');
-  if (!G.practice) bumpPressure(30);
-  if (oneShot) {
-    G.locked = true;
-    G.answered += 1; G.zoneStats[G.zone].total += 1;
-    showFeedback(false, res.message, workedSolution(p), 'NEXT CRATE (ENTER)', () => nextProblem());
-  } else if (G.attempts >= 2) {
-    G.locked = true;
-    showFeedback(false, res.message, workedSolution(p), 'TRY A BACKUP PROBLEM (ENTER)', () => loadProblem(genBackup(G.rnd, p), true));
-  } else {
-    showFeedback(false, `${res.message} Try again!`);
-    G.locked = true;
-    setTimeout(() => { if (G.problem === p && G.boilers > 0) { G.locked = false; if (retry) retry(); } }, 1200);
+  if (G.phase === 'sort') {
+    if (key === 'ArrowLeft' || key === '1') { e.preventDefault(); answerSort(false); }
+    if (key === 'ArrowRight' || key === '2') { e.preventDefault(); answerSort(true); }
+    return;
   }
-  renderHud();
-}
-
-function showFeedback(good, message, steps, buttonText, onButton) {
-  UI.feedback.className = `feedback ${good ? 'good' : 'bad'}`;
-  UI.feedback.innerHTML = `${esc(message)}${steps ? `<ol class="steps">${steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}${buttonText ? `<button type="button" id="fbBtn" class="px">${buttonText}</button>` : ''}`;
-  if (onButton) $('fbBtn').addEventListener('click', onButton);
-}
-
-/* ================================================================== */
-/* Pressure and boilers                                                */
-/* ================================================================== */
-function bumpPressure(amount) {
-  G.pressure += amount;
-  if (G.pressure >= 100) burst();
-  renderHud();
-}
-function burst() {
-  G.pressure = 25;
-  G.boilers -= 1;
-  hubAudio.playLockRattle();
-  flash(G.boilers > 0 ? 'A BOILER BURST!' : 'LAST BOILER GONE!');
-  if (G.boilers <= 0) {
-    G.locked = true;
-    setTimeout(() => { UI.fail.classList.remove('hidden'); }, 900);
+  if (G.phase === 'write') {
+    const n = Number(key);
+    const btn = (sel) => UI.controls.querySelector(sel);
+    if (n >= 1 && n <= p.tiles.length) return addTile(btn(`[data-tile="num"][data-i="${n - 1}"]`));
+    if (key.toLowerCase() === p.eq.letter) return addTile(btn('[data-tile="var"]'));
+    if (key === '+') return addTile(btn('[data-tile="+"]'));
+    if (key === '-') return addTile(btn('[data-tile="-"]'));
+    if (key === '=') return addTile(btn('[data-tile="eq"]'));
+    if (key === 'Backspace') { e.preventDefault(); return removeTile(); }
+    if (key === 'Enter') { e.preventDefault(); return submitWritten(); }
+    return;
   }
-}
-function tick(now) {
-  const dt = Math.min(0.25, (now - G.last) / 1000);
-  G.last = now;
-  const secs = SECONDS_TO_BURST[G.zone];
-  if (!G.practice && secs && G.problem && !G.locked && UI.briefing.classList.contains('hidden') && UI.banner.classList.contains('hidden') && G.boilers > 0) {
-    G.pressure += (100 / secs) * dt;
-    if (G.pressure >= 100) { burst(); renderHud(); }
-    UI.meterFill.style.width = `${Math.round(Math.min(100, G.pressure))}%`;
+  if (G.phase === 'undo') {
+    if (key === '+') return pickOp('+');
+    if (key === '-') return pickOp('-');
+    if (/^[0-9.]$/.test(key)) return typeKey(key);
+    if (key === 'Backspace') { e.preventDefault(); return typeKey('back'); }
+    if (key === 'Enter') { e.preventDefault(); return dropBlock(); }
+    return;
   }
-  G.ticker = requestAnimationFrame(tick);
+  if (/^[0-9.]$/.test(key)) return typeKey(key);
+  if (key === 'Backspace') { e.preventDefault(); return typeKey('back'); }
+  if (key === 'Enter') { e.preventDefault(); submitTyped(); }
 }
-
-/* ================================================================== */
-/* Zones, banners, report                                              */
-/* ================================================================== */
-function flash(text) {
-  UI.banner.innerHTML = text;
-  UI.banner.classList.remove('hidden');
-  clearTimeout(flash.t);
-  flash.t = setTimeout(() => UI.banner.classList.add('hidden'), 900);
-}
-function showBanner(title, sub, then, ms = 1600) {
-  UI.banner.innerHTML = `${title}<small>${sub}</small>`;
-  UI.banner.classList.remove('hidden');
-  hubAudio.playQuestOpen();
-  clearTimeout(flash.t);
-  setTimeout(() => { UI.banner.classList.add('hidden'); then(); }, ms);
-}
-function zoneCleared() {
-  if (G.zone >= ZONES.length - 1) return finish();
-  hubAudio.playLevelUp();
-  G.pressure = 0;
-  startZone(G.zone + 1);
-}
-function stars(ratio) { return ratio >= 0.9 ? 3 : ratio >= 0.7 ? 2 : 1; }
-
-const SKILL_TIPS = {
-  did_not_undo: 'Undo a step with its OPPOSITE: undo + with −, and − with +.',
-  wrong_op: 'Match the story: "more" or "added" means +, "gave away" or "dropped" means −.',
-  wrong_amount: 'Undo exactly the machine\'s step, the same amount.',
-  used_total: 'Undo the step the machine does, not the total it puts out.',
-  fewer_trap: '"5 fewer than p" means p − 5. Start with the letter.',
-  order: 'Order matters in subtraction. Start with the amount you began with.',
-  wrong_numbers: 'The total goes alone on one side of the equation.',
-  combine_error: 'Combine the parts you know before you undo.',
-  skipped_combine: 'Combine the parts you know before you undo.',
-  added_both: 'When the letter is taken away, it is the GAP between the start and what is left.',
-  copied_number: 'The answer is the missing amount, not a number from the story.',
-  check_fails: 'Check your answer by putting it back in.',
-  same_numbers: 'Same numbers does not mean the same solution. Solve each one.',
-  number_shows: 'A number showing in an equation is not its solution. Solve it.',
-  missed_match: 'Different numbers can still have the same solution.',
-  sort_solve_first: 'Solve both equations before you compare them.',
-};
-
-function finish() {
-  cancelAnimationFrame(G.ticker);
-  hubAudio.playLevelUp();
-  const total = Math.max(1, G.answered);
-  const acc = Math.round((G.firstTry / total) * 100);
-  const st = stars(G.firstTry / total);
-  const mins = Math.max(1, Math.round((Date.now() - G.started) / 60000));
-  $('reportStars').textContent = '★'.repeat(st) + '☆'.repeat(3 - st);
-  $('reportStats').innerHTML = [['SCORE', G.score], ['FIRST TRY', `${G.firstTry}/${total}`], ['ACCURACY', `${acc}%`], ['TIME', `${mins} min`]]
-    .map(([l, v]) => `<div class="stat"><div class="px">${l}</div><div>${v}</div></div>`).join('');
-  $('reportZones').innerHTML = ZONES.map((z, i) => {
-    const s = G.zoneStats[i];
-    if (!s || !s.total) return `<div class="rz">${z.name}<div class="s">skipped</div></div>`;
-    const k = stars(s.right / s.total);
-    return `<div class="rz">${z.name}<div class="s">${'★'.repeat(k)}${'☆'.repeat(3 - k)}</div></div>`;
-  }).join('');
-  const top = [...new Set(Object.entries(G.mistakes).sort((a, b) => b[1] - a[1]).map(([k]) => SKILL_TIPS[k]).filter(Boolean))].slice(0, 3);
-  $('reportSkills').innerHTML = top.length ? `Skills to sharpen:<ul>${top.map((t) => `<li>${t}</li>`).join('')}</ul>` : 'No mistakes to sharpen. That machine runs like new!';
-  UI.report.classList.remove('hidden');
-  G.result = {
-    score: G.firstTry, total, accuracy: acc, stars: st, bossDefeated: G.startZone <= 4 && G.zoneStats[4]?.total > 0,
-    practiceMode: G.practice,
-  };
-}
-
-/* ================================================================== */
-/* Start, retry, exit, keyboard                                        */
-/* ================================================================== */
-function begin(practice) {
-  hubAudio.unlockAudio();
-  Object.assign(G, { practice, boilers: 3, pressure: 0, score: 0, firstTry: 0, answered: 0, mistakes: {}, zoneStats: [], bossHits: 0, started: Date.now() });
-  UI.briefing.classList.add('hidden');
-  UI.report.classList.add('hidden');
-  UI.fail.classList.add('hidden');
-  G.last = performance.now();
-  cancelAnimationFrame(G.ticker);
-  G.ticker = requestAnimationFrame(tick);
-  startZone(G.startZone);
-}
-function retryZone() {
-  UI.fail.classList.add('hidden');
-  Object.assign(G, { boilers: 3, pressure: 0, locked: false });
-  G.zoneStats[G.zone] = { right: 0, total: 0 };
-  startZone(G.zone, true);                             // short banner: back in play in under 2 seconds
-}
-function exitToTown() {
-  hubAudio.playSelect();
-  if (IN_TOWN) window.parent.postMessage({ type: 'CARTRIDGE_EXIT_REQUEST' }, '*');
-  else location.href = '../../../../index.html';
-}
-function backToTown() {
-  if (IN_TOWN && G.result) window.parent.postMessage({ type: 'CARTRIDGE_COMPLETE', payload: G.result }, '*');
-  else exitToTown();
-}
-function updateSoundIcon() { $('soundBtn').textContent = hubAudio.isMuted ? '🔇' : '🔊'; }
 
 function init() {
-  UI.zoneButtons.innerHTML = ZONES.map((z, i) => `<button type="button" class="zone-btn ${i === 0 ? 'on' : ''}" data-zone="${i}">${i + 1}. ${z.name}</button>`).join('');
-  UI.zoneButtons.querySelectorAll('[data-zone]').forEach((b) => b.addEventListener('click', () => {
-    G.startZone = Number(b.dataset.zone);
-    UI.zoneButtons.querySelectorAll('[data-zone]').forEach((x) => x.classList.toggle('on', x === b));
-  }));
-  $('startBtn').addEventListener('click', () => begin(false));
-  $('practiceBtn').addEventListener('click', () => begin(true));
-  $('retryBtn').addEventListener('click', retryZone);
-  $('againBtn').addEventListener('click', () => { UI.report.classList.add('hidden'); UI.briefing.classList.remove('hidden'); });
-  $('townBtn').addEventListener('click', backToTown);
-  $('exitBtn').addEventListener('click', exitToTown);
-  $('helpBtn').addEventListener('click', () => { hubAudio.playSelect(); UI.briefing.classList.toggle('hidden'); });
-  $('soundBtn').addEventListener('click', () => { hubAudio.toggleMute(); updateSoundIcon(); });
-  updateSoundIcon();
   const stripEl = document.createElement('div');
   stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
   $('stage').appendChild(stripEl);
   // tap the block, then tap the machine
   $('stage').addEventListener('click', (e) => { if (G.sel.armed && inside(UI.scene, e.clientX, e.clientY)) dropBlock(); });
-
-  window.addEventListener('message', (e) => {
-    if (e.data && e.data.type === 'HUB_INIT' && typeof e.data.payload?.isMuted === 'boolean' && e.data.payload.isMuted !== hubAudio.isMuted) {
-      hubAudio.toggleMute(); updateSoundIcon();
-    }
-  });
-  if (IN_TOWN) window.parent.postMessage({ type: 'CARTRIDGE_READY' }, '*');
-
-  window.addEventListener('keydown', (e) => {
-    const key = e.key;
-    if (key === 'M' || (key === 'm' && G.phase !== 'write')) { $('soundBtn').click(); return; }
-    if (key === 'H' || (key === 'h' && G.phase !== 'write')) { $('helpBtn').click(); return; }
-    if (!UI.briefing.classList.contains('hidden')) { if (key === 'Enter') { e.preventDefault(); begin(false); } return; }
-    if (!UI.fail.classList.contains('hidden')) { if (key === 'Enter') { e.preventDefault(); retryZone(); } return; }
-    if (!UI.report.classList.contains('hidden') || !G.problem) return;
-    const fb = $('fbBtn');
-    if (fb && key === 'Enter') { e.preventDefault(); fb.click(); return; }
-    if (G.locked) return;
-    const p = G.problem;
-    if (G.phase === 'sort') {
-      if (key === 'ArrowLeft' || key === '1') { e.preventDefault(); answerSort(false); }
-      if (key === 'ArrowRight' || key === '2') { e.preventDefault(); answerSort(true); }
-      return;
-    }
-    if (G.phase === 'write') {
-      const n = Number(key);
-      const btn = (sel) => UI.controls.querySelector(sel);
-      if (n >= 1 && n <= p.tiles.length) return addTile(btn(`[data-tile="num"][data-i="${n - 1}"]`));
-      if (key.toLowerCase() === p.eq.letter) return addTile(btn('[data-tile="var"]'));
-      if (key === '+') return addTile(btn('[data-tile="+"]'));
-      if (key === '-') return addTile(btn('[data-tile="-"]'));
-      if (key === '=') return addTile(btn('[data-tile="eq"]'));
-      if (key === 'Backspace') { e.preventDefault(); return removeTile(); }
-      if (key === 'Enter') { e.preventDefault(); return submitWritten(); }
-      return;
-    }
-    if (G.phase === 'undo') {
-      if (key === '+') return pickOp('+');
-      if (key === '-') return pickOp('-');
-      if (/^[0-9.]$/.test(key)) return typeKey(key);
-      if (key === 'Backspace') { e.preventDefault(); return typeKey('back'); }
-      if (key === 'Enter') { e.preventDefault(); return dropBlock(); }
-      return;
-    }
-    if (/^[0-9.]$/.test(key)) return typeKey(key);
-    if (key === 'Backspace') { e.preventDefault(); return typeKey('back'); }
-    if (key === 'Enter') { e.preventDefault(); submitTyped(); }
-  });
-
   // A sample machine behind the briefing.
-  G.problem = null;
   drawMachine({ label: 'n + 7', inBox: HIDDEN('n'), outBox: { text: '25' } });
-  renderHud();
 }
 
 init();
-
-// For automated browser tests only (index.html?test): lets a test read the current problem.
-if (new URLSearchParams(location.search).has('test')) window.__undo = { G };
