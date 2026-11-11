@@ -5,6 +5,7 @@ import {
 } from './balance.js';
 import { hubAudio } from '../../../../shared/audio.js';
 import { createGame } from '../../../../shared/game/gameShell.js';
+import { dragOrTap } from '../../../../shared/game/drag.js';
 
 const SKILL_TIPS = {
   different_amount: 'Use the SAME amount on both sides.',
@@ -404,43 +405,14 @@ function highlightPan(side) {
 function startDrag(e) {
   if (G.locked || G.intro) return;
   if (!blockReady()) return;
-  e.preventDefault();
-  const src = e.currentTarget;
-  const x0 = e.clientX, y0 = e.clientY;
-  let ghost = null, over = null;
-  const move = (ev) => {
-    if (!ghost && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 8) return;   // a tap, not a drag (yet)
-    if (!ghost) {
-      ghost = src.cloneNode(true);
-      ghost.removeAttribute('id');
-      ghost.className = 'block ready ghost';
-      document.body.appendChild(ghost);
-      src.classList.add('lifted');
-      UI.scene.classList.add('dragging');
-    }
-    ghost.style.left = `${ev.clientX}px`; ghost.style.top = `${ev.clientY}px`;
-    over = sideAt(ev.clientX, ev.clientY);
-    highlightPan(over);
-  };
-  const up = (ev) => {
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-    window.removeEventListener('pointercancel', up);
-    UI.scene.classList.remove('dragging');
-    highlightPan(null);
-    if (!ghost) {                                      // tap: arm the block, then tap a pan
+  dragOrTap(e, e.currentTarget, {
+    targetAt: sideAt, glow: highlightPan, onDrop: drop, scene: UI.scene,
+    onTap: () => {                                     // tap: arm the block, then tap a pan
       G.sel.armed = !G.sel.armed;
       if (G.sel.armed) hubAudio.playSelect();
       refreshBlock();
-      return;
-    }
-    ghost.remove();
-    src.classList.remove('lifted');
-    if (ev.type === 'pointerup' && over) drop(over);
-  };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-  window.addEventListener('pointercancel', up);
+    },
+  });
 }
 
 /* ================================================================== */

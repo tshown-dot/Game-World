@@ -21,7 +21,6 @@
 .to-right { animation: toRight 0.6s ease-in forwards; }
 @keyframes toRight { to { transform: translate(210px, 130px) scale(0.6); opacity: 0.2; } }
 #machine.drop-target .machine-body { filter: drop-shadow(0 0 10px #ffd23f) drop-shadow(0 0 4px #ffd23f); }
-#scene.dragging { cursor: grabbing; }
 
 /* ---- equation strip under the machine: the math, step by step ---- */
 .eq-strip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; min-width: 440px; width: max-content; max-width: 94%;
@@ -46,27 +45,14 @@
 .tile small { position: absolute; top: 1px; right: 4px; font-size: 8px; font-family: 'Press Start 2P', monospace; opacity: 0.75; }
 .tile:disabled { opacity: 0.25; box-shadow: none; }
 .tile.chip { min-width: 40px; height: 40px; font-size: 20px; box-shadow: 0 2px 0 var(--ink); padding: 0 8px; }
-.tile.ghost { position: fixed; z-index: 50; pointer-events: none; transform: translate(-50%, -50%) rotate(-4deg); box-shadow: 0 10px 18px rgba(0, 0, 0, 0.35); }
 .row-btns { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 8px; }
 .row-btns button { height: 48px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 10px; box-shadow: 0 4px 0 var(--ink); }
 .row-btns .go { background: var(--red); color: #fff; }
 
-/* ---- undo it: the block ---- */
+/* ---- undo it: the block (its look is shared, in shared/game/game.css) ---- */
 .op-row.two { grid-template-columns: 1fr 1fr; }
 .pad.six { grid-template-columns: repeat(6, 1fr); }
-.tray { display: flex; gap: 8px; align-items: stretch; }
-.block { flex: 1; height: 58px; border: 4px solid var(--ink); border-radius: 12px; font-family: ui-monospace, 'Courier New', monospace;
-  font-size: 28px; font-weight: 900; color: #fff; background: #3a8ef0; box-shadow: 0 5px 0 var(--ink); cursor: grab; touch-action: none; user-select: none; }
-.block.empty { background: #b9b2a0; color: #5e5640; box-shadow: none; border-style: dashed; cursor: default; }
-.block.armed { outline: 4px solid var(--gold); outline-offset: 3px; animation: armedPulse 0.8s ease-in-out infinite alternate; }
-@keyframes armedPulse { to { transform: translateY(-3px); } }
-.block.lifted { opacity: 0.35; }
-.block.ghost { position: fixed; z-index: 50; width: 130px; height: 58px; pointer-events: none; transform: translate(-50%, -50%) rotate(-4deg);
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center; }
-.clear-block { width: 52px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 20px; }
-.help-line { font-size: 13px; font-weight: 800; color: #5e5640; min-height: 18px; }
-.help-line .warn { color: #d6283a; }
-.help-line kbd { font-size: 11px; }
+
 
 /* ---- typed answers (boss) ---- */
 .typed { height: 54px; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, monospace; font-size: 28px; font-weight: 900;

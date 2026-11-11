@@ -12,6 +12,7 @@ import {
 } from './undo.js';
 import { hubAudio } from '../../../../shared/audio.js';
 import { createGame } from '../../../../shared/game/gameShell.js';
+import { dragOrTap, inside } from '../../../../shared/game/drag.js';
 
 const SKILL_TIPS = {
   did_not_undo: 'Undo a step with its OPPOSITE: undo + with −, and − with +.',
@@ -278,49 +279,22 @@ function nudge(text) {
 }
 
 /* ---- dragging: tiles onto the rail, the block into the machine (mouse, touch and trackpad) ---- */
-function inside(el, x, y) {
-  if (!el) return false;
-  const r = el.getBoundingClientRect();
-  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
-}
 function startDrag(e, kind) {
   if (G.locked) return;
   const src = e.currentTarget;
   if (src.disabled) return;
   if (kind === 'block' && !blockReady()) return nudge(G.sel.op ? 'Type how much first.' : 'Build a block first: pick + or − and a number.');
-  e.preventDefault();
-  const x0 = e.clientX, y0 = e.clientY;
-  const target = () => (kind === 'block' ? UI.scene : $('rail'));
-  const glow = (on) => (kind === 'block' ? $('machine') : $('rail'))?.classList.toggle('drop-target', on);
-  let ghost = null, over = false;
-  const move = (ev) => {
-    if (!ghost && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 8) return;   // still a tap
-    if (!ghost) {
-      ghost = src.cloneNode(true);
-      ghost.removeAttribute('id');
-      ghost.classList.add('ghost');
-      document.body.appendChild(ghost);
-      if (kind === 'block') { src.classList.add('lifted'); UI.scene.classList.add('dragging'); }
-    }
-    ghost.style.left = `${ev.clientX}px`; ghost.style.top = `${ev.clientY}px`;
-    over = inside(target(), ev.clientX, ev.clientY);
-    glow(over);
-  };
-  const up = (ev) => {
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-    window.removeEventListener('pointercancel', up);
-    UI.scene.classList.remove('dragging');
-    glow(false);
-    if (ghost) { ghost.remove(); src.classList.remove('lifted'); }
-    const tapped = !ghost;
-    if (kind === 'tile') { if ((tapped || over) && ev.type === 'pointerup') addTile(src); return; }
-    if (tapped) { G.sel.armed = !G.sel.armed; if (G.sel.armed) hubAudio.playSelect(); refreshBlock(); return; }
-    if (over && ev.type === 'pointerup') dropBlock();
-  };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-  window.addEventListener('pointercancel', up);
+  if (kind === 'tile') {                               // a tile goes on the end of the equation, dragged or tapped
+    return dragOrTap(e, src, {
+      targetAt: (x, y) => (inside($('rail'), x, y) ? 'rail' : null), glow: (t) => $('rail')?.classList.toggle('drop-target', Boolean(t)),
+      onDrop: () => addTile(src), onTap: () => addTile(src), lift: false,
+    });
+  }
+  dragOrTap(e, src, {
+    targetAt: (x, y) => (inside(UI.scene, x, y) ? 'machine' : null), glow: (t) => $('machine')?.classList.toggle('drop-target', Boolean(t)),
+    onDrop: dropBlock, scene: UI.scene,
+    onTap: () => { G.sel.armed = !G.sel.armed; if (G.sel.armed) hubAudio.playSelect(); refreshBlock(); },
+  });
 }
 
 /* ---- write it ---- */
