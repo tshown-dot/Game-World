@@ -36,7 +36,7 @@ async function meteors(p,s,wrong){
 async function name3(p,s,wrong){
   const vals=[...s.examples];
   if(wrong){ vals[0]=String(s.rule.sym==='<'||s.rule.sym==='>' ? s.rule.n : (s.rule.sym==='≥' ? s.rule.n-1 : s.rule.n+1)); }
-  else if(!s.whole && way%2===0){ vals[2]= (s.rule.sym==='>'||s.rule.sym==='≥') ? `${Math.floor(s.rule.n)+20} 1/2` : '1/4'; ways.fractions++; }
+  else if(!s.whole){ vals[2]= (s.rule.sym==='>'||s.rule.sym==='≥') ? `${Math.floor(s.rule.n)+20} 1/2` : '1/4'; ways.fractions++; }
   way++;
   for(let i=0;i<3;i++){ await p.fill(`#v${i+1}`, vals[i]); }
   await p.keyboard.press('Enter');
