@@ -40,9 +40,13 @@ docs/lessons.md                    lesson lists from the textbook database
   Each game also links `shared/game/game.css` plus its own small `style.css` for its scene. Use `shared/game/drag.js`
   for anything a student drags or taps into place. Never copy the shell's code into a game.
 - Topic 3 ("Expression Town") started in the separate `tactics-math-arena` repo and now lives here as
-  `towns/topic-3-expression-town/`. It was copied (the original repo was never edited). The 8 games are unchanged;
-  the hub signs in with a code and saves through `shared/progressStore.js`. Expression Town still runs its own
-  engine (`js/hub.js`, `js/state.js`, `js/worldArt.js`); moving it onto `shared/town/` is a planned follow-up.
+  `towns/topic-3-expression-town/`. It was copied (the original repo was never edited). The 8 games (`cartridges/`)
+  are unchanged and do not use the shared game shell. The town runs on the shared town engine like Equation Valley:
+  `js/expressionTown.js` builds the stages from `js/nodes.js` (the building list) and draws with `js/worldArt.js`
+  (art made for a 1366 x 658 map, moved down 55 px). Its roads turn square corners using each stage's `via` points.
+  Older Expression Town saves carry `unlockedNodes` and the old stage id `node_3_4` (`js/legacy.js`); the shared
+  engine keeps every stage those saves had open. The Boss Castle (`node_apex`) still opens the 3-3 crane game; a real
+  Topic 3 review boss (like the Golem Fort) is a possible follow-up.
 - `npm test` runs every test in the repo (the sheet script, the progress store, the Topic 3 hub and all its games).
 - Towns 1 and 2 are not built yet. Town order is by textbook topic: 1 Decimal Docks, 2 Integer Highlands,
   3 Expression Town, 4 Equation Valley, 5-8 to be decided.
