@@ -4,3 +4,20 @@
 .fall { animation: fall 0.9s ease-in forwards; }
 @keyframes fall { to { transform: translate(0, 260px) rotate(40deg); opacity: 0; } }
 
+
+/* Equation strip under the scale: the math, step by step */
+.eq-strip { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 5; min-width: 440px; max-width: 92%;
+  background: #fff4d6; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 8px 16px; text-align: center; }
+.eq-line { font-family: ui-monospace, 'Courier New', monospace; font-size: 25px; font-weight: 900; color: var(--ink); white-space: nowrap; }
+.eq-value { font-family: ui-monospace, 'Courier New', monospace; font-size: 18px; font-weight: 900; margin-top: 2px; }
+.eq-strip .sab { color: #d6283a; background: #ffe0e3; border-radius: 6px; padding: 0 2px; }
+.eq-strip .you { color: #1f63c9; background: #dbe9ff; border-radius: 6px; padding: 0 2px; }
+.eq-value .good { color: #1f8a4c; } .eq-value .bad { color: #d6283a; }
+.prompt .story { display: block; font-size: 14px; color: #1f8a4c; margin-bottom: 4px; }
+/* weight tags dropping onto a pan, or lifting off it */
+.chip-drop { animation: chipDrop 1.6s ease-out forwards; }
+@keyframes chipDrop { 0% { transform: translateY(-90px); opacity: 0; } 30% { transform: translateY(0); opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+.chip-lift { animation: chipLift 1.6s ease-out forwards; }
+@keyframes chipLift { 0% { transform: translateY(0); opacity: 1; } 60% { opacity: 1; } 100% { transform: translateY(-90px); opacity: 0; } }
+.saboteur .bubble { animation: bubblePop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: center; }
+@keyframes bubblePop { from { opacity: 0; transform: scale(0.5); } }

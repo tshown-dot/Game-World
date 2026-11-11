@@ -1,6 +1,6 @@
 // Counterweight (Lesson 4-2): screen, controls and game flow. The math lives in balance.js.
 import {
-  ZONES, PROPERTIES, MISTAKES, OP_SIGN, genZone, genBackup, weigh, isBalanced, eqText, parseAmount, applyOp,
+  ZONES, PROPERTIES, MISTAKES, OP_SIGN, genZone, genBackup, weigh, isBalanced, eqText, settled, parseAmount, applyOp,
   checkRebalance, checkIsolate, checkProperty, checkStamp, checkMistake, checkPartial, checkChain, workedSolution,
 } from './balance.js';
 import { hubAudio } from '../../../../shared/audio.js';
@@ -20,6 +20,7 @@ const G = {
   rnd: Math.random, practice: false, startZone: 0, zone: 0, queue: [], problem: null, attempts: 0, locked: false,
   crates: 3, tilt: 0, score: 0, firstTry: 0, answered: 0, mistakes: {}, zoneStats: [], bossHits: 0, started: 0,
   sel: { op: null, amount: '', moves: [], stamped: null }, ticker: null, last: 0,
+  theta: 0, intro: false, introTimers: [],
 };
 
 /* ================================================================== */
@@ -70,33 +71,61 @@ function letterOf(eq) {
   return m ? m[0] : 'x';
 }
 
-/** Draws the scale for an equation. hidden = beam stays level and pans show "?" (Inspector questions). */
-function drawScale(eq, { hidden = false } = {}) {
+const endsAt = (theta) => {
+  const rad = (theta * Math.PI) / 180;
+  return [{ x: 400 - 270 * Math.cos(rad), y: 150 - 270 * Math.sin(rad) }, { x: 400 + 270 * Math.cos(rad), y: 150 + 270 * Math.sin(rad) }];
+};
+
+/**
+ * Draws the scale for an equation, swinging smoothly from the last angle.
+ *   hidden     beam stays level and pans show "?" (Inspector questions)
+ *   chips      weight tags that drop onto (or lift off) a pan: [{ side: 'left'|'right', op, n, who: 'sab'|'you' }]
+ *   saboteur   { side, bubble } to show the Saboteur by that pan (always shown in the boss zone)
+ */
+function drawScale(eq, { hidden = false, chips = [], saboteur = null } = {}) {
   const L = weigh(eq.left, eq.x), R = weigh(eq.right, eq.x);
   const big = Math.max(Math.abs(L), Math.abs(R), 1);
   const theta = hidden ? 0 : Math.max(-16, Math.min(16, ((R - L) / big) * 22));
-  const rad = (theta * Math.PI) / 180;
-  const ends = [{ x: 400 - 270 * Math.cos(rad), y: 150 - 270 * Math.sin(rad) }, { x: 400 + 270 * Math.cos(rad), y: 150 + 270 * Math.sin(rad) }];
+  const from = endsAt(G.theta), to = endsAt(theta);
   const letter = letterOf(eq);
-  const pan = (end, s, label) => `
-    <g class="pan-group" style="transform: translate(${end.x}px, ${end.y}px)">
+  const pan = (id, end, s, label) => `
+    <g class="pan-group" id="${id}" style="transform: translate(${end.x}px, ${end.y}px)">
       <path d="M0 0 L-80 82 M0 0 L80 82" stroke="${K}" stroke-width="2.5"/>
       <g transform="translate(0 82)">${blocksSvg(s, letter, hidden)}
         <path d="M-92 0 L92 0 L76 16 L-76 16 Z" fill="#ffd23f" ${O}/></g>
       <g transform="translate(0 124)"><rect x="-108" y="-17" width="216" height="32" rx="6" fill="#fff4d6" ${O}/>
         <text x="0" y="5" text-anchor="middle" font-size="${label.length > 20 ? 12 : 15}" font-weight="900" font-family="ui-monospace, monospace" fill="${K}">${label}</text></g>
     </g>`;
-  const level = hidden ? '#9b958b' : isBalanced(eq) ? '#2fbf71' : '#e5484d';
+  const balanced = isBalanced(eq);
+  const level = hidden ? '#9b958b' : balanced ? '#2fbf71' : '#e5484d';
+  const sign = hidden ? '' : `<g transform="translate(400 74)"><rect x="-74" y="-16" width="148" height="28" rx="7" fill="${balanced ? '#2fbf71' : '#e5484d'}" ${O}/>
+    <text x="0" y="4" text-anchor="middle" font-size="12" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${balanced ? 'BALANCED ✓' : 'NOT BALANCED'}</text></g>`;
+  const chipSvg = chips.map((c) => {
+    const e = to[c.side === 'left' ? 0 : 1];
+    const lift = c.op === '-' || c.op === '÷';
+    return `<g transform="translate(${e.x} ${e.y + 30})"><g class="${lift ? 'chip-lift' : 'chip-drop'}">
+      <rect x="-36" y="-18" width="72" height="32" rx="8" fill="${c.who === 'sab' ? '#e5484d' : '#3a8ef0'}" ${O}/>
+      <text x="0" y="5" text-anchor="middle" font-size="17" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${OP_SIGN[c.op]} ${c.n}</text></g></g>`;
+  }).join('');
+  const sab = saboteur || (G.zone === 4 ? { side: 'right' } : null);
   UI.scene.innerHTML = `${backdrop()}
-    <g class="beam-group" style="transform: rotate(${theta}deg)">
+    <g class="beam-group" id="beam" style="transform: rotate(${G.theta}deg)">
       <rect x="120" y="140" width="560" height="20" rx="8" fill="#c4935a" ${O}/>
       <path d="M150 150 H650" stroke="#8a5a2b" stroke-width="3" stroke-dasharray="10 14"/>
     </g>
     <circle cx="400" cy="150" r="16" fill="#ffd23f" ${O}/>
     <path d="M400 108 L388 128 L412 128 Z" fill="${level}" ${O}/>
-    ${pan(ends[0], eq.left, eq.left.text)}${pan(ends[1], eq.right, eq.right.text)}
+    ${sign}
+    ${pan('panL', from[0], eq.left, eq.left.text)}${pan('panR', from[1], eq.right, eq.right.text)}
     ${cratesSvg()}
-    ${G.zone === 4 ? saboteurSvg() : ''}`;
+    ${sab ? saboteurSvg(sab.side, sab.bubble) : ''}
+    ${chipSvg}`;
+  void UI.scene.getBoundingClientRect();                       // let the old angle paint, then swing
+  $('beam').style.transform = `rotate(${theta}deg)`;
+  $('panL').style.transform = `translate(${to[0].x}px, ${to[0].y}px)`;
+  $('panR').style.transform = `translate(${to[1].x}px, ${to[1].y}px)`;
+  if (Math.abs(theta - G.theta) > 0.5) hubAudio.playTone(theta === 0 ? 520 : 140, 'triangle', 0.25, 0.08);
+  G.theta = theta;
 }
 
 function cratesSvg() {
@@ -109,16 +138,97 @@ function cratesSvg() {
   return `${out}</g>`;
 }
 
-function saboteurSvg() {
-  return `<g transform="translate(738 452)">
+function saboteurSvg(side = 'right', bubble = '') {
+  const x = side === 'left' ? 62 : 738;
+  const face = side === 'left' ? -1 : 1;
+  return `<g transform="translate(${x} 452)" class="saboteur">
     <ellipse cx="0" cy="40" rx="30" ry="8" fill="rgba(0,0,0,0.25)"/>
-    <rect x="-20" y="-6" width="40" height="44" rx="10" fill="#4a2f6b" ${O}/>
-    <circle cx="0" cy="-18" r="17" fill="#ffd3a8" ${O}/>
-    <rect x="-17" y="-26" width="34" height="9" rx="4" fill="${K}"/>
-    <circle cx="-7" cy="-21" r="4" fill="#ffd23f"/><circle cx="7" cy="-21" r="4" fill="#ffd23f"/>
-    <path d="M-20 8 L-34 -4" stroke="${K}" stroke-width="6" stroke-linecap="round"/>
-    <path d="M-36 -8 L-30 -16 L-26 -6 Z" fill="#e5484d" ${O}/>
+    <g transform="scale(${face} 1)">
+      <rect x="-20" y="-6" width="40" height="44" rx="10" fill="#4a2f6b" ${O}/>
+      <circle cx="0" cy="-18" r="17" fill="#ffd3a8" ${O}/>
+      <rect x="-17" y="-26" width="34" height="9" rx="4" fill="${K}"/>
+      <circle cx="-7" cy="-21" r="4" fill="#ffd23f"/><circle cx="7" cy="-21" r="4" fill="#ffd23f"/>
+      <path d="M-20 8 L-34 -4" stroke="${K}" stroke-width="6" stroke-linecap="round"/>
+      <path d="M-36 -8 L-30 -16 L-26 -6 Z" fill="#e5484d" ${O}/>
+    </g>
+    ${bubble ? `<g transform="translate(${side === 'left' ? 30 : -30} -70)" class="bubble"><rect x="${side === 'left' ? 0 : -96}" y="-22" width="96" height="36" rx="10" fill="#fff" ${O}/>
+      <text x="${side === 'left' ? 48 : -48}" y="3" text-anchor="middle" font-size="17" font-weight="900" fill="#e5484d" font-family="ui-monospace, monospace">${bubble}</text></g>` : ''}
   </g>`;
+}
+
+/* ================================================================== */
+/* The equation strip: the math, step by step, under the scale         */
+/* ================================================================== */
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+/** A side after a move, with the move highlighted: "7 + 5 [+ 4]" or "[(]7 + 5[) × 3]". */
+function moveHtml(html, plain, op, n, who) {
+  const span = (s) => `<span class="${who}">${s}</span>`;
+  if (op === '+' || op === '-') return `${html}${span(` ${OP_SIGN[op]} ${n}`)}`;
+  return /[+−-]/.test(plain) ? `${span('(')}${html}${span(`) ${OP_SIGN[op]} ${n}`)}` : `${html}${span(` ${OP_SIGN[op]} ${n}`)}`;
+}
+function valueLine(eq) {
+  const ok = isBalanced(eq);
+  return `<span class="${ok ? 'good' : 'bad'}">${settled(eq.left)} ${ok ? '=' : '≠'} ${settled(eq.right)}${ok ? '  ✓' : ''}</span>`;
+}
+function strip(leftHtml, rightHtml, eq) {
+  const el = $('eqStrip');
+  if (!el) return;
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="eq-line">${leftHtml} = ${rightHtml}</div><div class="eq-value">${valueLine(eq)}</div>`;
+}
+function hideStrip() { $('eqStrip')?.classList.add('hidden'); }
+function chainHtml(plain, moves, who) {
+  let html = esc(plain), text = plain;
+  for (const m of moves) { html = moveHtml(html, text, m.op, m.n, who); text = applyOp({ a: 0, b: 0, text }, m.op, m.n).text; }
+  return html;
+}
+
+/** The scale and strip as the problem stands (before the student's move). */
+function showProblemState() {
+  const p = G.problem;
+  const hidden = p.type === 'inspect' || p.type === 'critique';
+  if (p.type === 'rebalance') {
+    const s = p.sabotage;
+    drawScale(p.after, { saboteur: { side: s.side } });
+    const sabHtml = moveHtml(esc(p.start[s.side].text), p.start[s.side].text, s.op, s.n, 'sab');
+    const other = esc(p.start[p.fixSide].text);
+    strip(s.side === 'left' ? sabHtml : other, s.side === 'left' ? other : sabHtml, p.after);
+  } else if (p.type === 'chain') {
+    drawScale(p.after, { saboteur: { side: 'left' } });
+    strip(chainHtml(p.start.left.text, p.moves, 'sab'), esc(p.start.right.text), p.after);
+  } else {
+    drawScale(sceneEq(), { hidden });
+    if (p.type === 'isolate' || p.type === 'partial') strip(esc(p.start.left.text), esc(p.start.right.text), p.start);
+    else hideStrip();
+  }
+}
+
+/** The story: balanced, then the Saboteur strikes (twice for the boss), then it tips. Enter or a click skips. */
+function runIntro(p) {
+  G.intro = true; G.locked = true;
+  const moves = p.type === 'chain' ? p.moves.map((m) => ({ side: 'left', ...m })) : [{ ...p.sabotage }];
+  const later = (ms, fn) => G.introTimers.push(setTimeout(fn, ms));
+  G.theta = 0;
+  drawScale(p.start, { saboteur: { side: moves[0].side, bubble: 'Heh heh…' } });
+  strip(esc(p.start.left.text), esc(p.start.right.text), p.start);
+  let eq = p.start;
+  const html = { left: esc(p.start.left.text), right: esc(p.start.right.text) };
+  const plain = { left: p.start.left.text, right: p.start.right.text };
+  moves.forEach((m, i) => later(1300 + i * 1300, () => {
+    eq = { ...eq, [m.side]: applyOp(eq[m.side], m.op, m.n) };
+    html[m.side] = moveHtml(html[m.side], plain[m.side], m.op, m.n, 'sab');
+    plain[m.side] = eq[m.side].text;
+    drawScale(eq, { saboteur: { side: m.side, bubble: `${OP_SIGN[m.op]} ${m.n}!` }, chips: [{ side: m.side, op: m.op, n: m.n, who: 'sab' }] });
+    strip(html.left, html.right, eq);
+  }));
+  later(1300 + moves.length * 1300 + 500, endIntro);
+}
+function endIntro() {
+  if (!G.intro) return;
+  G.introTimers.forEach(clearTimeout); G.introTimers = [];
+  G.intro = false; G.locked = false;
+  showProblemState();
+  refreshApply();
 }
 
 /* ================================================================== */
@@ -165,7 +275,10 @@ function loadProblem(p, isBackup) {
   UI.taskTag.textContent = `${TAGS[p.type]}${isBackup ? ' · BACKUP' : ''}`;
   renderPrompt();
   renderControls();
-  drawScale(sceneEq(), { hidden: p.type === 'inspect' || p.type === 'critique' });
+  G.introTimers.forEach(clearTimeout); G.introTimers = []; G.intro = false;
+  if ((p.type === 'rebalance' || p.type === 'chain') && !G.skipNextIntro) runIntro(p);
+  else { G.theta = 0; showProblemState(); }
+  G.skipNextIntro = false;                              // a retry starts straight at the tipped scale
   renderHud();
 }
 
@@ -181,13 +294,13 @@ function renderPrompt() {
   const eq = (e) => `<span class="eq">${eqText(e)}</span>`;
   let html;
   switch (p.type) {
-    case 'rebalance': html = `${p.prompt}${eq(p.after)}`; break;
+    case 'rebalance': html = `<span class="story">Before: ${eqText(p.start)} ✓ balanced</span>${p.prompt}${eq(p.after)}`; break;
     case 'isolate': html = `${p.prompt}${eq(p.start)}`; break;
     case 'property': html = `If <span class="eq">${eqText(p.start)}</span>then<span class="eq">${eqText(p.after)}</span>Which property was used?`; break;
     case 'inspect': html = `A repair crew changed the scale. Is it still balanced?<span class="eq">Before: ${eqText(p.start)}</span><span class="eq">After: ${eqText(p.after)}</span>`; break;
     case 'critique': html = `${p.who} changed <span class="eq">${eqText(p.start)}</span>into<span class="eq">${eqText(p.after)}</span>Is ${p.who} right?`; break;
     case 'partial': html = `Start with<span class="eq">${eqText(p.start)}</span>What ONE step, done to both sides, leaves <b>${p.targetA}b</b> on the left?`; break;
-    case 'chain': html = `${p.prompt}<span class="eq">${eqText(p.after)}</span>`; break;
+    case 'chain': html = `<span class="story">Before: ${eqText(p.start)} ✓ balanced</span>${p.prompt}<span class="eq">${eqText(p.after)}</span>`; break;
     default: html = p.prompt;
   }
   UI.prompt.innerHTML = html;
@@ -236,7 +349,7 @@ function renderControls() {
 
 function refreshApply() {
   const btn = $('applyBtn');
-  if (btn) btn.disabled = G.locked || !G.sel.op || parseAmount(G.sel.amount, G.sel.op) === null;
+  if (btn) btn.disabled = G.locked || G.intro || !G.sel.op || parseAmount(G.sel.amount, G.sel.op) === null;
 }
 function pickOp(op) {
   if (G.locked) return;
@@ -267,7 +380,9 @@ function submitMove() {
     G.sel.op = null; G.sel.amount = '';
     hubAudio.playSelect();
     renderControls();
-    drawScale({ ...p.after, right: applyOp(p.start.right, op, n) });
+    const partial = { ...p.after, right: applyOp(p.start.right, op, n) };
+    drawScale(partial, { saboteur: { side: 'left' }, chips: [{ side: 'right', op, n, who: 'you' }] });
+    strip(chainHtml(p.start.left.text, p.moves, 'sab'), chainHtml(p.start.right.text, [{ op, n }], 'you'), partial);
     return;
   }
   let res;
@@ -275,8 +390,25 @@ function submitMove() {
   else if (p.type === 'isolate') res = checkIsolate(p, op, n);
   else if (p.type === 'partial') res = checkPartial(p, op, n);
   else res = checkChain(p, [...G.sel.moves, { op, n }]);
-  if (res.result) drawScale(res.result);
+  if (res.result) showMove(p, op, n, res.result);
   settle(res);
+}
+
+/** Animates the student's move on the scale and shows it in blue in the equation strip. */
+function showMove(p, op, n, result) {
+  if (p.type === 'rebalance') {
+    const s = p.sabotage;
+    drawScale(result, { saboteur: { side: s.side }, chips: [{ side: p.fixSide, op, n, who: 'you' }] });
+    const sabHtml = moveHtml(esc(p.start[s.side].text), p.start[s.side].text, s.op, s.n, 'sab');
+    const youHtml = moveHtml(esc(p.after[p.fixSide].text), p.after[p.fixSide].text, op, n, 'you');
+    strip(s.side === 'left' ? sabHtml : youHtml, s.side === 'left' ? youHtml : sabHtml, result);
+  } else if (p.type === 'chain') {
+    drawScale(result, { saboteur: { side: 'left' }, chips: [{ side: 'right', op, n, who: 'you' }] });
+    strip(chainHtml(p.start.left.text, p.moves, 'sab'), chainHtml(p.start.right.text, [...G.sel.moves, { op, n }], 'you'), result);
+  } else {
+    drawScale(result, { chips: [{ side: 'left', op, n, who: 'you' }, { side: 'right', op, n, who: 'you' }] });
+    strip(moveHtml(esc(p.start.left.text), p.start.left.text, op, n, 'you'), moveHtml(esc(p.start.right.text), p.start.right.text, op, n, 'you'), result);
+  }
 }
 
 function answerProperty(i) {
@@ -293,6 +425,7 @@ function answerStamp(says) {
   const p = G.problem;
   const res = checkStamp(p, says);
   drawScale(p.after);                                   // reveal the real tilt
+  strip(esc(p.after.left.text), esc(p.after.right.text), p.after);
   if (res.correct && !p.equivalent) {                   // right stamp; now name the mistake
     hubAudio.playCoinClink();
     G.sel.stamped = true;
@@ -337,7 +470,7 @@ function settle(res) {
     if (p.type === 'chain') { G.sel.moves = []; }
     G.sel.op = null; G.sel.amount = ''; G.sel.stamped = null;
     renderControls();
-    setTimeout(() => { if (!G.locked) drawScale(sceneEq(), { hidden: p.type === 'inspect' || p.type === 'critique' }); }, 1200);
+    setTimeout(() => { if (!G.locked && G.problem === p) showProblemState(); }, 1400);
   }
   renderHud();
 }
@@ -468,6 +601,7 @@ function retryZone() {
   UI.fail.classList.add('hidden');
   Object.assign(G, { crates: 3, tilt: 0, locked: false });
   G.zoneStats[G.zone] = { right: 0, total: 0 };
+  G.skipNextIntro = true;
   startZone(G.zone, true);                              // short banner: back in play in under 2 seconds
 }
 function exitToTown() {
@@ -497,6 +631,10 @@ function init() {
   $('helpBtn').addEventListener('click', () => { hubAudio.playSelect(); UI.briefing.classList.toggle('hidden'); });
   $('soundBtn').addEventListener('click', () => { hubAudio.toggleMute(); updateSoundIcon(); });
   updateSoundIcon();
+  const stripEl = document.createElement('div');
+  stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
+  $('stage').appendChild(stripEl);
+  $('stage').addEventListener('click', () => { if (G.intro) endIntro(); });
 
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'HUB_INIT' && typeof e.data.payload?.isMuted === 'boolean' && e.data.payload.isMuted !== hubAudio.isMuted) {
@@ -513,6 +651,7 @@ function init() {
     if (!UI.briefing.classList.contains('hidden')) { if (key === 'Enter') { e.preventDefault(); begin(false); } return; }
     if (!UI.fail.classList.contains('hidden')) { if (key === 'Enter') { e.preventDefault(); retryZone(); } return; }
     if (!UI.report.classList.contains('hidden') || !G.problem) return;
+    if (G.intro && (key === 'Enter' || key === ' ')) { e.preventDefault(); endIntro(); return; }
     const fb = $('fbBtn');
     if (fb && key === 'Enter') { e.preventDefault(); fb.click(); return; }
     if (G.locked) return;
