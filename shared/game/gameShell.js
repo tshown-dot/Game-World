@@ -96,6 +96,7 @@ export function createGame(cfg) {
     Object.assign(G, { problem: p, attempts: 0, locked: false, isBackup });
     if (!G.practice && timedNow()) G.meter = Math.max(G.meter, set.meterFloor);
     UI.feedback.classList.add('hidden');
+    UI.feedback.innerHTML = '';                        // so an old NEXT/BACKUP button can't be pressed again
     set.showProblem(p, isBackup);
     renderHud();
   }
@@ -292,7 +293,7 @@ export function createGame(cfg) {
     if (!UI.report.classList.contains('hidden') || !G.problem) return;
     if (set.onKeyFirst(e)) return;
     const fb = $('fbBtn');
-    if (fb && key === 'Enter') { e.preventDefault(); fb.click(); return; }
+    if (fb && key === 'Enter' && !UI.feedback.classList.contains('hidden')) { e.preventDefault(); fb.click(); return; }
     if (G.locked) return;
     set.onKey(e);
   });
