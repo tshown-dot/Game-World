@@ -36,7 +36,10 @@ export const STAGES = [
     built: true, building: 'force_field', url: './games/4-7-force-field/index.html',
     description: 'Meteors are falling on the canyon outpost! Put the shield over every solution of an inequality, zap the meteors that are solutions, name your own solutions, and hold the Twin Fields.',
   }),
-  stage(8, 'Cause and Effect Lab', 'Understand Dependent and Independent Variables', { x: 1030, y: 320 }),
+  stage(8, 'Cause and Effect Lab', 'Understand Dependent and Independent Variables', { x: 1030, y: 320 }, {
+    built: true, building: 'cause_lab', url: './games/4-8-cause-effect-lab/index.html',
+    description: 'Run experiments in the canyon science lab. Put the cause (independent variable) on the DIAL and the effect (dependent variable) on the METER, hunt for factors, predict what the meter does, and tame the Runaway Experiment.',
+  }),
   stage(9, 'Rune Machine', 'Use Patterns to Write and Solve Equations', { x: 800, y: 290 }),
   stage(10, 'Trail Mapper', 'Relate Tables, Graphs, and Equations', { x: 570, y: 320 }),
   {

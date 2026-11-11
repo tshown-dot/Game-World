@@ -30,8 +30,8 @@ const json=(r,o)=>r.fulfill({status:200,contentType:'application/json',headers:{
   ok((await p.textContent('#hudCode')).trim()==='K7M2QX','the town is already signed in with the same code');
   ok((await p.textContent('#panelName'))==='Key Fitter','the hero starts at Key Fitter (4-1, the first building)');
   ok(await p.$$eval('.stage',s=>s.length)===11,'11 stops: lessons 4-1 to 4-10 and the boss');
-  ok(await p.$$eval('.stage-wip',s=>s.length)===4,'4 are under construction');
-  ok(await p.$$eval('.stage-locked',s=>s.length)===6,'buildings 4-2 to 4-7 wait their turn');
+  ok(await p.$$eval('.stage-wip',s=>s.length)===3,'3 are under construction');
+  ok(await p.$$eval('.stage-locked',s=>s.length)===7,'buildings 4-2 to 4-8 wait their turn');
   await p.screenshot({path:OUT+'/2_valley.png'});
 
   console.log('\n[3] Walking and closed buildings');
@@ -50,10 +50,12 @@ const json=(r,o)=>r.fulfill({status:200,contentType:'application/json',headers:{
   await p.keyboard.press('ArrowRight'); await p.waitForTimeout(1200);
   ok((await p.textContent('#panelName'))==='Force Field' && await p.isDisabled('#enterBtn'),'Force Field (4-7) is built but locked for now');
   await p.keyboard.press('ArrowRight'); await p.waitForTimeout(1200);
-  ok((await p.textContent('#panelName'))==='Cause and Effect Lab' && await p.isDisabled('#enterBtn'),'next stop (4-8) is under construction and cannot be entered');
+  ok((await p.textContent('#panelName'))==='Cause and Effect Lab' && await p.isDisabled('#enterBtn'),'Cause and Effect Lab (4-8) is built but locked for now');
+  await p.keyboard.press('ArrowRight'); await p.waitForTimeout(1200);
+  ok((await p.textContent('#panelName'))==='Rune Machine' && await p.isDisabled('#enterBtn'),'next stop (4-9) is under construction and cannot be entered');
   await p.keyboard.press('Enter'); await p.waitForTimeout(300);
   ok(/under construction/i.test(await p.textContent('#toast')),'pressing Enter there says it is under construction');
-  for(let k=0;k<7;k++){ await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(1200); }
+  for(let k=0;k<8;k++){ await p.keyboard.press('ArrowLeft'); await p.waitForTimeout(1200); }
 
   console.log('\n[4] Play Counterweight from the town');
   await p.keyboard.press('Enter'); await p.waitForTimeout(500);
@@ -99,8 +101,8 @@ const json=(r,o)=>r.fulfill({status:200,contentType:'application/json',headers:{
   await p.goto(ROOT); await p.waitForTimeout(800); await p.click('#exitBtn'); await p.fill('#codeInput','TEACH2'); await p.click('#loginBtn'); await p.waitForTimeout(1200);
   await p.goto(TOWN); await p.waitForTimeout(1800);
   ok(await p.isVisible('#teacherBanner') && await p.isHidden('#lockedModal'),'teacher code: TEACHER banner, town open');
-  ok(await p.$$eval('.stage-wip',s=>s.length)===4,'teacher still cannot enter unbuilt buildings');
-  ok(await p.$$eval('.stage-locked',s=>s.length)===0,'teacher can enter all seven built buildings');
+  ok(await p.$$eval('.stage-wip',s=>s.length)===3,'teacher still cannot enter unbuilt buildings');
+  ok(await p.$$eval('.stage-locked',s=>s.length)===0,'teacher can enter all eight built buildings');
 
   const over=await p.evaluate(()=>document.documentElement.scrollHeight-window.innerHeight);
   ok(over<=0,'no vertical scrolling (overflow px: '+over+')');

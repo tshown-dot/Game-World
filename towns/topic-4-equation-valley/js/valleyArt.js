@@ -93,6 +93,13 @@ const forceField = `
   <path d="M-12 -36 A12 12 0 0 1 12 -36" fill="${PALETTE.gold}" ${O2}/>
   <g class="sway"><circle cx="30" cy="-74" r="7" fill="#c4935a" ${O2}/><path d="M36 -80 l10 -10" stroke="#ff9f43" stroke-width="3"/></g>`;
 
+const causeLab = `
+  <ellipse cx="0" cy="-14" rx="48" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <rect x="-40" y="-60" width="80" height="46" rx="6" fill="#8b90a3" ${O}/>
+  <circle cx="-18" cy="-37" r="12" fill="${PALETTE.gold}" ${O2}/><path d="M-18 -37 v-9" stroke="${K}" stroke-width="3"/>
+  <path d="M8 -30 A12 12 0 0 1 32 -30" fill="#fff4d6" ${O2}/><path d="M20 -30 l8 -8" stroke="${K}" stroke-width="3"/>
+  <g class="sway"><path d="M-6 -60 v-16 h12 v16" fill="#9fe6ff" ${O2}/><circle cx="0" cy="-82" r="4" fill="#fff"/></g>`;
+
 const construction = () => `
   <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
   <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
@@ -117,5 +124,6 @@ export function buildingSvg(stage, state) {
   if (stage.building === 'food_truck') return foodTruck;
   if (stage.building === 'ride_gate') return rideGate;
   if (stage.building === 'force_field') return forceField;
+  if (stage.building === 'cause_lab') return causeLab;
   return construction();
 }
