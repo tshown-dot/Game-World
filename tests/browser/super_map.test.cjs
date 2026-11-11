@@ -48,11 +48,11 @@ const json=(r,o)=>r.fulfill({status:200,contentType:'application/json',headers:{
 
   console.log('\n[4] Into the town and back');
   await p.keyboard.press('Enter'); await p.waitForURL(/topic-3-expression-town/,{timeout:5000}); await p.waitForTimeout(2500);
-  ok(await p.isVisible('#worldScreen') && !(await p.isVisible('#loginScreen')),'Expression Town opens already signed in (no second code entry)');
-  ok((await p.textContent('#hudPlayerCode')).trim()==='K7M2QX','the town shows the same code');
-  ok(/world map/.test(await p.textContent('#worldSelectBtn')),'the town sign now says "world map"');
+  ok(await p.isVisible('#townMap') && !(await p.isVisible('#loginScreen')),'Expression Town opens already signed in (no second code entry)');
+  ok((await p.textContent('#hudCode')).trim()==='K7M2QX','the town shows the same code');
+  ok(/world map/.test(await p.textContent('#worldMapBtn')),'the town sign says "world map"');
   await p.screenshot({path:OUT+'/5_in_town.png'});
-  await p.click('#worldSelectBtn'); await p.waitForURL(/index\.html\?from=topic_3/,{timeout:5000}); await p.waitForTimeout(1500);
+  await p.click('#worldMapBtn'); await p.waitForURL(/index\.html\?from=topic_3/,{timeout:5000}); await p.waitForTimeout(1500);
   ok(await p.isVisible('#worldScreen'),'the sign leads back to the Super Map, still signed in');
   ok((await p.textContent('#panelName'))==='Expression Town','the hero stands outside Expression Town');
 
@@ -63,7 +63,7 @@ const json=(r,o)=>r.fulfill({status:200,contentType:'application/json',headers:{
   await p.fill('#codeInput','TEACH2'); await p.click('#loginBtn'); await p.waitForTimeout(1500);
   ok(await p.isVisible('#teacherBanner'),'teacher code shows the TEACHER banner');
   await p.keyboard.press('Enter'); await p.waitForURL(/topic-3-expression-town/,{timeout:5000}); await p.waitForTimeout(2500);
-  await p.click('#switchUserBtn'); await p.waitForURL(ROOT_RE,{timeout:5000}); await p.waitForTimeout(1000);
+  await p.click('#exitBtn'); await p.waitForURL(ROOT_RE,{timeout:5000}); await p.waitForTimeout(1000);
   ok(await p.isVisible('#loginScreen'),'EXIT inside the town signs out to the Super Map sign-in');
 
   const over=await p.evaluate(()=>document.documentElement.scrollHeight-window.innerHeight);

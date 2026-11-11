@@ -49,11 +49,11 @@ const vis=(p,sel)=>p.evaluate((s)=>{ const e=document.querySelector(s); return !
   console.log('\n[4] Town-only station (Expression Town): stays in the town');
   const p2=await ctx.newPage(); p2.on('pageerror',e=>errs.push(e.message));
   await p2.goto(links.find(l=>/topic-3/.test(l))); await p2.waitForTimeout(2500);
-  ok(!(await vis(p2,'#loginScreen')) && await vis(p2,'#worldScreen'),'Expression Town opens with no sign-in');
-  ok(!(await vis(p2,'#worldSelectBtn')),'the world map sign is hidden');
+  ok(!(await vis(p2,'#loginScreen')) && await vis(p2,'#townMap'),'Expression Town opens with no sign-in');
+  ok(!(await vis(p2,'#worldMapBtn')),'the world map sign is hidden');
   ok(/STATION/.test(await p2.textContent('#teacherBanner')) && await vis(p2,'#teacherBanner'),'the STATION banner shows');
   await p2.screenshot({path:OUT+'/4_expression_town_station.png'});
-  await p2.click('#switchUserBtn'); await p2.waitForTimeout(2500);
+  await p2.click('#exitBtn'); await p2.waitForTimeout(2500);
   ok(/topic-3-expression-town/.test(p2.url()) && !(await vis(p2,'#loginScreen')),'EXIT starts the town again, still no sign-in');
   await p2.goto(BASE+'index.html'); await p2.waitForTimeout(2000);
   ok(/topic-3-expression-town/.test(p2.url()),'trying the Super Map in this tab goes back to the town');

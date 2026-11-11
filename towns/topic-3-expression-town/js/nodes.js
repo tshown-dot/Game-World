@@ -1,42 +1,8 @@
 /**
- * Super Mario World Style Overworld - Town & Building Registry
- * 
- * mapCoords = stage-tile position in the 1366x658 overworld map space (see js/worldArt.js).
- * Maps 6th Grade Topic 3 lessons (Numeric and Algebraic Expressions) to buildings in "Expression Town".
- * Designed with multi-town/chapter extensibility for future topics.
+ * Expression Town (Topic 3): the building list. js/expressionTown.js turns these into stages for the shared
+ * town engine. Buildings unlock in this order. mapCoords = the stage tile in the old 1366 x 658 map space
+ * (see js/worldArt.js); requiredNodeId and bossName are kept only as notes from the old engine.
  */
-
-export const WORLD_CHAPTERS = [
-  {
-    id: 'topic_1',
-    worldLabel: 'WORLD 1',
-    title: 'Decimal Docks',
-    subtitle: 'Use Positive Rational Numbers',
-    isLockedChapter: true,
-  },
-  {
-    id: 'topic_2',
-    worldLabel: 'WORLD 2',
-    title: 'Integer Highlands',
-    subtitle: 'Integers and Rational Numbers',
-    isLockedChapter: true,
-  },
-  {
-    id: 'topic_3',
-    worldLabel: 'WORLD 3',
-    title: 'Expression Town',
-    subtitle: 'Numeric & Algebraic Expressions',
-    isLockedChapter: false,
-    isActive: true,
-  },
-  {
-    id: 'topic_4',
-    worldLabel: 'WORLD 4',
-    title: 'Equation Valley',
-    subtitle: 'Represent and Solve Equations & Inequalities',
-    isLockedChapter: true,
-  },
-];
 
 export const REALM_NODES = [
   {
@@ -229,29 +195,3 @@ export const REALM_NODES = [
     bossName: 'Expression Colossus Prime',
   }
 ];
-
-/**
- * Returns effective prerequisite ID for a node, accounting for WIP buildings.
- */
-export function getEffectivePrerequisite(nodeId) {
-  const node = REALM_NODES.find(n => n.id === nodeId);
-  if (!node || !node.requiredNodeId) return null;
-
-  const prereq = REALM_NODES.find(n => n.id === node.requiredNodeId);
-  if (prereq && prereq.isWip) {
-    return prereq.requiredNodeId;
-  }
-  return node.requiredNodeId;
-}
-
-/**
- * Checks if a building door is unlocked based on unlocked node set or teacher override.
- */
-export function isNodeUnlocked(nodeId, unlockedNodeIds = [], isTeacherOverride = false) {
-  if (isTeacherOverride) return true;
-  const node = REALM_NODES.find(n => n.id === nodeId);
-  if (!node) return false;
-  if (!node.requiredNodeId) return true; // Building 3-1 is always open
-
-  return unlockedNodeIds.includes(nodeId);
-}

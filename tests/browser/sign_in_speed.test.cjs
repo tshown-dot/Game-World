@@ -20,7 +20,7 @@ const json=(r,o)=>r.fulfill({status:200,contentType:'application/json',headers:{
   await p.screenshot({path:OUT+'/signing_in.png'});
   await p.waitForSelector('#worldScreen:not(.hidden)',{timeout:10000}); ok(true,'then the map opens');
 
-  for (const [name, town, sel] of [['Expression Town','towns/topic-3-expression-town/','#worldSelectBtn'],['Equation Valley','towns/topic-4-equation-valley/','#worldMapBtn']]) {
+  for (const [name, town, sel] of [['Expression Town','towns/topic-3-expression-town/','#worldMapBtn'],['Equation Valley','towns/topic-4-equation-valley/','#worldMapBtn']]) {
     console.log(`\n[2] Into ${name} and back out`);
     if (name==='Equation Valley') sheet.K7M2QX.full=true;    // so Town 4 is open for this code
     if (name==='Equation Valley') { await p.goto(SITE); await p.waitForSelector('#worldScreen:not(.hidden)'); await p.waitForTimeout(DELAY+800); }
