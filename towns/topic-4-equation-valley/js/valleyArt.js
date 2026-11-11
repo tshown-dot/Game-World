@@ -108,6 +108,14 @@ const runeMachine = `
   <path d="M-20 -52 H20 M-20 -40 H20 M-20 -28 H20 M0 -56 V-24" stroke="#5b4a3a" stroke-width="3"/>
   <circle class="sway" cx="-30" cy="-92" r="4" fill="${PALETTE.gold}"/><circle class="sway" cx="30" cy="-92" r="4" fill="${PALETTE.gold}"/>`;
 
+const trailMapper = `
+  <ellipse cx="0" cy="-14" rx="46" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <path d="M-36 -16 L-30 -62 L0 -88 L30 -62 L36 -16 Z" fill="#c98b4e" ${O}/>
+  <rect x="-24" y="-60" width="48" height="36" rx="3" fill="#f6e7c1" ${O2}/>
+  <path d="M-18 -28 V-56 M-18 -28 H18" stroke="${K}" stroke-width="2"/>
+  <path d="M-18 -30 L14 -52" stroke="#e5484d" stroke-width="3" stroke-dasharray="4 3"/>
+  <path d="M0 -88 V-104 L16 -98 L0 -92" fill="${PALETTE.gold}" ${O2}/>`;
+
 const construction = () => `
   <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
   <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
@@ -134,5 +142,6 @@ export function buildingSvg(stage, state) {
   if (stage.building === 'force_field') return forceField;
   if (stage.building === 'cause_lab') return causeLab;
   if (stage.building === 'rune_machine') return runeMachine;
+  if (stage.building === 'trail_mapper') return trailMapper;
   return construction();
 }

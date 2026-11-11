@@ -44,7 +44,10 @@ export const STAGES = [
     built: true, building: 'rune_machine', url: './games/4-9-rune-machine/index.html',
     description: 'An ancient machine changes inputs into outputs by a hidden rule. Crack the rule as an equation, fill its table, read far ahead, and crack the Ancient Runes.',
   }),
-  stage(10, 'Trail Mapper', 'Relate Tables, Graphs, and Equations', { x: 570, y: 320 }),
+  stage(10, 'Trail Mapper', 'Relate Tables, Graphs, and Equations', { x: 570, y: 320 }, {
+    built: true, building: 'trail_mapper', url: './games/4-10-trail-mapper/index.html',
+    description: 'Map canyon trails three ways: a rule, a logbook and a map. Plot points, read the map, write rules from graphs, spot the bad map, and clear Rockslide Pass.',
+  }),
   {
     id: 'node_4_boss', lessonCode: 'BOSS', title: 'Golem Fort', subtitle: 'Topic 4 boss: The Equation Golem',
     coords: { x: 320, y: 300 }, built: false, isBoss: true, xpReward: 600, coinsReward: 250,

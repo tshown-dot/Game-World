@@ -1,0 +1,38 @@
+/* Trail Mapper (Lesson 4-10): the map, logbook and rule boxes. Shared looks are in shared/game/game.css. */
+.trail { animation: drawTrail 0.9s ease-out; }
+@keyframes drawTrail { from { opacity: 0; } }
+.guess { animation: drawTrail 0.5s ease-out; }
+.cursor { animation: pulse 1.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes pulse { 50% { transform: scale(1.25); } }
+.pick-ok rect:first-of-type { stroke: #2fbf71; stroke-width: 7; }
+.pick-bad rect:first-of-type { stroke: #e5484d; stroke-width: 7; }
+.thermo { transition: all 1s ease; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; }
+.prompt .story { display: block; font-size: 15px; font-weight: 800; background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 7px 10px; margin-top: 6px; }
+
+/* ---- plotted points ---- */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 44px; align-items: center; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; }
+.chip { font-family: ui-monospace, 'Courier New', monospace; font-weight: 900; font-size: 17px; background: #dbe9ff; color: #1f63c9; border: 2px solid #1f63c9; border-radius: 8px; padding: 2px 8px; }
+.chips .empty, .rule-row .empty { font-family: Nunito, system-ui, sans-serif; font-size: 14px; font-weight: 800; color: #a99a74; }
+.row-btns { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+.row-btns button { height: 50px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 10px; box-shadow: 0 4px 0 var(--ink); }
+.row-btns .go { background: var(--red); color: #fff; }
+
+/* ---- rule shapes and number boxes ---- */
+.shapes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.shape { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink);
+  font-family: ui-monospace, 'Courier New', monospace; font-size: 19px; font-weight: 900; color: var(--ink); }
+.shape.on { background: #ffe680; outline: 4px solid var(--gold); outline-offset: 2px; }
+.shape .sq { color: #8f3f22; }
+.rule-row { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 56px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
+  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 24px; font-weight: 900; color: var(--ink); }
+.rbox { width: 76px; height: 44px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900;
+  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
+.rbox.wide { width: 120px; }
+.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }
+
+/* ---- rule / logbook / map ---- */
+.trio { display: grid; gap: 8px; }
+.trio button { height: 54px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 12px; box-shadow: 0 4px 0 var(--ink); text-align: left; padding-left: 14px; }
+.trio button b { display: inline-block; width: 24px; height: 24px; line-height: 20px; text-align: center; margin-right: 10px; border: 2px solid var(--ink); border-radius: 6px; background: var(--gold); font-size: 11px; }
+.trio button:disabled { opacity: 0.4; box-shadow: none; }

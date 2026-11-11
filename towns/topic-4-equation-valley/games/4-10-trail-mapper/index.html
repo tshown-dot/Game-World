@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Trail Mapper · Lesson 4-10 Relate Tables, Graphs, and Equations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@700;800;900&display=swap">
+  <link rel="stylesheet" href="../../../../shared/game/game.css">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main id="app">
+
+  <!-- ===== HUD ===== -->
+  <header class="hud">
+    <div class="hud-title">
+      <div class="px hud-lesson">LESSON 4-10</div>
+      <div class="px hud-name">TRAIL MAPPER</div>
+    </div>
+    <div class="hud-zone">
+      <div class="px hud-label">ZONE</div>
+      <div id="zonePips" class="zone-pips"></div>
+      <div id="zoneName" class="zone-name"></div>
+    </div>
+    <div class="hud-meter" id="meterBox" title="When this fills, the rockslide hits">
+      <div class="px hud-label">ROCKSLIDE</div>
+      <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
+    </div>
+    <div class="hud-crates">
+      <div class="px hud-label">CANTEENS</div>
+      <div id="lives" class="crates"></div>
+    </div>
+    <div class="hud-score">
+      <div class="px hud-label">SCORE</div>
+      <div id="score" class="px score-num">0</div>
+    </div>
+    <div class="hud-buttons">
+      <button type="button" id="helpBtn" class="sys-btn px" title="How to play (H)">?</button>
+      <button type="button" id="soundBtn" class="sys-btn" title="Sound (M)">🔊</button>
+      <button type="button" id="exitBtn" class="sys-btn exit px" title="Back to town">EXIT</button>
+    </div>
+  </header>
+
+  <!-- ===== PLAY AREA ===== -->
+  <section class="stage" id="stage">
+    <svg id="scene" viewBox="0 0 800 520" aria-label="The trail map, the logbook and the rule"></svg>
+    <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
+    <div id="bossBar" class="boss-bar hidden">
+      <div class="px boss-name">ROCKSLIDE PASS</div>
+      <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div id="taskTag" class="task-tag px"></div>
+    <div id="prompt" class="prompt"></div>
+    <div id="controls" class="controls"></div>
+    <div id="feedback" class="feedback hidden"></div>
+  </section>
+
+  <!-- ===== BRIEFING ===== -->
+  <div id="briefing" class="overlay">
+    <div class="card brief">
+      <div class="brief-head">
+        <div class="brief-icon">🗺️</div>
+        <div>
+          <div class="px brief-title">MISSION BRIEFING: TRAIL MAPPER</div>
+          <div class="brief-sub">Equation Valley · Lesson 4-10 · Relate Tables, Graphs, and Equations</div>
+        </div>
+      </div>
+      <div class="brief-cols">
+        <div class="brief-col"><div class="px col-h">1. ONE TRAIL, 3 WAYS</div>
+          <p>Every trail is shown as a <b>RULE</b> (equation), a <b>LOGBOOK</b> (table) and a <b>MAP</b> (graph). All three must match.</p>
+          <p class="mono">d = 4t &nbsp;·&nbsp; 3 ➜ 12 &nbsp;·&nbsp; (3, 12)</p></div>
+        <div class="brief-col"><div class="px col-h">2. MAP IT</div>
+          <p>Plot points by tapping the map: go <b>across</b> to the input, then <b>up</b> to the output. Read the map, write rules from it, and spot bad maps.</p></div>
+        <div class="brief-col"><div class="px col-h">3. STAKES</div>
+          <p>A <b>ROCKSLIDE</b> builds while you think, and mistakes speed it up. Run out of all <b>3 canteens</b> and you're lost in the canyon. Clear Rockslide Pass to win!</p></div>
+      </div>
+      <div class="brief-keys">Tap the map, or <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> + <kbd>space</kbd> to plot · type numbers · <kbd>1</kbd>–<kbd>4</kbd> answers · <kbd>Enter</kbd> check · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-zones">
+        <span class="px">START AT:</span>
+        <div id="zoneButtons" class="zone-buttons"></div>
+      </div>
+      <div class="brief-actions">
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🗺️ HIT THE TRAIL (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no rockslide</small></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <div id="banner" class="banner hidden px"></div>
+
+  <div id="fail" class="overlay hidden">
+    <div class="card small">
+      <div class="px big-title">LOST IN THE CANYON!</div>
+      <p id="failText">All three canteens ran dry.</p>
+      <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
+    </div>
+  </div>
+
+  <div id="report" class="overlay hidden">
+    <div class="card report">
+      <div class="px big-title">TRAIL REPORT</div>
+      <div id="reportStars" class="report-stars"></div>
+      <div id="reportStats" class="report-stats"></div>
+      <div id="reportZones" class="report-zones"></div>
+      <div id="reportSkills" class="report-skills"></div>
+      <div class="brief-actions">
+        <button type="button" id="townBtn" class="btn btn-go"><span class="px">◀ BACK TO TOWN</span></button>
+        <button type="button" id="againBtn" class="btn btn-practice"><span class="px">PLAY AGAIN</span></button>
+      </div>
+    </div>
+  </div>
+</main>
+<script type="module" src="./game.js"></script>
+</body>
+</html>
