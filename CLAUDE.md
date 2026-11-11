@@ -31,7 +31,7 @@ tests/                             math-logic tests, runnable with plain `node`
 docs/lessons.md                    lesson lists from the textbook database
 ```
 - Equation Valley (`towns/topic-4-equation-valley/`, Topic 4) is built on the shared town engine. A town only supplies
-  its building list (`js/valley.js`) and art (`js/valleyArt.js`). Built so far: 4-1 Key Fitter, 4-2 Counterweight, 4-3 Undo Machine, 4-4 Gear Shift and 4-5 Food Truck;
+  its building list (`js/valley.js`) and art (`js/valleyArt.js`). Built so far: 4-1 Key Fitter, 4-2 Counterweight, 4-3 Undo Machine, 4-4 Gear Shift, 4-5 Food Truck and 4-6 Ride Gate;
   the other buildings show "under construction" and are skipped in the unlock chain until they exist.
 - Every game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the

@@ -1,0 +1,47 @@
+/* Ride Gate (Lesson 4-6): the gate scene, riders, the number line and tiles. Shared looks are in shared/game/game.css. */
+.pop-in { animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: center; }
+@keyframes popIn { from { transform: scale(0.3); opacity: 0; } }
+.walk-up { animation: walkUp 0.5s ease-out; }
+@keyframes walkUp { from { transform: translateX(120px); opacity: 0; } }
+.go-in { animation: goIn 0.8s ease-in forwards; }
+@keyframes goIn { to { transform: translateX(-260px); opacity: 0; } }
+.go-away { animation: goAway 0.8s ease-in forwards; }
+@keyframes goAway { 0% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(10px); } 100% { transform: translateX(260px); opacity: 0; } }
+.bar-up { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: 0% 50%; }
+.bar-up.open { transform: rotate(-70deg); }
+.tick-hit { cursor: pointer; }
+.tick-hit:hover rect { fill: rgba(255, 210, 63, 0.35); }
+
+/* ---- the equation strip under the gearbox ---- */
+.eq-strip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; min-width: 440px; width: max-content; max-width: 94%;
+  background: #fff4d6; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 6px 16px; text-align: center; }
+.eq-line { font-family: ui-monospace, 'Courier New', monospace; font-size: 23px; font-weight: 900; color: var(--ink); white-space: nowrap; line-height: 1.35; }
+.eq-line.small { font-size: 17px; color: #5e5640; white-space: normal; }
+.eq-strip .you { color: #1f63c9; background: #dbe9ff; border-radius: 6px; padding: 0 2px; }
+.eq-strip .good { color: #1f8a4c; } .eq-strip .bad { color: #d6283a; }
+.prompt .story { display: block; font-size: 15px; font-weight: 800; background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 7px 10px; margin-top: 6px; }
+
+/* ---- writing equations with tiles ---- */
+.rail { min-height: 54px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 5px 8px; border: 3px dashed #8a6d3b; border-radius: 12px; background: #fff; }
+.rail.filled { border-style: solid; border-color: var(--ink); }
+.rail.drop-target { background: #fff3c4; box-shadow: 0 0 0 4px var(--gold); }
+.rail .empty { color: #a99a74; font-size: 13px; font-weight: 800; }
+.done-eq { font-family: ui-monospace, monospace; font-size: 18px; font-weight: 900; color: #1f6b3e; background: #d9f7e3; border: 3px solid var(--ink); border-radius: 10px; padding: 5px 10px; }
+.tiles { display: flex; flex-wrap: wrap; gap: 8px; }
+.tile { min-width: 52px; height: 46px; padding: 0 10px; border: 3px solid var(--ink); border-radius: 10px; font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 22px; font-weight: 900; box-shadow: 0 4px 0 var(--ink); touch-action: none; position: relative; background: #fff; color: var(--ink); }
+.tile.num { background: #6b6f80; color: #fff; }
+.tile.var { background: #3a8ef0; color: #fff; }
+.tile.eqs { background: var(--gold); }
+.tile small { position: absolute; top: 1px; right: 4px; font-size: 8px; font-family: 'Press Start 2P', monospace; opacity: 0.75; }
+.tile:disabled { opacity: 0.25; box-shadow: none; }
+.tile.chip { min-width: 40px; height: 38px; font-size: 19px; box-shadow: 0 2px 0 var(--ink); padding: 0 8px; }
+.row-btns { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 8px; }
+.row-btns button { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 10px; box-shadow: 0 4px 0 var(--ink); }
+.row-btns .go { background: var(--red); color: #fff; }
+
+/* ---- number line controls ---- */
+.line-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.line-btns button { height: 52px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 11px; box-shadow: 0 4px 0 var(--ink); }
+.line-btns button.on { background: var(--gold); }
+.rider-btns .stamp { height: 84px; font-size: 13px; }

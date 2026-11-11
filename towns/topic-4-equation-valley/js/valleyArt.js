@@ -78,6 +78,14 @@ const foodTruck = `
   <circle cx="-26" cy="-18" r="8" fill="#3c2645" ${O2}/><circle cx="26" cy="-18" r="8" fill="#3c2645" ${O2}/>
   <g class="sway"><circle cx="34" cy="-78" r="6" fill="#fff" opacity="0.8"/><circle cx="40" cy="-90" r="4" fill="#fff" opacity="0.6"/></g>`;
 
+const rideGate = `
+  <ellipse cx="0" cy="-14" rx="52" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <path d="M-48 -18 Q-30 -96 -6 -40 Q10 -80 30 -30 Q40 -60 50 -18" fill="none" stroke="${PALETTE.red}" stroke-width="6"/>
+  <path d="M-48 -18 Q-30 -96 -6 -40 Q10 -80 30 -30 Q40 -60 50 -18" fill="none" stroke="${K}" stroke-width="2" stroke-dasharray="2 8"/>
+  <path d="M-40 -18 V-50 M-20 -18 V-62 M10 -18 V-46 M36 -18 V-34" stroke="#8a5a2b" stroke-width="4"/>
+  <rect x="-26" y="-30" width="34" height="14" rx="3" fill="${PALETTE.gold}" ${O2}/>
+  <g class="sway"><rect x="-6" y="-24" width="30" height="6" rx="3" fill="${PALETTE.red}" ${O2}/></g>`;
+
 const construction = () => `
   <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
   <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
@@ -100,5 +108,6 @@ export function buildingSvg(stage, state) {
   if (stage.building === 'undo_machine') return undoMachine;
   if (stage.building === 'gear_shift') return gearHouse;
   if (stage.building === 'food_truck') return foodTruck;
+  if (stage.building === 'ride_gate') return rideGate;
   return construction();
 }
