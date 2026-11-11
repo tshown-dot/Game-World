@@ -104,6 +104,30 @@ await test('the boss: a practice clear is marked practiceOnly; a timed win clear
   assert.equal(s.records.boss.practiceOnly, undefined, 'practicing later never takes the win away');
 });
 
+await test('older saves: renamed stage ids, saved unlockedNodes and "passed by" stages stay open', async () => {
+  const STAGES2 = [
+    { id: 'a', lessonCode: '3-1', built: true }, { id: 'lcm', lessonCode: '3-2', built: true },
+    { id: 'c', lessonCode: '3-3', built: true }, { id: 'd', lessonCode: '3-4', built: true }, { id: 'e', lessonCode: '3-5', built: true },
+  ];
+  const progress = { v: 1, towns: { topic_3: {
+    unlockedNodes: ['a', 'old_lcm', 'c'],
+    nodeRecords: { a: { cleared: true, stars: 3 }, old_lcm: { cleared: true, stars: 2 } },
+    extraField: 'kept',
+  } } };
+  const store = fakeStore({ K7M2QX: { open: [false, false, true], progress } });
+  const s = new TownState({ townId: 'topic_3', label: 'topic-3', stages: STAGES2, store, legacyIds: { old_lcm: 'lcm' } });
+  await s.load('K7M2QX');
+  assert.equal(s.records.lcm.stars, 2, 'the old id is renamed');
+  assert.equal(s.records.old_lcm, undefined);
+  assert.deepEqual(['a', 'lcm', 'c', 'd', 'e'].map((id) => s.stageState(id)), ['open', 'open', 'open', 'locked', 'locked']);
+  s.completeStage('e', { score: 9, total: 10 });   // e.g. a teacher let them play ahead
+  assert.equal(s.stageState('d'), 'open', 'a stage before a cleared stage is open (passed by)');
+  const saved = store.saved.K7M2QX.towns.topic_3;
+  assert.deepEqual(saved.unlockedNodes, ['a', 'lcm', 'c'], 'the old list is kept, with the new id');
+  assert.equal(saved.extraField, 'kept', 'unknown fields in the town slice are passed through');
+  assert.ok(saved.nodeRecords.lcm && !saved.nodeRecords.old_lcm);
+});
+
 await test('a replay keeps the best stars and best score', async () => {
   const store = fakeStore({ K7M2QX: { open: [false, false, false, true] } });
   const s = make(store);

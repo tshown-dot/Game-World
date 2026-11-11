@@ -4,8 +4,10 @@
 //   - the first built stage is always open
 //   - a later built stage opens when the previous BUILT stage is cleared
 //   - a full_access (teacher/preview) code opens every built stage
-// Only stage records are saved (cleared, stars, best score); what is open is worked out from them,
-// so adding a new building later can never lock a student out of one they already reached.
+//   - a stage stays open once the student has reached it or any LATER stage (cleared it, or an older save
+//     lists it in the town's unlockedNodes), so moving or adding buildings never locks anyone out
+// Only stage records are saved (cleared, stars, best score); what is open is worked out from them.
+// Expression Town's older saves also carry `unlockedNodes`; they are read and passed through untouched.
 
 import { progressStore, normalizeCode } from '../progressStore.js';
 import { townStates, TOWNS } from '../towns.js';
@@ -25,9 +27,11 @@ export class TownState {
    *   label     e.g. 'topic-4' (the town name written in the Results tab)
    *   stages    ordered list: { id, lessonCode, title, built, xpReward, coinsReward, isBoss }
    *   store     the progress store (tests pass a pretend one)
+   *   legacyIds optional { oldStageId: newStageId } for stages renamed since older saves were written
    */
-  constructor({ townId, label, stages, store = progressStore }) {
-    Object.assign(this, { townId, label, stages, store });
+  constructor({ townId, label, stages, store = progressStore, legacyIds = {} }) {
+    Object.assign(this, { townId, label, stages, store, legacyIds });
+    this.savedOpens = [];
     this.code = '';
     this.extra = {};
     this.level = 1; this.xp = 0; this.coins = 50;
@@ -50,11 +54,22 @@ export class TownState {
     this.level = (saved && saved.level) || 1;
     this.xp = (saved && saved.xp) || 0;
     this.coins = saved && saved.coins !== undefined ? saved.coins : 50;
-    this.records = (saved && saved.towns && saved.towns[this.townId] && saved.towns[this.townId].nodeRecords) || {};
+    const slice = (saved && saved.towns && saved.towns[this.townId]) || {};
+    this.records = { ...(slice.nodeRecords || {}) };
+    this.savedOpens = Array.isArray(slice.unlockedNodes) ? [...slice.unlockedNodes] : [];
+    this.renameLegacy();
     const entry = townStates({ progress: saved, open: this.townOpen, fullAccess: this.fullAccess })
       .find((e) => e.town.id === this.townId);
     if (entry && entry.state !== 'open') return { success: true, townLocked: true, reason: entry.reason };
     return { success: true };
+  }
+
+  /** Old stage ids in a save are moved to their new id (a record already under the new id wins). */
+  renameLegacy() {
+    for (const [oldId, newId] of Object.entries(this.legacyIds)) {
+      if (this.records[oldId]) { if (!this.records[newId]) this.records[newId] = this.records[oldId]; delete this.records[oldId]; }
+      if (this.savedOpens.includes(oldId)) this.savedOpens = [...new Set(this.savedOpens.map((id) => (id === oldId ? newId : id)))];
+    }
   }
 
   get town() { return TOWNS.find((t) => t.id === this.townId); }
@@ -71,13 +86,17 @@ export class TownState {
     const firstBuilt = this.stages.findIndex((s) => s.built);
     if (idx === firstBuilt) return 'open';
     if (this.isCleared(id)) return 'open';
+    // reached already: this stage or a later one is cleared, or an older save lists it as open
+    if (this.stages.slice(idx).some((s) => this.isCleared(s.id) || this.savedOpens.includes(s.id))) return 'open';
     const prev = this.stages.slice(0, idx).reverse().find((s) => s.built);
     return prev && this.isCleared(prev.id) ? 'open' : 'locked';
   }
 
   snapshot() {
     const towns = Object.assign({}, this.extra.towns || {});
-    towns[this.townId] = Object.assign({}, towns[this.townId] || {}, { nodeRecords: this.records });
+    const slice = Object.assign({}, towns[this.townId] || {}, { nodeRecords: this.records });
+    if (this.savedOpens.length) slice.unlockedNodes = this.savedOpens;      // old saves keep their list (renamed ids)
+    towns[this.townId] = slice;
     return Object.assign({}, this.extra, { v: 1, level: this.level, xp: this.xp, coins: this.coins, towns });
   }
 
