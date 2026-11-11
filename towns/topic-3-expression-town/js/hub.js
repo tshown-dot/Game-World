@@ -18,6 +18,7 @@ const TOWN_ID = 'topic_3';
 import { playerState } from './state.js?v=w3map3';
 import { hubAudio } from '../../../shared/audio.js';
 import { progressStore } from '../../../shared/progressStore.js';
+import { startStation, lockedToTown } from '../../../shared/station.js';
 import { CartridgeHarness } from '../../../shared/cartridgeHarness.js';
 import {
   MAP_W, MAP_H, PALETTE,
@@ -135,6 +136,9 @@ class NumeriaHub {
   }
 
   init() {
+    // ?station: no sign-in, every building open, nothing saved to the sheet (shared/station.js)
+    this.station = startStation(TOWN_ID);
+    if (lockedToTown(this.station, TOWN_ID)) this.dom.worldSelectBtn?.classList.add('hidden');   // a town-only station stays here
     this.updateSoundButtonVisuals();
     this.initHarness();
     this.bindEvents();
@@ -203,7 +207,8 @@ class NumeriaHub {
     this.dom.switchUserBtn?.addEventListener('click', () => {
       hubAudio.playSelect();
       this.cancelWalk();
-      progressStore.clearActiveCode();
+      if (lockedToTown(this.station, TOWN_ID)) { location.href = location.pathname; return; }   // town station: start the town again
+      progressStore.clearActiveCode();                                                         // (does nothing in a world station)
       location.href = SUPER_MAP_URL;
     });
 
@@ -402,6 +407,7 @@ class NumeriaHub {
     if (this.dom.hudCoins) this.dom.hudCoins.textContent = playerState.coins.toLocaleString();
 
     this.dom.teacherBanner?.classList.toggle('hidden', !playerState.isTeacherOverride);
+    if (this.station && this.dom.teacherBanner) this.dom.teacherBanner.textContent = 'STATION: ALL OPEN';
 
     this.renderBadgeSlots();
     this.updateBottomLocationBar();
@@ -738,7 +744,7 @@ class NumeriaHub {
   updateProgressSync() {
     if (!this.dom.progressSync) return;
     const waiting = playerState.code ? progressStore.pendingCount(playerState.code) : 0;
-    this.dom.progressSync.textContent = waiting === 0
+    this.dom.progressSync.textContent = this.station ? 'Station mode: stars last until this tab is closed. Nothing is saved.' : waiting === 0
       ? 'Saved. Your teacher can see your progress.'
       : 'Saved on this Chromebook. It will send to your teacher when the internet is back. Keep this page open.';
   }

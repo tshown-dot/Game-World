@@ -7,6 +7,7 @@ import { hubAudio } from '../audio.js';
 import { CartridgeHarness } from '../cartridgeHarness.js';
 import { heroSvg, nameplateSvg, PALETTE } from '../art.js';
 import { TownState } from './townState.js';
+import { startStation, lockedToTown } from '../station.js';
 
 const K = PALETTE.ink;
 const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"`;
@@ -25,9 +26,11 @@ const starText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
  * }
  */
 export function startTown(config) {
+  const station = startStation(config.townId);         // ?station: no sign-in, everything open (shared/station.js)
   const state = new TownState({ townId: config.townId, label: config.label, stages: config.stages });
   const ui = buildDom(config);
-  const hub = { config, state, ui, current: 0, walking: false, raf: null, pendingWalk: null };
+  const hub = { config, state, ui, current: 0, walking: false, raf: null, pendingWalk: null, station };
+  if (lockedToTown(station, config.townId)) ui.worldMapBtn.classList.add('hidden');   // a town-only station stays here
 
   hub.harness = new CartridgeHarness({
     onComplete: (stage, payload) => onComplete(hub, stage, payload),
@@ -130,6 +133,7 @@ async function signIn(hub) {
   }
   hub.ui.hudCode.textContent = hub.state.code;
   hub.ui.teacherBanner.classList.toggle('hidden', !hub.state.fullAccess);
+  if (hub.station) hub.ui.teacherBanner.textContent = 'STATION: ALL OPEN';
   if (res.townLocked) {
     hub.ui.lockedReason.textContent = `${res.reason}, or ask your teacher to open it.`;
     hub.ui.lockedModal.classList.remove('hidden');
@@ -324,7 +328,7 @@ function openProgress(hub) {
       <div class="row-main"><div class="px row-name">${s.title.toUpperCase()}</div><div class="row-detail">${detail}</div></div>
       <div class="row-stars">${st === 'wip' ? '' : starText((rec && rec.stars) || 0)}</div></div>`;
   }).join('');
-  ui.progressSync.textContent = progressStore.pendingCount(state.code) === 0
+  ui.progressSync.textContent = hub.station ? 'Station mode: stars last until this tab is closed. Nothing is saved.' : progressStore.pendingCount(state.code) === 0
     ? 'Saved. Your teacher can see your progress.'
     : 'Saved on this Chromebook. It will send to your teacher when the internet is back.';
   ui.progressModal.classList.remove('hidden');
@@ -344,7 +348,12 @@ function wire(hub) {
   const toWorld = () => { hubAudio.playSelect(); document.getElementById('townApp').classList.add('leaving'); setTimeout(() => { location.href = `${config.superMapUrl}?from=${config.townId}`; }, 250); };
   ui.worldMapBtn.addEventListener('click', toWorld);
   ui.lockedBack.addEventListener('click', toWorld);
-  ui.exitBtn.addEventListener('click', () => { hubAudio.playSelect(); cancelWalk(hub); progressStore.clearActiveCode(); location.href = config.superMapUrl; });
+  ui.exitBtn.addEventListener('click', () => {
+    hubAudio.playSelect(); cancelWalk(hub);
+    if (lockedToTown(hub.station, config.townId)) { location.href = location.pathname; return; }   // town station: start the town again
+    progressStore.clearActiveCode();                                                               // (does nothing in a world station)
+    location.href = config.superMapUrl;
+  });
   ui.soundBtn.addEventListener('click', () => { hubAudio.toggleMute(); soundIcon(); });
   ui.myStarsBtn.addEventListener('click', () => { hubAudio.playSelect(); openProgress(hub); });
   ui.progressClose.addEventListener('click', () => ui.progressModal.classList.add('hidden'));

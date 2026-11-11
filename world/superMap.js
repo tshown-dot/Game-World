@@ -3,6 +3,7 @@
 import { progressStore } from '../shared/progressStore.js';
 import { TOWNS, townStates } from '../shared/towns.js';
 import { hubAudio } from '../shared/audio.js';
+import { startStation } from '../shared/station.js';
 import { drawLand, townsSvg, roadSvg, roadCurve, cloudsLayer, heroSvg, TOWN_POINTS, BIOMES, MAP_W, MAP_H } from './superMapArt.js';
 
 const $ = (id) => document.getElementById(id);
@@ -17,6 +18,13 @@ const ui = {
   modal: $('progressModal'), closeModal: $('closeProgressBtn'), progCode: $('progressCode'), progSummary: $('progressSummary'),
   progList: $('progressList'), progSync: $('progressSync'),
 };
+
+// Station Mode (?station): no sign-in, everything open, nothing saved to the sheet. See shared/station.js.
+const station = startStation('world');
+if (station && station.scope !== 'world') {          // a town-only station tab: send it back to its town
+  const town = TOWNS.find((t) => t.id === station.scope);
+  if (town && town.url) location.replace(town.url);
+}
 
 const game = { code: null, progress: null, open: [], fullAccess: false, entries: [], current: 3, walking: false, raf: null, heroPos: null };
 
@@ -86,6 +94,7 @@ function refreshWorld() {
 
 function signOut() {
   hubAudio.playSelect();
+  if (station) { location.href = 'index.html'; return; }   // a station has no sign-in: EXIT just starts the map again
   cancelWalk();
   progressStore.clearActiveCode();
   Object.assign(game, { code: null, progress: null, open: [], fullAccess: false });
@@ -113,6 +122,7 @@ function buildWorld() {
   render();
   ui.code.textContent = game.code;
   ui.teacher.classList.toggle('hidden', !game.fullAccess);
+  if (station) ui.teacher.textContent = 'STATION: ALL OPEN';
 }
 
 function render() {
@@ -241,7 +251,7 @@ function openProgress() {
     </div>`;
   }).join('');
   const waiting = progressStore.pendingCount(game.code);
-  ui.progSync.textContent = waiting === 0
+  ui.progSync.textContent = station ? 'Station mode: stars last until this tab is closed. Nothing is saved.' : waiting === 0
     ? 'Saved. Your teacher can see your progress.'
     : 'Saved on this Chromebook. It will send to your teacher when the internet is back.';
   ui.modal.classList.remove('hidden');
