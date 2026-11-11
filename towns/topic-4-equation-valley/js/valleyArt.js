@@ -52,6 +52,15 @@ const keyVault = `
   <circle cx="0" cy="-56" r="5" fill="${K}"/><rect x="-2.5" y="-56" width="5" height="11" fill="${K}"/>
   <g class="sway"><g transform="translate(30 -30)"><circle r="7" fill="${PALETTE.gold}" ${O2}/><rect x="-2" y="6" width="4" height="14" fill="${PALETTE.gold}" ${O2}/></g></g>`;
 
+const undoMachine = `
+  <ellipse cx="0" cy="-16" rx="46" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <rect x="-40" y="-70" width="80" height="54" rx="8" fill="#8b90a3" ${O}/>
+  <path d="M-16 -70 L-22 -88 L22 -88 L16 -70 Z" fill="${PALETTE.gold}" ${O2}/>
+  <rect x="-30" y="-62" width="60" height="18" rx="4" fill="#fff4d6" ${O2}/>
+  <path d="M-20 -53 H20 M-6 -58 L-14 -53 L-6 -48" stroke="${K}" stroke-width="3" fill="none"/>
+  <g class="sway"><circle cx="-18" cy="-28" r="9" fill="#6b6f80" ${O2}/><circle cx="18" cy="-28" r="9" fill="#6b6f80" ${O2}/></g>
+  <rect x="-58" y="-34" width="18" height="16" rx="3" fill="#3a8ef0" ${O2}/><rect x="40" y="-34" width="18" height="16" rx="3" fill="#c4935a" ${O2}/>`;
+
 const construction = () => `
   <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
   <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
@@ -71,5 +80,6 @@ export function buildingSvg(stage, state) {
   if (!stage.built) return construction();
   if (stage.building === 'scale_lift') return scaleLift;
   if (stage.building === 'key_vault') return keyVault;
+  if (stage.building === 'undo_machine') return undoMachine;
   return construction();
 }

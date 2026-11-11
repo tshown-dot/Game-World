@@ -16,7 +16,10 @@ export const STAGES = [
     built: true, building: 'scale_lift', url: './games/4-2-counterweight/index.html',
     description: 'The Saboteur keeps tipping the cargo lift over the canyon. Do the same thing to both sides of the equation to keep it level: add, subtract, multiply or divide. Then inspect repairs and beat the Saboteur.',
   }),
-  stage(3, 'Undo Machine', 'Write and Solve Addition and Subtraction Equations', { x: 570, y: 555 }),
+  stage(3, 'Undo Machine', 'Write and Solve Addition and Subtraction Equations', { x: 570, y: 555 }, {
+    built: true, building: 'undo_machine', url: './games/4-3-undo-machine/index.html',
+    description: 'A canyon ore machine swallows a hidden crate, does one step and pushes out a number. Write the machine as an equation, then run it backward with the opposite step to find what went in. Finish by fixing the Jammed Machine.',
+  }),
   stage(4, 'Gear Shift', 'Write and Solve Multiplication and Division Equations', { x: 780, y: 600 }),
   stage(5, 'Food Truck', 'Write and Solve Equations with Rational Numbers', { x: 990, y: 555 }),
   stage(6, 'Ride Gate', 'Understand and Write Inequalities', { x: 1200, y: 585 }),
