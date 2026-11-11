@@ -8,12 +8,14 @@
 //  - No names, passcodes or other personal details are stored or sent: only the code and game progress.
 
 import { CONFIG } from './config.js';
+import { STATION_CODE, getStation } from './station.js';
 
 const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;   // no I, O, 0 or 1
 
 /** "k7m-2qx" -> "K7M2QX". Returns null if it is not a valid code shape. */
 export function normalizeCode(raw) {
   const code = String(raw == null ? '' : raw).toUpperCase().replace(/[\s-]/g, '');
+  if (code === STATION_CODE && getStation()) return STATION_CODE;   // station mode only (see shared/station.js)
   return CODE_RE.test(code) ? code : null;
 }
 
@@ -58,6 +60,11 @@ export function createStore(options = {}) {
   const sleep = options.sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   const random = options.random || Math.random;
   const now = options.now || (() => new Date().toISOString());
+  // Station mode (shared/station.js): no sign-in, everything open, nothing sent to the sheet.
+  const inStation = options.inStation || (() => Boolean(getStation()));
+  const stationStorage = options.stationStorage || (() => { try { return globalThis.sessionStorage || memoryStorage(); } catch (e) { return memoryStorage(); } })();
+  const STATION_KEY = 'gw_station_progress';
+  const isStation = (code) => code === STATION_CODE;
   const timeoutMs = options.timeoutMs || 8000;
   const flushing = {};
 
@@ -154,6 +161,9 @@ export function createStore(options = {}) {
      * Without a device copy it always waits for the sheet (a code's first sign-in on a device needs the internet).
      */
     loadStudent(code, { fast = false, onFresh = null } = {}) {
+      if (isStation(code)) {                                // a classroom station: every town open, this tab's stars only
+        return Promise.resolve({ ok: true, source: 'station', open: Array(8).fill(true), fullAccess: true, progress: readJson(stationStorage, STATION_KEY, null) });
+      }
       const local = fast ? readLocal(code) : null;
       if (!local) return api.loadFromSheet(code);
       const fresh = api.loadFromSheet(code);
@@ -192,6 +202,10 @@ export function createStore(options = {}) {
     /** Saves progress. The device copy is written immediately; the sheet copy is sent in the background. */
     saveProgress(code, progress) {
       const stamped = Object.assign({}, progress, { savedAt: now() });
+      if (isStation(code)) {                                // kept only until the tab closes; never sent anywhere
+        try { stationStorage.setItem(STATION_KEY, JSON.stringify(stamped)); } catch (e) { /* ignore */ }
+        return Promise.resolve({ pending: 0 });
+      }
       const local = readLocal(code) || {};
       writeLocal(code, Object.assign({}, local, { progress: stamped }));
       enqueue(code, { type: 'save', progress: stamped });
@@ -200,18 +214,21 @@ export function createStore(options = {}) {
 
     /** Records one finished game for the teacher's Results tab. */
     logResult(code, result) {
+      if (isStation(code)) return Promise.resolve({ pending: 0 });   // station play is not recorded
       enqueue(code, Object.assign({ type: 'result' }, result));
       return flushQueue(code);
     },
 
-    flushQueue,
-    hasDeviceCopy: (code) => Boolean(readLocal(code)),
-    pendingCount: (code) => readQueue(code).length,
+    flushQueue: (code) => (isStation(code) ? Promise.resolve({ pending: 0 }) : flushQueue(code)),
+    hasDeviceCopy: (code) => isStation(code) || Boolean(readLocal(code)),
+    pendingCount: (code) => (isStation(code) ? 0 : readQueue(code).length),
+    isStation: () => inStation(),
 
     // The last code used on this device, so students do not retype it every day. Not secret.
-    getActiveCode: () => normalizeCode(storage.getItem('gw_active_code')),
-    setActiveCode: (code) => { try { storage.setItem('gw_active_code', code); } catch (e) { /* ignore */ } },
-    clearActiveCode: () => { try { storage.removeItem('gw_active_code'); } catch (e) { /* ignore */ } },
+    // In station mode the "code" is always STATION and the real remembered code is left alone.
+    getActiveCode: () => (inStation() ? STATION_CODE : normalizeCode(storage.getItem('gw_active_code'))),
+    setActiveCode: (code) => { if (isStation(code)) return; try { storage.setItem('gw_active_code', code); } catch (e) { /* ignore */ } },
+    clearActiveCode: () => { if (inStation()) return; try { storage.removeItem('gw_active_code'); } catch (e) { /* ignore */ } },
   };
   return api;
 }
