@@ -89,6 +89,21 @@ await test('saving keeps other towns untouched and logs a result row for the she
   );
 });
 
+await test('the boss: a practice clear is marked practiceOnly; a timed win clears that for good', async () => {
+  const BOSS = STAGES.map((st) => ({ ...st, built: true }));
+  const store = fakeStore({ K7M2QX: { full: true } });
+  const s = new TownState({ townId: 'topic_4', label: 'topic-4', stages: BOSS, store });
+  await s.load('K7M2QX');
+  s.completeStage('s2', { score: 8, total: 10, practiceMode: true });
+  assert.equal(s.records.s2.practiceOnly, undefined, 'ordinary buildings: practice still counts');
+  s.completeStage('boss', { score: 8, total: 10, bossDefeated: true, practiceMode: true });
+  assert.equal(s.records.boss.cleared, true); assert.equal(s.records.boss.practiceOnly, true);
+  s.completeStage('boss', { score: 9, total: 10, bossDefeated: true, practiceMode: false });
+  assert.equal(s.records.boss.practiceOnly, undefined, 'a timed win defeats the boss');
+  s.completeStage('boss', { score: 5, total: 10, bossDefeated: true, practiceMode: true });
+  assert.equal(s.records.boss.practiceOnly, undefined, 'practicing later never takes the win away');
+});
+
 await test('a replay keeps the best stars and best score', async () => {
   const store = fakeStore({ K7M2QX: { open: [false, false, false, true] } });
   const s = make(store);

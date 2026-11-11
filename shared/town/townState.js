@@ -103,6 +103,13 @@ export class TownState {
       total,
       lastPlayed: new Date().toISOString(),
     };
+    // Owner decision: a town boss is only DEFEATED by a timed run. A practice-only clear keeps its star but is
+    // marked practiceOnly, so it does not open the next town (see townSummary in shared/towns.js).
+    if (stage.isBoss) {
+      const practice = payload.practiceMode === true;
+      const practiceOnly = prev.cleared ? Boolean(prev.practiceOnly) && practice : practice;
+      if (practiceOnly) this.records[id].practiceOnly = true;
+    }
     const xpGained = stage.xpReward || 150;
     const coinsGained = stage.coinsReward || 50;
     this.coins += coinsGained;

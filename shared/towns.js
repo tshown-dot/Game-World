@@ -47,7 +47,7 @@ export function townSummary(town, progress) {
   return {
     cleared: cleared.length,
     stars: cleared.reduce((sum, r) => sum + (r.stars || 0), 0),
-    bossBeaten: Boolean(town.bossId && records[town.bossId] && records[town.bossId].cleared),
+    bossBeaten: Boolean(town.bossId && records[town.bossId] && records[town.bossId].cleared && !records[town.bossId].practiceOnly),   // a practice-only clear does not count
     played: cleared.length > 0,
   };
 }

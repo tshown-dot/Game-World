@@ -45,6 +45,14 @@ test('summary counts stages, stars and the boss', () => {
   assert.deepEqual(townSummary(town, null), { cleared: 0, stars: 0, bossBeaten: false, played: false });
 });
 
+test('a boss cleared only in practice mode is not beaten (owner decision)', () => {
+  const valley = TOWNS[3];
+  const progress = { towns: { topic_4: { nodeRecords: { node_4_boss: { cleared: true, stars: 2, practiceOnly: true } } } } };
+  assert.equal(townSummary(valley, progress).bossBeaten, false);
+  progress.towns.topic_4.nodeRecords.node_4_boss.practiceOnly = undefined;
+  assert.equal(townSummary(valley, progress).bossBeaten, true);
+});
+
 test('Equation Valley stays locked until the Expression Town boss is beaten, then opens', () => {
   const before = townStates({ progress: { towns: { topic_3: { nodeRecords: { node_3_1: { cleared: true } } } } } });
   assert.equal(stateOf(before, 4), 'locked');
