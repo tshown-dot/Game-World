@@ -78,3 +78,61 @@ Text comes from scanned pages, so wording can contain small scan errors. Verify 
 - **Standards:** 6.EE.C.9
 - **Math practices:** MP.2, MP.3, MP.4, MP.7
 
+
+# Grade 7, Topic 4 (Factor Falls, for accelerated students)
+
+Source: enVision 2.0 Grade 7, from the same database (Lessons tab). The same scan-error warning applies.
+In the game these are lessons 4-1 to 4-8 of the Grade 7 town `g7_topic_4`.
+
+| Lesson | Title | Pages | Standards | Textbook items in database |
+|---|---|---|---|---|
+| 4-1 | Write and Evaluate Algebraic Expressions | 197-202 | 7.EE.B.3, 7.EE.B.4 | 29 |
+| 4-2 | Generate Equivalent Expressions | 203-208 | 7.EE.A.1 | 25 |
+| 4-3 | Simplify Expressions | 209-214 | 7.EE.A.1 | 27 |
+| 4-4 | Expand Expressions | 215-220 | 7.EE.A.1, 7.EE.A.2 | 29 |
+| 4-5 | Factor Expressions | 221-226 | 7.EE.A.1, 7.EE.A.2 | 29 |
+| 4-6 | Add Expressions | 233-238 | 7.EE.A.1, 7.EE.A.2 | 25 |
+| 4-7 | Subtract Expressions | 239-244 | 7.EE.A.1, 7.EE.A.2 | 30 |
+| 4-8 | Analyze Equivalent Expressions | 245-250 | 7.EE.A.2 | 24 |
+
+## Lesson details
+
+### 4-1 Write and Evaluate Algebraic Expressions
+- **I can:** write and evaluate algebraic expressions.
+- **Essential question:** How can algebraic expressions be used to represent and solve problems?
+- **Standards:** 7.EE.B.3, 7.EE.B.4
+
+### 4-2 Generate Equivalent Expressions
+- **I can:** write equivalent expressions for given expressions.
+- **Essential question:** What are equivalent expressions?
+- **Standards:** 7.EE.A.1
+
+### 4-3 Simplify Expressions
+- **I can:** use properties of operations to simplify expressions.
+- **Essential question:** used to simplify expressions?
+- **Standards:** 7.EE.A.1
+
+### 4-4 Expand Expressions
+- **I can:** expand expressions using the Distributive Property.
+- **Essential question:** How does the value of an expression change when it is expanded?
+- **Standards:** 7.EE.A.1, 7.EE.A.2
+
+### 4-5 Factor Expressions
+- **I can:** use common factors and the Distributive Property to factor expressions.
+- **Essential question:** How does the Distributive Property relate to factoring expressions?
+- **Standards:** 7.EE.A.1, 7.EE.A.2
+
+### 4-6 Add Expressions
+- **I can:** add expressions that represent real-world problems.
+- **Essential question:** How can properties of operations be used to add expressions?
+- **Standards:** 7.EE.A.1, 7.EE.A.2
+
+### 4-7 Subtract Expressions
+- **I can:** subtract expressions using properties of operations.
+- **Essential question:** How can properties of operations be used to subtract expressions?
+- **Standards:** 7.EE.A.1, 7.EE.A.2
+
+### 4-8 Analyze Equivalent Expressions
+- **I can:** use an equivalent expression to find new information.
+- **Essential question:** How can writing equivalent expressions show how quantities are related?
+- **Standards:** 7.EE.A.2

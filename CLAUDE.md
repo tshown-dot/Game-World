@@ -1,7 +1,8 @@
 # Project: Game World (enVision 2.0 Math Games, Grade 6 and up)
 
 A "world" of short, game-style study activities that reinforce enVision 2.0 lessons for 6th graders.
-The world has a **Super Map** (pick a town) and eventually **8 towns**, one per textbook topic.
+The world has a **Super Map** (pick a town) and eventually **8 towns** per grade, one per textbook topic: the Grade 6
+map, and the **Grade 7 Isles** for accelerated students (owner decision: one world, not a separate site).
 Each town has its own map of buildings (one per lesson) and each building opens one game.
 Teachers use it as classroom stations, independent practice and study-hall supplements, *after*
 direct instruction. These are not tutorials.
@@ -48,6 +49,18 @@ docs/lessons.md                    lesson lists from the textbook database
   engine keeps every stage those saves had open. The Boss Castle (`node_apex`) opens `games/3-boss-castle/`, the
   Topic 3 review boss (the Expression Colossus, lessons 3-1 to 3-7), built on the shared game shell like the Golem Fort.
 - `npm test` runs every test in the repo (the sheet script, the progress store, the Topic 3 hub and all its games).
+- **Grade 7 Isles** (owner decisions): every town in `shared/towns.js` has a `grade` (6 or 7) and a `number` (1-8 inside
+  its grade). Grade 6 ids never change (`topic_1`...); Grade 7 ids start with `g7_`. The list order is the sheet's flag
+  order (0-7 Grade 6, 8-15 Grade 7), so only add towns at the end. A Grade 7 town opens ONLY by a teacher tick
+  (`g7_town_N` columns K-R in the Unlocks tab, after `full_access`) or a full_access code, never from Grade 6 progress;
+  inside Grade 7, beating a boss opens the next built Grade 7 town. The Super Map shows one grade at a time; the sail
+  sign (or G) switches maps and is shown only to students who can enter a Grade 7 town. The Grade 7 map is the Grade 6
+  land mirrored (`pointOf` in `world/superMapArt.js`).
+- Factor Falls (`towns/g7-topic-4-factor-falls/`, Grade 7 Topic 4, id `g7_topic_4`) is the first Grade 7 town: 8 lessons
+  plus the Thunder Falls boss, on the shared town engine. No games yet (`gamesReady: false` keeps it off
+  `stations.html`); building names in `js/falls.js` are working names until each game is planned with the owner.
+  Grade 7 problems go beyond Grade 6 Topic 3 (negative, decimal and fraction coefficients, two variables, subtracting
+  expressions), so reuse mechanics and the shared shell, but write new generators.
 - Towns 1 and 2 are not built yet. Town order is by textbook topic: 1 Decimal Docks, 2 Integer Highlands,
   3 Expression Town, 4 Equation Valley, 5-8 to be decided.
 - Each town has its own biome (terrain, palette, landmark). The Super Map is a pixel-style overworld with 8 regions:
@@ -79,6 +92,7 @@ docs/lessons.md                    lesson lists from the textbook database
   one checkbox column per town plus a `full_access` checkbox), `Progress` (student_code, progress JSON, updated_at; one row per student),
   `Results` (one row per finished game: timestamp, student_code, town, lesson, game, score, problems_attempted,
   problems_correct, accuracy, boss_defeated, practice_mode) and `Towns` (column-to-town key and instructions).
+  The `Unlocks` tab also has 8 Grade 7 checkbox columns after `full_access` (script version 3, `docs/apps-script/`).
 - A Google Apps Script web app is the only backend. `GET ?action=load&code=` returns that student's open towns and
   saved progress and `full_access`, never other rows. `POST` with `type: "save"` or `type: "result"` writes progress
   or a result row. Saved progress is one JSON object: `{v, level, xp, coins, savedAt, towns: {topic_3: {...}}}`, where
