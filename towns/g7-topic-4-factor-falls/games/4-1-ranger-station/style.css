@@ -1,0 +1,29 @@
+/* Ranger Station (Grade 7, Lesson 4-1): the gauge, the number chips and the answer boxes. Shared looks are in shared/game/game.css. */
+.blink { animation: blink 1.2s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.25; } }
+.bar { animation: barIn 0.5s ease-out; transform-box: fill-box; transform-origin: bottom; }
+@keyframes barIn { from { opacity: 0; } }
+.slot.drop-target .slot-box { fill: #fff3c4; stroke: #ffd23f; stroke-width: 6; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; }
+.prompt .mono { white-space: nowrap; }
+
+/* ---- number chips ---- */
+.chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chip-btn { height: 52px; border: 3px solid var(--ink); border-radius: 12px; background: var(--gold); box-shadow: 0 4px 0 var(--ink); touch-action: none;
+  font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900; color: var(--ink); position: relative; }
+.chip-btn b { position: absolute; left: 6px; top: 5px; width: 18px; height: 18px; line-height: 15px; border: 2px solid var(--ink); border-radius: 5px; background: #fff; font-size: 10px; font-family: Nunito, sans-serif; }
+.chip-btn.armed { outline: 4px solid #3a8ef0; outline-offset: 2px; }
+.chip-btn:disabled { opacity: 0.3; box-shadow: none; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pair button { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink); font-size: 15px; font-weight: 900; }
+.pair button.on { background: #ffe680; outline: 4px solid var(--gold); outline-offset: 2px; }
+.row-btns { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+.row-btns button { height: 50px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 10px; box-shadow: 0 4px 0 var(--ink); }
+.row-btns .go { background: var(--red); color: #fff; }
+
+/* ---- typed answers ---- */
+.rule-row { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 60px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
+  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 24px; font-weight: 900; color: var(--ink); }
+.rbox { width: 150px; height: 46px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900;
+  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
+.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }

@@ -57,8 +57,10 @@ docs/lessons.md                    lesson lists from the textbook database
   sign (or G) switches maps and is shown only to students who can enter a Grade 7 town. The Grade 7 map is the Grade 6
   land mirrored (`pointOf` in `world/superMapArt.js`).
 - Factor Falls (`towns/g7-topic-4-factor-falls/`, Grade 7 Topic 4, id `g7_topic_4`) is the first Grade 7 town: 8 lessons
-  plus the Thunder Falls boss, on the shared town engine. No games yet (`gamesReady: false` keeps it off
-  `stations.html`); building names in `js/falls.js` are working names until each game is planned with the owner.
+  plus the Thunder Falls boss, on the shared town engine. Built so far: 4-1 Ranger Station (`games/4-1-ranger-station/`,
+  build `start ± rate·v` by dragging number chips, then evaluate with decimals and negatives). The other building names
+  in `js/falls.js` are working names until each game is planned with the owner. (A town with `gamesReady: false` in
+  `shared/towns.js` is left off `stations.html`.)
   Grade 7 problems go beyond Grade 6 Topic 3 (negative, decimal and fraction coefficients, two variables, subtracting
   expressions), so reuse mechanics and the shared shell, but write new generators.
 - Towns 1 and 2 are not built yet. Town order is by textbook topic: 1 Decimal Docks, 2 Integer Highlands,

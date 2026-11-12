@@ -16,7 +16,7 @@ const vis=(p,sel)=>p.evaluate((s)=>{ const e=document.querySelector(s); return !
   console.log('\n[1] The teacher page');
   await p.goto(BASE+'stations.html'); await p.waitForSelector('[data-copy]');
   const links=await p.$$eval('input[id^="u"]',els=>els.map(e=>e.value));
-  ok(links.length===3,'one link for the whole world and one per built town ('+links.length+')');
+  ok(links.length===4,'one link for the whole world and one per built town ('+links.length+')');
   ok(links[0].endsWith('index.html?station') && links.some(l=>/topic-3-expression-town\/index\.html\?station$/.test(l)) && links.some(l=>/topic-4-equation-valley\/index\.html\?station$/.test(l)),'the links are right');
   await p.click('[data-copy="1"]'); await p.waitForTimeout(200);
   ok(/COPIED/.test(await p.textContent('[data-copy="1"]')) && (await p.evaluate(()=>navigator.clipboard.readText()))===links[1],'COPY puts the link on the clipboard');

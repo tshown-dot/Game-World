@@ -9,6 +9,7 @@ const g7=(n)=>{ const o=Array(16).fill(false); o[8+n-1]=true; return o; };
 const sheet={ students:{
   K7M2QX:{open:Array(16).fill(false),full:false,progress:null},                 // a regular 6th grader
   ACCE27:{open:g7(4),full:false,progress:null},                                  // accelerated: teacher ticked g7_town_4
+  ACCE28:{open:g7(4),full:false,progress:null},                                  // ticked too, but never plays
   RDSV34:{open:Array(8).fill(false),full:false,progress:null},                   // the sheet script before its update: 8 flags
   TEACH2:{open:Array(16).fill(false),full:true,progress:null} }, posts:[] };
 const json=(r,o)=>r.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(o)});
@@ -64,8 +65,15 @@ async function signIn(p,code){
   await p.keyboard.press('Enter'); await p.waitForURL(/g7-topic-4-factor-falls/,{timeout:5000}); await p.waitForTimeout(1800);
   ok((await p.textContent('#hudCode')).trim()==='ACCE27' && !(await vis(p,'#lockedModal')),'Factor Falls opens, signed in with the same code');
   ok(/GRADE 7 · TOWN 4/.test(await p.textContent('#worldMapBtn')),'the town sign says GRADE 7 · TOWN 4');
-  ok(await p.$$eval('.stage',s=>s.length)===9 && await p.$$eval('.stage-wip',s=>s.length)===9,'9 stops (lessons 4-1 to 4-8 and the boss), all under construction for now');
-  ok((await p.textContent('#panelName'))==='Ranger Station' && await p.isDisabled('#enterBtn'),'nothing can be entered yet');
+  ok(await p.$$eval('.stage',s=>s.length)===9 && await p.$$eval('.stage-wip',s=>s.length)===8,'9 stops (lessons 4-1 to 4-8 and the boss); 8 are still under construction');
+  ok((await p.textContent('#panelName'))==='Ranger Station' && !(await p.isDisabled('#enterBtn')),'Ranger Station (4-1) is open');
+  await p.keyboard.press('Enter'); await p.waitForTimeout(400); await p.keyboard.press('Enter'); await p.waitForTimeout(2500);
+  ok(p.frames().some(fr=>/4-1-ranger-station/.test(fr.url())),'the Ranger Station game opens inside the town');
+  await p.evaluate(()=>window.postMessage({type:'CARTRIDGE_COMPLETE',payload:{score:22,total:25,stars:2,bossDefeated:true,practiceMode:false}},'*')); await p.waitForTimeout(1500);
+  const g7row=sheet.posts.filter(x=>x.type==='result').at(-1)||{};
+  ok(g7row.town==='g7-topic-4' && g7row.lesson==='4-1' && g7row.score===22,'the Results row says town g7-topic-4, lesson 4-1: '+JSON.stringify(g7row));
+  ok(JSON.parse(sheet.students.ACCE27.progress).towns.g7_topic_4.nodeRecords.node_g7_4_1.cleared===true,'progress is saved under g7_topic_4');
+  await p.keyboard.press('Enter'); await p.waitForTimeout(800);
   await p.screenshot({path:OUT+'/4_factor_falls.png'});
   await p.click('#worldMapBtn'); await p.waitForURL(/index\.html\?from=g7_topic_4/,{timeout:5000}); await p.waitForTimeout(1200);
   ok((await p.textContent('#signTop'))==='7TH GRADE MATH' && (await p.textContent('#panelName'))==='Factor Falls','the world map sign returns to the Grade 7 map, outside Factor Falls');
@@ -74,11 +82,15 @@ async function signIn(p,code){
   await p.reload(); await p.waitForSelector('#worldScreen:not(.hidden)'); await p.waitForTimeout(600);
   ok((await p.textContent('#signTop'))==='6TH GRADE MATH','the Chromebook remembers which map the student was on');
 
-  console.log('\n[5] The teacher un-ticks the box: Grade 7 closes again');
-  await p.keyboard.press('g'); await p.waitForTimeout(600);
+  console.log('\n[5] The teacher un-ticks the box');
   sheet.students.ACCE27.open=Array(16).fill(false);
   await p.reload(); await p.waitForSelector('#worldScreen:not(.hidden)'); await p.waitForTimeout(2500);
-  ok((await p.textContent('#signTop'))==='6TH GRADE MATH' && !(await vis(p,'#sailBtn')),'the map goes back to Grade 6 and the sail sign is gone');
+  ok(await vis(p,'#sailBtn'),'a student who already PLAYED Factor Falls keeps it (a town already played never locks again)');
+  await signIn(p,'ACCE28'); await p.click('#sailBtn'); await p.waitForTimeout(600);
+  ok((await p.textContent('#signTop'))==='7TH GRADE MATH','a second ticked student sails to Grade 7');
+  sheet.students.ACCE28.open=Array(16).fill(false);
+  await p.reload(); await p.waitForSelector('#worldScreen:not(.hidden)'); await p.waitForTimeout(2500);
+  ok((await p.textContent('#signTop'))==='6TH GRADE MATH' && !(await vis(p,'#sailBtn')),'un-ticked before playing: the map goes back to Grade 6 and the sail sign is gone');
 
   console.log('\n[6] A teacher (full access) code can preview Grade 7');
   await signIn(p,'TEACH2');
@@ -90,9 +102,9 @@ async function signIn(p,code){
   ok(over<=0,'no vertical scrolling (overflow px: '+over+')');
   console.log('\n[7] Stations');
   await p.goto(BASE+'stations.html'); await p.waitForSelector('[data-copy]');
-  ok(!(await p.content()).includes('factor-falls'),'the stations page does not list Factor Falls until it has games');
+  ok((await p.content()).includes('g7-topic-4-factor-falls/index.html?station') && /GRADE 7 TOWN 4: FACTOR FALLS/.test(await p.textContent('#links')),'the stations page lists Factor Falls as a Grade 7 town');
 
   ok(errs.length===0,'no page errors'+(errs.length?': '+errs.slice(0,3).join(' | '):''));
-  ok(sheet.posts.length===0,'browsing wrote nothing to the sheet');
+  ok(sheet.posts.every(x=>x.student_code==='ACCE27'),'only the student who played wrote to the (stand-in) sheet');
   await b.close(); console.log(`\n${checks-fails}/${checks} checks passed`); process.exit(fails?1:0);
 })().catch(e=>{console.error('SCRIPT ERROR',e.message.split('\n').slice(0,6).join(' | '));process.exit(2);});

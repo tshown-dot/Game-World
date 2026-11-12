@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Ranger Station · Grade 7 Lesson 4-1 Write and Evaluate Algebraic Expressions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@700;800;900&display=swap">
+  <link rel="stylesheet" href="../../../../shared/game/game.css">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main id="app">
+
+  <!-- ===== HUD ===== -->
+  <header class="hud">
+    <div class="hud-title">
+      <div class="px hud-lesson">GRADE 7 · LESSON 4-1</div>
+      <div class="px hud-name">RANGER STATION</div>
+    </div>
+    <div class="hud-zone">
+      <div class="px hud-label">ZONE</div>
+      <div id="zonePips" class="zone-pips"></div>
+      <div id="zoneName" class="zone-name"></div>
+    </div>
+    <div class="hud-meter" id="meterBox" title="When this fills, the storm arrives">
+      <div class="px hud-label">STORM</div>
+      <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
+    </div>
+    <div class="hud-crates">
+      <div class="px hud-label">FLARES</div>
+      <div id="lives" class="crates"></div>
+    </div>
+    <div class="hud-score">
+      <div class="px hud-label">SCORE</div>
+      <div id="score" class="px score-num">0</div>
+    </div>
+    <div class="hud-buttons">
+      <button type="button" id="helpBtn" class="sys-btn px" title="How to play (H)">?</button>
+      <button type="button" id="soundBtn" class="sys-btn" title="Sound (M)">🔊</button>
+      <button type="button" id="exitBtn" class="sys-btn exit px" title="Back to town">EXIT</button>
+    </div>
+  </header>
+
+  <!-- ===== PLAY AREA ===== -->
+  <section class="stage" id="stage">
+    <svg id="scene" viewBox="0 0 800 520" aria-label="The ranger station and its gauge"></svg>
+    <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
+    <div id="bossBar" class="boss-bar hidden">
+      <div class="px boss-name">STORM WATCH</div>
+      <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div id="taskTag" class="task-tag px"></div>
+    <div id="prompt" class="prompt"></div>
+    <div id="controls" class="controls"></div>
+    <div id="feedback" class="feedback hidden"></div>
+  </section>
+
+  <!-- ===== BRIEFING ===== -->
+  <div id="briefing" class="overlay">
+    <div class="card brief">
+      <div class="brief-head">
+        <div class="brief-icon">📻</div>
+        <div>
+          <div class="px brief-title">MISSION BRIEFING: RANGER STATION</div>
+          <div class="brief-sub">Factor Falls · Grade 7 Lesson 4-1 · Write and Evaluate Algebraic Expressions</div>
+        </div>
+      </div>
+      <div class="brief-cols">
+        <div class="brief-col"><div class="px col-h">1. RADIO CALLS</div>
+          <p>Calls come in about things that change at a steady rate. Each one has a <b>start amount</b> and a <b>rate</b>.</p>
+          <p class="mono">35 gallons, leaking 4 a minute<br>35 − 4m</p></div>
+        <div class="brief-col"><div class="px col-h">2. SET AND READ</div>
+          <p><b>Drag number chips</b> onto the gauge to build the expression, then test it. Later, <b>evaluate</b>: put the value in, multiply first, then add or subtract.</p></div>
+        <div class="brief-col"><div class="px col-h">3. STAKES</div>
+          <p>A <b>STORM</b> closes in while you think, and mistakes bring it faster. Use up all <b>3 flares</b> and the storm hits. Track the storm in Storm Watch to win!</p></div>
+      </div>
+      <div class="brief-keys">Drag or tap chips · <kbd>1</kbd>–<kbd>4</kbd> pick, <kbd>←</kbd> <kbd>→</kbd> place, <kbd>+</kbd> <kbd>−</kbd> sign · type numbers · <kbd>Enter</kbd> check · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-zones">
+        <span class="px">START AT:</span>
+        <div id="zoneButtons" class="zone-buttons"></div>
+      </div>
+      <div class="brief-actions">
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">📻 TAKE THE CALLS (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no storm</small></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <div id="banner" class="banner hidden px"></div>
+
+  <div id="fail" class="overlay hidden">
+    <div class="card small">
+      <div class="px big-title">THE STORM HIT!</div>
+      <p id="failText">All three flares are gone.</p>
+      <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
+    </div>
+  </div>
+
+  <div id="report" class="overlay hidden">
+    <div class="card report">
+      <div class="px big-title">RANGER REPORT</div>
+      <div id="reportStars" class="report-stars"></div>
+      <div id="reportStats" class="report-stats"></div>
+      <div id="reportZones" class="report-zones"></div>
+      <div id="reportSkills" class="report-skills"></div>
+      <div class="brief-actions">
+        <button type="button" id="townBtn" class="btn btn-go"><span class="px">◀ BACK TO TOWN</span></button>
+        <button type="button" id="againBtn" class="btn btn-practice"><span class="px">PLAY AGAIN</span></button>
+      </div>
+    </div>
+  </div>
+</main>
+<script type="module" src="./game.js"></script>
+</body>
+</html>

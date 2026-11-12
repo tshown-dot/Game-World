@@ -9,7 +9,10 @@ const stage = (n, title, subtitle, coords, extra = {}) => ({
 });
 
 export const STAGES = [
-  stage(1, 'Ranger Station', 'Write and Evaluate Algebraic Expressions', { x: 150, y: 600 }),
+  stage(1, 'Ranger Station', 'Write and Evaluate Algebraic Expressions', { x: 150, y: 600 }, {
+    built: true, building: 'ranger_station', url: './games/4-1-ranger-station/index.html',
+    description: 'Radio calls come in about leaking tanks, rising rivers and supply orders. Build each expression on the station gauge from its start amount and rate, then read the gauge ahead by evaluating it, before the storm arrives.',
+  }),
   stage(2, 'Twin Bridges', 'Generate Equivalent Expressions', { x: 330, y: 500 }),
   stage(3, 'Log Flume', 'Simplify Expressions', { x: 520, y: 600 }),
   stage(4, 'Spray Deck', 'Expand Expressions', { x: 720, y: 520 }),

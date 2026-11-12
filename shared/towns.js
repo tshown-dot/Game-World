@@ -56,7 +56,6 @@ export const TOWNS = [
     url: 'towns/g7-topic-4-factor-falls/index.html',
     stageCount: 9,
     bossId: 'node_g7_4_boss', bossName: 'Thunder Falls',
-    gamesReady: false,          // no games yet: the town can be previewed, but stations.html does not list it
   },
   { grade: 7, number: 5, id: 'g7_topic_5', name: 'Grade 7 Town 5', topic: 'To be decided', biome: 'highlands', built: false },
   { grade: 7, number: 6, id: 'g7_topic_6', name: 'Grade 7 Town 6', topic: 'To be decided', biome: 'harbor', built: false },

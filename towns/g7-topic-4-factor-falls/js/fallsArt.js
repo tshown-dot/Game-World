@@ -37,7 +37,16 @@ const thunderFalls = `
   <path class="river-flow" d="M-6 -80 V-22 M6 -80 V-22" stroke="#ffffff" stroke-width="3" stroke-dasharray="7 9"/>
   <path d="M-30 -96 L-22 -84 M0 -100 V-86 M30 -96 L22 -84" stroke="${PALETTE.gold}" stroke-width="4" stroke-linecap="round"/>`;
 
+const rangerStation = `
+  <ellipse cx="0" cy="-14" rx="46" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <rect x="-34" y="-58" width="60" height="44" fill="#a9703a" ${O}/>
+  <path d="M-42 -58 L-4 -86 L34 -58 Z" fill="#7a3f22" ${O}/>
+  <rect x="-12" y="-40" width="16" height="26" fill="#5b3a1d" ${O}/>
+  <path d="M36 -14 V-104 M26 -90 H46 M29 -74 H43" stroke="${K}" stroke-width="3.5"/>
+  <circle class="sway" cx="36" cy="-108" r="5" fill="#e5484d" ${O}/>`;
+
 export function buildingSvg(stage, state) {
   if (stage.isBoss) return thunderFalls + (state === 'wip' ? constructionSvg() : '');
+  if (stage.building === 'ranger_station') return rangerStation;
   return constructionSvg();
 }
