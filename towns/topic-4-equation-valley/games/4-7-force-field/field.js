@@ -6,6 +6,8 @@
 // value itself may land). A pod lands exactly when its value is inside the graph, so a graph that matches the
 // rule's solutions lets every solution land and blocks everything else.
 // In the boss, a BAND is two rules at once: { a, aClosed, b, bClosed } lets a..b land.
+// After the pods, it is the student's turn: an ORDER asks them to pick a number of their own ("land one that is not a
+// whole number"). In the boss the rule is hidden and the student picks which numbers to test.
 
 export const SYMS = ['<', '≤', '>', '≥'];
 const EPS = 1e-9;
@@ -174,6 +176,63 @@ export function classifyZap(rule, v, zapped) {
 }
 
 /* ================================================================== */
+/* Your turn: the student picks a number                               */
+/* ================================================================== */
+const isWhole = (v) => near(v, Math.round(v));
+const goesUp = (rule) => rule.sym === '>' || rule.sym === '≥';
+/** The smallest whole number that is a solution (for > and ≥), or the largest (for < and ≤). */
+export function wholeEdge(rule) {
+  const up = goesUp(rule);
+  let w = up ? Math.ceil(rule.n - 1e-7) : Math.floor(rule.n + 1e-7);
+  if (!isSolution(rule, w)) w += up ? 1 : -1;
+  return w;
+}
+/** The student can drop a pod on these spots: halves on a whole-number line, tenths on a decimal line. */
+export const pickStep = (rule) => (rule.range.step === 1 ? 0.5 : 0.1);
+const bandParts = (rule) => [`${rule.letter} ${rule.band.aClosed ? '≥' : '>'} ${fmt(rule.band.a)}`, `${rule.letter} ${rule.band.bClosed ? '≤' : '<'} ${fmt(rule.band.b)}`];
+/**
+ * An order: { type, text, example }. example is one number that fills it.
+ *   land (any solution)   block (any non-solution)   nonwhole (a solution that is not a whole number)
+ *   whole_edge (the smallest or largest whole-number solution)
+ *   both / first_only / second_only (two rules at once)
+ */
+export function makeOrder(rule, type) {
+  if (rule.band) {
+    const b = rule.band, [first, second] = bandParts(rule);
+    if (type === 'first_only') return { type, text: `SEND ONE THAT FITS ${first} BUT NOT ${second}`, example: b.b + 1 };
+    if (type === 'second_only') return { type, text: `SEND ONE THAT FITS ${second} BUT NOT ${first}`, example: b.a - 1 };
+    return { type: 'both', text: 'LAND ONE THAT FITS BOTH RULES', example: Math.floor((b.a + b.b) / 2) };
+  }
+  const up = goesUp(rule), edge = wholeEdge(rule);
+  if (type === 'block') return { type, text: 'SEND ONE THAT GETS BLOCKED', example: edge + (up ? -2 : 2) };
+  if (type === 'nonwhole') return { type, text: 'LAND ONE THAT IS NOT A WHOLE NUMBER', example: r2(edge + (up ? 0.5 : -0.5)) };
+  if (type === 'whole_edge') return { type, text: `LAND THE ${up ? 'SMALLEST' : 'LARGEST'} WHOLE NUMBER THAT WORKS`, example: edge };
+  return { type: 'land', text: 'LAND A POD OF YOUR OWN', example: edge + (up ? 1 : -1) };
+}
+/** Did the student's number fill the order? Returns { ok, key, message }. */
+export function checkOrder(rule, order, v) {
+  const sol = isSolution(rule, v), val = fmt(v), why = `${explain(rule, v)}.`;
+  const no = (key, message) => ({ ok: false, key, message });
+  if (rule.band) {
+    const b = rule.band, [first, second] = bandParts(rule);
+    const fitsA = near(v, b.a) ? b.aClosed : v > b.a, fitsB = near(v, b.b) ? b.bClosed : v < b.b;
+    const tell = `${val}: ${first} is ${fitsA ? 'TRUE' : 'FALSE'}, ${second} is ${fitsB ? 'TRUE' : 'FALSE'}.`;
+    if (order.type === 'both') return fitsA && fitsB ? { ok: true } : no('band_range', `${tell} Both must be true.`);
+    const want = order.type === 'first_only' ? fitsA && !fitsB : fitsB && !fitsA;
+    return want ? { ok: true } : no('band_range', `${tell} You need ${order.type === 'first_only' ? 'the first TRUE and the second FALSE' : 'the second TRUE and the first FALSE'}.`);
+  }
+  if (order.type === 'block') return sol ? no('pick_nonsolution', `${val} lands: ${why} Pick a number that makes the rule FALSE.`) : { ok: true };
+  if (!sol) return no('pick_solution', `${val} is blocked: ${why}${near(v, rule.n) ? ' The edge itself is not a solution here.' : ''}`);
+  if (order.type === 'nonwhole' && isWhole(v)) return no('pick_nonwhole', `${val} lands, but it is a whole number. The numbers in between are solutions too.`);
+  if (order.type === 'whole_edge') {
+    const edge = wholeEdge(rule);
+    if (!isWhole(v)) return no('pick_whole', `${val} lands, but it is not a whole number.`);
+    if (!near(v, edge)) return no('whole_edge', `${val} lands, but ${edge} is ${goesUp(rule) ? 'smaller' : 'larger'} and lands too: ${explain(rule, edge)}.`);
+  }
+  return { ok: true };
+}
+
+/* ================================================================== */
 /* Zones and waves                                                     */
 /* ================================================================== */
 export const ZONES = [
@@ -181,18 +240,25 @@ export const ZONES = [
   { name: 'Edge Cases', blurb: 'Decimals, words and the edge itself' },
   { name: 'Shifting Rules', blurb: 'New rules, fast. Some need solving' },
   { name: 'Shield Offline', blurb: 'Zap what is NOT a solution' },
-  { name: 'The Storm Front', blurb: 'Boss: a hidden rule, then two at once' },
+  { name: 'The Storm Front', blurb: 'Boss: find a hidden rule, then two at once' },
 ];
 /**
- * A wave: { mode, rule, pods, clues?, prep }.
- *   mode  graph (shade the zone)   zap (no shield)   hidden (work the rule out from clues)   band (two edges)
- *   prep  seconds to set the graph before the first pod falls
+ * A wave: { mode, rule, pods, prep, orders, probes? }.
+ *   mode    graph (shade the zone)   zap (no shield)   hidden (find the rule by testing numbers)   band (two edges)
+ *   prep    seconds to set the graph before the first pod falls
+ *   orders  the student's turn after the pods: numbers of their own to pick
+ *   probes  hidden waves: how many numbers the student may test before shading
  */
 export function genWaves(rnd, zone) {
-  const wave = (mode, rule, count, prep) => ({ mode, rule, pods: genPods(rnd, rule, count, mode === 'hidden'), prep, ...(mode === 'hidden' ? { clues: genClues(rnd, rule) } : {}) });
-  if (zone === 0) return [0, 1, 2].map(() => wave('graph', genRule(rnd, { kind: 'plain' }), 7, 9));
-  if (zone === 1) return shuffle(rnd, ['decimal', 'words', 'story']).map((kind) => wave('graph', genRule(rnd, { kind }), 7, 9));
-  if (zone === 2) return ['plain', 'solve', 'words', 'solve', 'solve'].map((kind) => wave('graph', genRule(rnd, { kind }), 6, 6));
-  if (zone === 3) return [wave('zap', genRule(rnd, { kind: 'plain' }), 9, 3), wave('zap', genRule(rnd, { kind: pick(rnd, ['decimal', 'solve']) }), 9, 3)];
-  return [wave('hidden', genRule(rnd, { kind: 'plain' }), 6, 4), wave('hidden', genRule(rnd, { kind: 'decimal' }), 6, 4), wave('band', genBandRule(rnd), 7, 9), wave('band', genBandRule(rnd), 7, 7)];
+  const wave = (mode, rule, count, prep, types = [], probes = 0) => ({
+    mode, rule, pods: genPods(rnd, rule, count, mode === 'hidden'), prep, orders: types.map((type) => makeOrder(rule, type)), ...(probes ? { probes } : {}),
+  });
+  if (zone === 0) return [0, 1, 2].map(() => wave('graph', genRule(rnd, { kind: 'plain' }), 5, 9, ['land', 'block']));
+  if (zone === 1) return shuffle(rnd, ['decimal', 'words', 'story']).map((kind) => wave('graph', genRule(rnd, { kind }), 5, 9, kind === 'story' ? ['block', 'whole_edge'] : ['nonwhole', 'whole_edge']));
+  if (zone === 2) return ['plain', 'solve', 'words', 'solve', 'solve'].map((kind, i) => wave('graph', genRule(rnd, { kind }), 5, 6, [['nonwhole', 'whole_edge', 'block', 'whole_edge', 'nonwhole'][i]]));
+  if (zone === 3) return [wave('zap', genRule(rnd, { kind: 'plain' }), 7, 3, ['land', 'whole_edge']), wave('zap', genRule(rnd, { kind: pick(rnd, ['decimal', 'solve']) }), 7, 3, ['nonwhole', 'block'])];
+  return [
+    wave('hidden', genRule(rnd, { kind: 'plain' }), 5, 5, [], 6), wave('hidden', genRule(rnd, { kind: 'plain' }), 5, 5, [], 5),
+    wave('band', genBandRule(rnd), 6, 9, ['both', 'first_only']), wave('band', genBandRule(rnd), 6, 7, ['both', 'second_only']),
+  ];
 }

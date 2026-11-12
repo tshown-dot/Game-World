@@ -8,6 +8,8 @@
 .sign { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); min-width: 380px; max-width: 900px; text-align: center; white-space: nowrap;
   background: #fff8e1; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 8px 22px 10px; pointer-events: none; }
 .sign small { display: block; font-size: 8px; color: #8a6d3b; margin-bottom: 6px; }
+.sign small.rule { font: 900 15px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.pod.pick { cursor: grab; }
 #signText { font-family: ui-monospace, 'Courier New', monospace; font-size: 28px; font-weight: 900; color: var(--ink); }
 #signText.long { font-size: 20px; }
 .sign.new { animation: signPop 0.4s ease-out; }

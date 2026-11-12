@@ -4,14 +4,16 @@
 //
 // How a zone runs: it is a list of WAVES. In each wave the sign shows a rule, the student shades the landing
 // zone on the number line, and pods (numbers) fall. A pod lands only if its number is inside the shaded zone.
-// Solutions must land; everything else must be blocked. All timing goes through update(), so the action
+// Solutions must land; everything else must be blocked. After the pods it is the student's turn: the sign gives
+// an order ("land one that is not a whole number") and they drop a pod of their own on a number they choose.
+// In the boss the rule is hidden, and the student chooses which numbers to test. All timing goes through update(), so the action
 // stops cleanly whenever a banner, hint, help screen or mistake message is showing.
 import { createArcade } from '../../../../shared/game/arcadeShell.js';
-import { ZONES, genWaves, isSolution, inGraph, inBand, ruleGraph, sameGraph, classify, classifyZap, fmt, r2, near } from './field.js';
+import { ZONES, genWaves, isSolution, inGraph, inBand, ruleGraph, sameGraph, classify, classifyZap, checkOrder, pickStep, fmt, r2, near } from './field.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const L = 90, WD = 1186;                 // the number line: left end and width, in scene units (the scene is 1366 x 698)
-const TOP = 104, SHIELD_Y = 430, LINE_Y = 520;
+const TOP = 104, PICK_Y = 300, SHIELD_Y = 430, LINE_Y = 520;   // PICK_Y: where the student's own pod waits
 const PACE = [{ speed: 66, gap: 1.3 }, { speed: 66, gap: 1.3 }, { speed: 80, gap: 1.1 }, { speed: 62, gap: 1.2 }, { speed: 74, gap: 1.2 }];
 const BOSS = ZONES.length - 1;
 const $ = (id) => document.getElementById(id);
@@ -19,10 +21,12 @@ const scene = $('scene');
 
 // Everything about the wave being played.
 const W = {
-  waves: [], wi: 0, wave: null, phase: 'idle',      // phase: idle, clues, prep, run, gap
+  waves: [], wi: 0, wave: null, phase: 'idle',      // phase: idle, probe (test a hidden rule), prep, run, orders (your turn), gap
   t: 0, prepLeft: 0, gapLeft: 0, pods: [], marks: [],
   graph: null, band: null, active: 'a',             // the student's shading (one edge, or two in the boss)
   frozen: false, speed: 1, podsDone: 0, podsTotal: 0,
+  pick: 0, pickEl: null, drop: null,                // the student's own pod: its number, its drawing, and its fall
+  oi: 0, orderMiss: 0, probesLeft: 0, afterResume: null,
 };
 
 const HINTS = {
@@ -35,6 +39,11 @@ const HINTS = {
   zapped_solution: 'Before you zap, put the number into the rule.<span class="mono">Is it TRUE? Let it land.</span>Only zap numbers that make the rule false.',
   missed_nonsolution: 'Put each number into the rule as it falls.<span class="mono">Is it FALSE? Zap it.</span>Watch numbers right beside the edge, like 12.01.',
   check_value: 'Put the pod\'s number into the rule and check: true or false?',
+  pick_solution: 'Your number has to make the rule TRUE to land.<span class="mono">x &gt; 8 : is YOUR number greater than 8?</span>Say the rule out loud with your number in place of the letter.',
+  pick_nonsolution: 'To be blocked, your number has to make the rule FALSE.<span class="mono">x &gt; 8 : pick a number that is NOT greater than 8</span>',
+  pick_nonwhole: 'An inequality has more solutions than you can count, and most are not whole numbers.<span class="mono">x &gt; 8 : 8.5 works, and so does 9.5</span>Slide your pod between two tick marks.',
+  pick_whole: 'This order asks for a whole number: one that sits exactly on a labelled tick.',
+  whole_edge: 'Start at the edge and step one whole number at a time.<span class="mono">x &gt; 8 : is 8 a solution? No. Is 9? Yes.</span>With ≥ or ≤ the edge itself may be the answer.',
 };
 const TIPS = {
   direction: 'Which way to shade: < and ≤ go left (smaller), > and ≥ go right (bigger).',
@@ -46,6 +55,11 @@ const TIPS = {
   zapped_solution: 'Test a value in the inequality before deciding it is not a solution.',
   missed_nonsolution: 'Values just past the edge (like 12.01) are easy to miss. Test them.',
   check_value: 'Test a value by putting it into the inequality.',
+  pick_solution: 'A solution is any number that makes the inequality true.',
+  pick_nonsolution: 'A number that makes the inequality false is not a solution.',
+  pick_nonwhole: 'Solutions are not only whole numbers: 8.5 is a solution of x > 8.',
+  pick_whole: 'Read the order carefully: a whole number sits on a labelled tick.',
+  whole_edge: 'The smallest whole solution of x > 8 is 9, but of x ≥ 8 it is 8.',
 };
 
 const arcade = createArcade({
@@ -69,6 +83,14 @@ const valueAt = (x) => snap(range().lo + ((x - L) / WD) * (range().hi - range().
 const isBand = () => W.wave && W.wave.mode === 'band';
 const isZap = () => W.wave && W.wave.mode === 'zap';
 const canEdit = () => W.wave && !isZap() && (W.phase === 'prep' || W.phase === 'run') && !arcade.paused();
+// The student's own pod (their turn, or testing a hidden rule).
+const picking = () => W.phase === 'orders' || W.phase === 'probe';
+const canPick = () => picking() && W.pickEl && !W.drop && !W.frozen && !arcade.paused();
+const stepOfPick = () => (W.phase === 'probe' ? range().step : pickStep(W.wave.rule));
+function snapPick(v) {
+  const { lo, hi } = range(), s = stepOfPick();
+  return r2(lo + Math.round((Math.min(hi, Math.max(lo, v)) - lo) / s) * s);
+}
 
 /* ================================================================== */
 /* Zones and waves                                                     */
@@ -80,13 +102,13 @@ function startZone(z) {
   startWave(0, true);
 }
 function stopZone() {
-  W.phase = 'idle'; W.frozen = false; W.pods = [];
+  W.phase = 'idle'; W.frozen = false; W.pods = []; W.drop = null; W.pickEl = null; W.afterResume = null;
   $('callout').classList.add('hidden');
   const pods = $('gPods'); if (pods) pods.innerHTML = '';
 }
 function startWave(i, first = false) {
   const wave = W.waves[i];
-  Object.assign(W, { wi: i, wave, t: 0, pods: [], marks: [], frozen: false, phase: wave.mode === 'hidden' ? 'clues' : 'prep', prepLeft: wave.prep });
+  Object.assign(W, { wi: i, wave, t: 0, pods: [], marks: [], frozen: false, drop: null, pickEl: null, afterResume: null, oi: 0, orderMiss: 0, probesLeft: wave.probes || 0, phase: wave.mode === 'hidden' ? 'probe' : 'prep', prepLeft: wave.prep });
   const { lo, hi } = wave.rule.range;
   if (wave.mode === 'band') { W.band = { a: lo + 1, aClosed: true, b: hi - 1, bClosed: true }; W.active = 'a'; }
   else if (wave.mode !== 'zap') {
@@ -96,12 +118,13 @@ function startWave(i, first = false) {
     if (g.dir && sameGraph(g, ruleGraph(wave.rule))) g.dir = null;
     W.graph = g;
   }
-  drawBase(); drawGraph(); renderSign(true); renderCtl();
-  if (wave.mode === 'hidden') makePods(wave.clues, { clue: true, gap: 0.55, speed: 230 });
+  drawBase(); drawGraph();
+  if (wave.mode === 'hidden') newPick();             // the student tests numbers before shading
+  renderSign(true); renderCtl();
 }
-function makePods(values, { clue = false, gap, speed }) {
+function makePods(values, { gap, speed }) {
   W.t = 0;
-  W.pods = values.map((v, i) => ({ v, i, clue, spawnAt: 0.3 + i * gap, speed, y: TOP, state: 'wait', el: null }));
+  W.pods = values.map((v, i) => ({ v, i, spawnAt: 0.3 + i * gap, speed, y: TOP, state: 'wait', el: null }));
 }
 function launch() {
   if (W.phase !== 'prep' || arcade.paused() || W.frozen) return;
@@ -118,8 +141,75 @@ function perfectShield() {
 }
 function endWave() {
   if (perfectShield()) { G.score += 20; arcade.renderHud(); arcade.flash('EXACT GRAPH! +20'); }
+  if (W.wave.orders.length) return startOrders();
   W.phase = 'gap'; W.gapLeft = 0.9;
   renderCtl();
+}
+/* ---- your turn: the student picks numbers of their own ---- */
+function startOrders() {
+  const rule = W.wave.rule;
+  Object.assign(W, { phase: 'orders', oi: 0, orderMiss: 0, active: '' });
+  if (isBand()) W.band = { ...rule.band }; else if (!isZap()) W.graph = ruleGraph(rule);   // the shield now shows the rule exactly
+  drawGraph(); newPick(); renderSign(true); renderCtl();
+}
+function newPick() {
+  const { lo, hi } = range(), order = W.phase === 'orders' ? W.wave.orders[W.oi] : null;
+  const spots = [0.5, 0.25, 0.75, 0.1, 0.9].map((f) => snapPick(lo + (hi - lo) * f));
+  W.pick = (order && spots.find((v) => !checkOrder(W.wave.rule, order, v).ok)) ?? spots[0];   // never start on a right answer
+  W.drop = null;
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'pod pick');
+  g.innerHTML = `<line class="guide" x1="0" y1="34" x2="0" y2="${LINE_Y - PICK_Y}" stroke="#9be7ff" stroke-width="2" stroke-dasharray="4 7" opacity="0.6"/><g class="pod-in"><path d="M-9 -19 L0 -34 L9 -19 Z" fill="#ff9f43" stroke="#2b1b2e" stroke-width="3"/><rect class="body" x="-36" y="-20" width="72" height="38" rx="14" fill="#9be7ff" stroke="#2b1b2e" stroke-width="3"/><text y="6"></text></g>`;
+  $('gPods').appendChild(g);
+  W.pickEl = g;
+  drawPick();
+}
+function drawPick() {
+  W.pickEl.querySelector('text').textContent = fmt(W.pick);
+  W.pickEl.setAttribute('transform', `translate(${X(W.pick)} ${PICK_Y})`);
+}
+function setPick(v) {
+  if (!canPick()) return;
+  v = snapPick(v);
+  if (near(v, W.pick)) return;
+  W.pick = v; hubAudio.playStep(); drawPick();
+}
+function dropPick() {
+  if (!canPick()) return;
+  W.pickEl.querySelector('.guide').remove();
+  W.drop = { v: W.pick, y: PICK_Y, el: W.pickEl };
+  hubAudio.playCartridgeLaunch();
+  renderCtl();
+}
+/** The student's pod reached the shield. */
+function resolvePick() {
+  const d = W.drop, rule = W.wave.rule, lands = isSolution(rule, d.v);
+  W.drop = null; W.pickEl = null;
+  if (W.phase === 'probe') {                         // a test of the hidden rule: it leaves a mark, no score
+    W.marks.push({ v: d.v, ok: lands }); drawMarks();
+    hubAudio.playSelect();
+    finishPod(d, lands ? 'landed' : 'blocked');
+    W.probesLeft -= 1;
+    if (W.probesLeft > 0) newPick(); else { W.phase = 'prep'; W.prepLeft = W.wave.prep; drawGraph(); }
+    renderSign(W.probesLeft === 0); renderCtl();
+    return;
+  }
+  const order = W.wave.orders[W.oi], res = checkOrder(rule, order, d.v);
+  if (res.ok) { arcade.good(15); hubAudio.playCoinClink(); finishPod(d, lands ? 'landed' : 'blocked'); return nextOrder(); }
+  W.orderMiss += 1;
+  d.el.classList.add('wrong');
+  arcade.bad(res.key, 20);
+  if (W.phase === 'idle') return;                    // that was the last core
+  const moveOn = W.orderMiss >= 2;                   // two misses: show one that works and go on
+  W.frozen = true; W.wrongPod = d; W.afterResume = moveOn ? nextOrder : newPick;
+  $('calloutText').textContent = res.message + (moveOn ? ` One that works: ${fmt(order.example)}.` : '');
+  $('resumeBtn').textContent = moveOn ? 'NEXT (ENTER)' : 'TRY AGAIN (ENTER)';
+  $('callout').classList.remove('hidden');
+}
+function nextOrder() {
+  W.oi += 1; W.orderMiss = 0;
+  if (W.oi >= W.wave.orders.length) { W.phase = 'gap'; W.gapLeft = 0.8; renderCtl(); return; }
+  newPick(); renderSign(true); renderCtl();
 }
 function afterWave() {
   if (W.wi + 1 < W.waves.length) return startWave(W.wi + 1);
@@ -137,6 +227,10 @@ function update(dt) {
     return renderCtl();
   }
   if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) afterWave(); return; }
+  if (picking()) {
+    if (W.drop) { W.drop.y = Math.min(SHIELD_Y, W.drop.y + 460 * dt); place(W.drop); if (W.drop.y >= SHIELD_Y) resolvePick(); }
+    return;
+  }
   W.t += dt;
   for (const p of W.pods) {
     if (p.state === 'wait' && W.t >= p.spawnAt) { p.state = 'fall'; p.el = podEl(p); }
@@ -146,16 +240,12 @@ function update(dt) {
     if (p.y >= SHIELD_Y) { resolve(p); if (W.phase === 'idle' || W.frozen || arcade.paused()) return; }
   }
   if (W.pods.length && W.pods.every((p) => p.state === 'done')) {
-    if (W.phase === 'clues') { W.phase = 'prep'; W.pods = []; renderSign(true); renderCtl(); } else endWave();
+    endWave();
   }
 }
 /** A pod reached the shield: does it land, and should it have? */
 function resolve(p) {
   const rule = W.wave.rule, should = isSolution(rule, p.v);
-  if (p.clue) {                                      // the city shows how the hidden rule treats this number
-    W.marks.push({ v: p.v, ok: should }); drawMarks();
-    return finishPod(p, should ? 'landed' : 'blocked');
-  }
   if (isZap()) {
     const res = classifyZap(rule, p.v, false);
     return res ? mistake(p, res) : right(p, 'landed');
@@ -198,6 +288,9 @@ function resume() {
   $('callout').classList.add('hidden');
   if (W.wrongPod && W.wrongPod.el) W.wrongPod.el.remove();
   W.wrongPod = null;
+  const then = W.afterResume;
+  W.afterResume = null;
+  if (then) then();
 }
 function zap(p) {
   if (!isZap() || W.phase !== 'run' || W.frozen || arcade.paused() || !p || p.state !== 'fall') return;
@@ -228,7 +321,11 @@ function switchEdge() { if (!canEdit() || !isBand()) return; W.active = W.active
 
 function onKey(e) {
   const k = e.key;
-  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else launch(); return; }
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else if (picking()) dropPick(); else launch(); return; }
+  if (picking()) {
+    if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); setPick(W.pick + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1) * stepOfPick()); }
+    return;
+  }
   if (isZap()) { if (/^[1-9]$/.test(k)) zap(W.pods[Number(k) - 1]); return; }
   if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); moveEdge((k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)); }
   else if (k === 'ArrowUp' || k === 'ArrowDown') { e.preventDefault(); flip(); }
@@ -238,11 +335,11 @@ function onKey(e) {
 const press = (id, fn) => $(id).addEventListener('click', (e) => { e.currentTarget.blur(); fn(); });
 press('leftBtn', () => setDir('left'));
 press('rightBtn', () => setDir('right'));
-press('stepL', () => moveEdge(-1));
-press('stepR', () => moveEdge(1));
+press('stepL', () => (picking() ? setPick(W.pick - stepOfPick()) : moveEdge(-1)));
+press('stepR', () => (picking() ? setPick(W.pick + stepOfPick()) : moveEdge(1)));
 press('circleBtn', toggleCircle);
 press('switchBtn', switchEdge);
-press('goBtn', launch);
+press('goBtn', () => (picking() ? dropPick() : launch()));
 press('resumeBtn', resume);
 
 // Drag the edge along the line, tap the line to move the edge there, tap the edge circle to switch solid / open.
@@ -251,9 +348,16 @@ function scenePoint(e) {
   const r = scene.getBoundingClientRect();
   return { x: ((e.clientX - r.left) / r.width) * 1366, y: ((e.clientY - r.top) / r.height) * 698 };
 }
+const pickAt = (x) => range().lo + ((x - L) / WD) * (range().hi - range().lo);
 scene.addEventListener('pointerdown', (e) => {
-  if (!canEdit()) return;
   const pt = scenePoint(e);
+  if (picking()) {                                   // slide your own pod anywhere along the line
+    if (!canPick()) return;
+    drag = { pick: true, moved: true };
+    scene.setPointerCapture(e.pointerId);
+    return setPick(pickAt(pt.x));
+  }
+  if (!canEdit()) return;
   if (pt.y < SHIELD_Y - 20 || pt.y > LINE_Y + 46) return;
   if (isBand()) { const want = Math.abs(pt.x - X(W.band.a)) <= Math.abs(pt.x - X(W.band.b)) ? 'a' : 'b'; if (want !== W.active) { W.active = want; changed(); } }
   const edgeX = X(isBand() ? W.band[W.active] : W.graph.edge);
@@ -264,6 +368,7 @@ scene.addEventListener('pointerdown', (e) => {
 scene.addEventListener('pointermove', (e) => {
   if (!drag) return;
   const pt = scenePoint(e);
+  if (drag.pick) return setPick(pickAt(pt.x));
   if (drag.moved || Math.abs(pt.x - drag.startX) > 6) { drag.moved = true; setEdge(valueAt(pt.x)); }
 });
 const endDrag = () => { if (drag && !drag.moved && drag.onEdge) toggleCircle(); drag = null; };
@@ -305,7 +410,7 @@ function drawGraph() {
     const b = W.band, xa = X(b.a), xb = X(b.b);
     if (b.a < b.b) { shield = [[x1, xa], [xb, x2]]; open = [xa, xb]; }
     edges = [{ x: xa, v: b.a, closed: b.aClosed, on: W.active === 'a' }, { x: xb, v: b.b, closed: b.bClosed, on: W.active === 'b' }];
-  } else {
+  } else if (W.phase !== 'probe') {                   // while a hidden rule is being tested there is no graph yet
     const g = W.graph, xe = X(g.edge);
     if (g.dir === 'right') { shield = [[x1, xe]]; open = [xe, x2]; }
     if (g.dir === 'left') { shield = [[xe, x2]]; open = [x1, xe]; }
@@ -341,7 +446,7 @@ function podEl(p) {
   const g = document.createElementNS(NS, 'g');
   const zapKey = isZap() ? `<circle cx="-36" cy="-20" r="11" fill="#2b1b2e" stroke="#fff" stroke-width="2"/><text class="key" x="-36" y="-16">${p.i + 1}</text>` : '';
   g.setAttribute('class', `pod${isZap() ? ' zappable' : ''}`);
-  g.innerHTML = `<g class="pod-in"><path d="M-9 -19 L0 -34 L9 -19 Z" fill="#ff9f43" stroke="#2b1b2e" stroke-width="3"/><rect class="body" x="-36" y="-20" width="72" height="38" rx="14" fill="${p.clue ? '#c3ccff' : '#ffd166'}" stroke="#2b1b2e" stroke-width="3"/><text y="6">${fmt(p.v)}</text>${zapKey}</g>`;
+  g.innerHTML = `<g class="pod-in"><path d="M-9 -19 L0 -34 L9 -19 Z" fill="#ff9f43" stroke="#2b1b2e" stroke-width="3"/><rect class="body" x="-36" y="-20" width="72" height="38" rx="14" fill="#ffd166" stroke="#2b1b2e" stroke-width="3"/><text y="6">${fmt(p.v)}</text>${zapKey}</g>`;
   if (isZap()) g.addEventListener('pointerdown', (e) => { e.stopPropagation(); zap(p); });
   $('gPods').appendChild(g);
   return g;
@@ -355,7 +460,13 @@ function renderSign(isNew = false) {
   if (rule.kind === 'story') { small = 'WHICH VALUES FIT? ONLY THOSE MAY LAND'; text = rule.sign; }
   if (mode === 'zap') small = 'SHIELD OFFLINE: ZAP EVERYTHING THAT IS NOT A SOLUTION';
   if (mode === 'band') small = 'TWO RULES AT ONCE: A POD MUST FIT BOTH';
-  if (mode === 'hidden') { small = 'THE RULE IS HIDDEN'; text = W.phase === 'clues' ? 'WATCH:  ✓ LANDS   ✕ BLOCKED' : 'NOW SHADE THE SAME RULE'; }
+  if (mode === 'hidden') {
+    small = W.phase === 'probe' ? 'THE RULE IS HIDDEN: DROP PODS TO TEST NUMBERS  ✓ LANDS  ✕ BLOCKED' : 'THE RULE IS HIDDEN';
+    text = W.phase === 'probe' ? `FIND THE RULE · ${W.probesLeft} TEST${W.probesLeft === 1 ? '' : 'S'} LEFT` : 'NOW SHADE THE SAME RULE';
+  }
+  const yourTurn = W.phase === 'orders';
+  if (yourTurn) { small = `YOUR TURN ${W.oi + 1}/${W.wave.orders.length} · ${rule.kind === 'story' ? rule.sign : text.replace('LAND IF', 'RULE:')}`; text = W.wave.orders[W.oi].text; }
+  $('signSmall').classList.toggle('rule', yourTurn);
   $('signSmall').textContent = small;
   $('signText').textContent = text;
   $('signText').classList.toggle('long', text.length > 30);
@@ -364,20 +475,22 @@ function renderSign(isNew = false) {
 let ctlKey = '';
 function renderCtl() {
   const zapMode = isZap(), band = isBand(), g = W.graph, closed = band ? W.band[`${W.active}Closed`] : g && g.closed;
-  const go = W.phase === 'prep' ? (G.practice ? 'SEND THE PODS (ENTER)' : `PODS IN ${Math.max(1, Math.ceil(W.prepLeft))} · GO NOW (ENTER)`)
-    : W.phase === 'clues' ? 'WATCH THE TEST PODS' : W.phase === 'run' ? 'PODS INCOMING' : 'CLEAR';
-  const key = [W.wi, zapMode, band, W.active, closed, g && g.dir, go].join('|');
+  const pk = picking();
+  const go = pk ? (W.drop ? 'FALLING...' : 'DROP YOUR POD (ENTER)') : W.phase === 'prep' ? (G.practice ? 'SEND THE PODS (ENTER)' : `PODS IN ${Math.max(1, Math.ceil(W.prepLeft))} · GO NOW (ENTER)`)
+    : W.phase === 'run' ? 'PODS INCOMING' : 'CLEAR';
+  const key = [W.wi, zapMode, band, W.active, closed, g && g.dir, go, W.phase].join('|');
   if (key === ctlKey) return;                        // nothing to redraw
   ctlKey = key;
-  for (const id of ['leftBtn', 'rightBtn']) $(id).classList.toggle('hidden', zapMode || band);
-  for (const id of ['stepL', 'stepR', 'circleBtn']) $(id).classList.toggle('hidden', zapMode);
-  $('switchBtn').classList.toggle('hidden', !band);
-  $('zapTip').classList.toggle('hidden', !zapMode);
+  for (const id of ['leftBtn', 'rightBtn']) $(id).classList.toggle('hidden', zapMode || band || pk);
+  for (const id of ['stepL', 'stepR']) $(id).classList.toggle('hidden', zapMode && !pk);
+  $('circleBtn').classList.toggle('hidden', zapMode || pk);
+  $('switchBtn').classList.toggle('hidden', !band || pk);
+  $('zapTip').classList.toggle('hidden', !zapMode || pk);
   $('leftBtn').classList.toggle('on', !band && g && g.dir === 'left');
   $('rightBtn').classList.toggle('on', !band && g && g.dir === 'right');
   $('circleBtn').textContent = closed ? '● SOLID: the edge LANDS' : '○ OPEN: the edge is BLOCKED';
   $('goBtn').textContent = go;
-  $('goBtn').disabled = W.phase !== 'prep';
+  $('goBtn').disabled = !(W.phase === 'prep' || (pk && !W.drop));
   $('waveTag').textContent = W.waves.length ? `WAVE ${W.wi + 1}/${W.waves.length}` : '';
 }
 

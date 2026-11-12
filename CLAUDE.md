@@ -41,7 +41,9 @@ docs/lessons.md                    lesson lists from the textbook database
   4-7 Force Field is the first game rebuilt this way, on `shared/game/arcadeShell.js`: `createArcade({...})` runs the
   briefing, top bar, damage meter, 3 lives, hint card (same mistake twice in a zone), fail and report; the game runs its
   own action loop and calls `arcade.good()` / `arcade.bad(key)` / `arcade.zoneCleared()`. Its page has no side panel
-  (`<main id="app" class="arcade">`). Other games are reworked only after the owner reviews Force Field.
+  (`<main id="app" class="arcade">`). In Force Field each wave is: shade the graph, pods test it, then "your turn" orders
+  where the student picks numbers of their own (`makeOrder` / `checkOrder` in `field.js`); in the boss the student chooses
+  which numbers to test to find a hidden rule. Other games are reworked only after the owner reviews Force Field.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the
   page layout from an existing game's `index.html` (the shell needs its ids, including `lives` for the 3 lives).

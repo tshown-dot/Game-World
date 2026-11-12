@@ -1,5 +1,5 @@
 // Force Field (4-7, the action game): every zone through the real controls (keys, buttons, dragging, tapping pods),
-// each kind of mistake and what it costs, the hint card, practice, fail and retry, town messages, no scroll, no errors.
+// the student's own picks (orders and testing a hidden rule), each kind of mistake and what it costs, the hint card, practice, fail and retry, town messages, no scroll, no errors.
 const { chromium } = require('playwright');
 const BASE=process.env.BASE||'http://localhost:3112/';
 const OUT=(process.env.OUT||require('path').join(__dirname,'screenshots'))+'/force_field'; require('fs').mkdirSync(OUT,{recursive:true});
@@ -10,23 +10,47 @@ const near=(a,b)=>Math.abs(a-b)<1e-6;
 const st=(p)=>p.evaluate(()=>{ const f=window.__field, W=f.W, G=f.G, vis=(id)=>!document.getElementById(id).classList.contains('hidden');
   return { zone:G.zone, lives:G.lives, meter:G.meter, good:G.good, bad:G.bad, score:G.score, practice:G.practice, phase:W.phase, mode:W.wave.mode, wi:W.wi, n:W.waves.length,
     rule:W.wave.rule, graph:W.graph, band:W.band, active:W.active, frozen:W.frozen, marks:W.marks.length, prepLeft:W.prepLeft,
-    pods:W.pods.map(q=>({v:q.v,i:q.i,state:q.state})), banner:vis('banner'), report:vis('report'), hint:vis('hint'), fail:vis('fail'), callout:vis('callout'),
+    pods:W.pods.map(q=>({v:q.v,i:q.i,state:q.state})), oi:W.oi, orders:W.wave.orders||[], pick:W.pick, probesLeft:W.probesLeft, canPick:Boolean(W.pickEl)&&!W.drop&&!W.frozen&&vis('banner')===false, banner:vis('banner'), report:vis('report'), hint:vis('hint'), fail:vis('fail'), callout:vis('callout'),
     sign:document.getElementById('signText').textContent, mistakes:{...G.mistakes} }; });
 const speed=(p,x)=>p.evaluate((v)=>{ window.__field.W.speed=v; },x);
-async function prep(p){ await p.waitForFunction(()=>{ const W=window.__field.W, hid=(id)=>document.getElementById(id).classList.contains('hidden'); return !hid('report') || (W.phase==='prep' && hid('banner')); },null,{timeout:30000}); }
+async function prep(p){ await p.waitForFunction(()=>{ const W=window.__field.W, hid=(id)=>document.getElementById(id).classList.contains('hidden'); return !hid('report') || ((W.phase==='prep'||W.phase==='probe') && hid('banner')); },null,{timeout:30000}); }
 async function nextWave(p,s){ await p.waitForFunction(([z,w])=>{ const f=window.__field, W=f.W, hid=(id)=>document.getElementById(id).classList.contains('hidden');
-  return !hid('report') || ((f.G.zone!==z || W.wi!==w) && W.phase==='prep' && hid('banner')); },[s.zone,s.wi],{timeout:40000}); }
+  return !hid('report') || ((f.G.zone!==z || W.wi!==w) && (W.phase==='prep'||W.phase==='probe') && hid('banner')); },[s.zone,s.wi],{timeout:40000}); }
+// The pods of a wave are done: it is the student's turn (or the next wave, a stopped pod, or the report).
+async function afterRun(p,s){ await p.waitForFunction(([z,w])=>{ const f=window.__field, W=f.W, hid=(id)=>document.getElementById(id).classList.contains('hidden');
+  return !hid('report') || !hid('fail') || W.frozen || f.G.zone!==z || W.wi!==w || (W.phase==='orders' && W.pickEl && hid('banner')); },[s.zone,s.wi],{timeout:40000}); }
+async function canPick(p){ await p.waitForFunction(()=>{ const W=window.__field.W; return W.pickEl && !W.drop && !W.frozen && document.getElementById('banner').classList.contains('hidden'); },null,{timeout:15000}); }
 async function frozen(p){ await p.waitForFunction(()=>window.__field.W.frozen,null,{timeout:20000}); }
 const isSol=(r,v)=>near(v,r.n) ? (r.sym==='≤'||r.sym==='≥') : (r.sym==='<'||r.sym==='≤' ? v<r.n : v>r.n);
 const wantGraph=(r)=>({ edge:r.n, dir:r.sym==='>'||r.sym==='≥'?'right':'left', closed:r.sym==='≤'||r.sym==='≥' });
 // Where a value is on the screen.
 async function at(p,v,range){ const b=await (await p.$('#scene')).boundingBox(); return { x:b.x+(90+(v-range.lo)/(range.hi-range.lo)*1186)/1366*b.width, y:b.y+520/698*b.height }; }
-const used={ keys:0, buttons:0, drag:0, tapEdge:0, tapLine:0, zapKey:0, zapTap:0 };
+const used={ keys:0, buttons:0, drag:0, tapEdge:0, tapLine:0, zapKey:0, zapTap:0, pickKeys:0, pickButtons:0, pickDrag:0 };
 async function moveKeys(p,from,to,step){ let n=Math.round((to-from)/step); const key=n<0?'ArrowLeft':'ArrowRight'; n=Math.abs(n);
   for(let i=0;i<Math.floor(n/10);i++) await p.keyboard.press('Shift+'+key); for(let i=0;i<n%10;i++) await p.keyboard.press(key); }
 async function dragEdge(p,from,to,range){ const a=await at(p,from,range), b=await at(p,to,range); await p.mouse.move(a.x,a.y); await p.mouse.down(); await p.mouse.move(b.x,b.y,{steps:6}); await p.mouse.up(); }
+/** Slide the student's own pod to a number, with keys, the arrow buttons or by dragging. */
+let pickWay=0;
+async function setPick(p,target){
+  await canPick(p); const s=await st(p), step=s.phase==='probe'?s.rule.range.step:(s.rule.range.step===1?0.5:0.1), n=Math.round((target-s.pick)/step);
+  let how=['pickKeys','pickDrag','pickButtons'][pickWay++%3]; if(how==='pickButtons'&&Math.abs(n)>24) how='pickKeys'; used[how]++;
+  if(how==='pickKeys') await moveKeys(p,s.pick,target,step);
+  if(how==='pickButtons') for(let i=0;i<Math.abs(n);i++) await p.click(n<0?'#stepL':'#stepR');
+  if(how==='pickDrag'){ const a=await at(p,s.pick,s.rule.range), b=await at(p,target,s.rule.range); await p.mouse.move(a.x,a.y-220); await p.mouse.down(); await p.mouse.move(b.x,b.y-200,{steps:6}); await p.mouse.up(); }
+  return near((await st(p)).pick,target);
+}
+async function dropAndWait(p){ const s=await st(p); if(pickWay%2) await p.keyboard.press('Enter'); else await p.click('#goBtn');
+  await p.waitForFunction(([o,l,w])=>{ const W=window.__field.W; return W.frozen || W.oi!==o || W.probesLeft!==l || W.wi!==w || (W.phase!=='orders'&&W.phase!=='probe'); },[s.oi,s.probesLeft,s.wi],{timeout:15000}); }
+/** Your turn: fill every order of this wave with a number that works. */
+async function doOrders(p){ let set=true; for(let guard=0;guard<6;guard++){ const s=await st(p); if(s.phase!=='orders'||s.report) break; set=(await setPick(p,s.orders[s.oi].example))&&set; await dropAndWait(p); } return set; }
+/** Hidden rule: test the numbers around the edge, then a few others. */
+async function doProbes(p){ let s=await st(p); const r=s.rule, list=[r.n-1,r.n,r.n+1,r.range.lo+1,r.range.hi-1,r.n+3].slice(0,s.probesLeft);
+  for(const v of list){ await setPick(p,v); await dropAndWait(p); } }
+// The test runs the game sped up, so it stops the countdown while it works the controls (a student has 6 to 9 seconds).
+const hold=(p)=>p.evaluate(()=>{ const W=window.__field.W, was=W.speed; W.speed=0; return was; });
 /** Set the single-edge graph with one kind of control. */
-async function setGraph(p,want,how){
+async function setGraph(p,want,how){ const was=await hold(p); const done=await setGraphNow(p,want,how); await speed(p,was); return done; }
+async function setGraphNow(p,want,how){
   let s=await st(p); const range=s.rule.range, steps=Math.abs(Math.round((want.edge-s.graph.edge)/range.step));
   if(how==='buttons' && steps>24) how='keys';
   used[how]++;
@@ -42,7 +66,8 @@ async function setGraph(p,want,how){
     await p.click(want.dir==='left'?'#leftBtn':'#rightBtn'); s=await st(p); if(s.graph.closed!==want.closed) await p.keyboard.press('Space'); }
   const g=(await st(p)).graph; return near(g.edge,want.edge) && g.dir===want.dir && g.closed===want.closed;
 }
-async function setBand(p,how){
+async function setBand(p,how){ const was=await hold(p); const done=await setBandNow(p,how); await speed(p,was); return done; }
+async function setBandNow(p,how){
   let s=await st(p); const b=s.rule.band, range=s.rule.range;
   for(const e of ['a','b']){
     s=await st(p);
@@ -59,7 +84,7 @@ async function playZap(p){
     const target=s.pods.find(q=>q.state==='fall' && !isSol(s.rule,q.v) && !zapped.has(q.i));
     if(!target){ await p.waitForTimeout(40); continue; }
     zapped.add(target.i);
-    if(zapped.size%2){ used.zapKey++; await p.keyboard.press(String(target.i+1)); }
+    if((used.zapKey+used.zapTap)%2===0){ used.zapKey++; await p.keyboard.press(String(target.i+1)); }
     else { used.zapTap++; const r=await p.evaluate((i)=>{ const b=window.__field.W.pods[i].el.getBoundingClientRect(); return { x:b.x+b.width/2, y:b.y+b.height/2+6 }; },target.i); await p.mouse.click(r.x,r.y); }
   }
 }
@@ -84,19 +109,24 @@ async function open(p,{zone=0,practice=false,fast=5}={}){
 
   console.log('\n[2] Every zone through the real controls');
   await p.keyboard.press('Enter'); await speed(p,5); await prep(p);
-  const hows=['keys','buttons','drag','tap']; let waves=0, setOk=0, pods=0; const modes=new Set(), kinds=new Set(), shots=new Set(); let cluesOk=true;
+  const hows=['keys','buttons','drag','tap']; let waves=0, setOk=0, turns=0, picksOk=true; const modes=new Set(), kinds=new Set(), orderTypes=new Set(), shots=new Set(); let cluesOk=true;
   for(let guard=0;guard<40;guard++){
     let s=await st(p); if(s.report) break;
-    modes.add(s.mode); kinds.add(s.rule.kind); pods+=s.rule?0:0;
+    modes.add(s.mode); kinds.add(s.rule.kind); s.orders.forEach(o=>orderTypes.add(o.type));
+    if(s.phase==='probe'){ const had=s.good; if(!shots.has('probe')){ shots.add('probe'); await setPick(p,s.rule.n); await dropAndWait(p); await setPick(p,s.rule.n+1); await p.screenshot({path:OUT+'/6_testing_hidden_rule.png'}); }
+      await doProbes(p); s=await st(p); cluesOk=cluesOk && s.phase==='prep' && s.marks>=5 && s.good===had && /SHADE THE SAME RULE/.test(s.sign); }
     const name=`${s.zone+2}_${s.mode}_${s.rule.kind}`, shoot=!shots.has(s.zone+s.mode);
     if(s.mode==='zap'){ await speed(p,2); await p.keyboard.press('Enter'); if(shoot){ shots.add(s.zone+s.mode); await p.waitForTimeout(1500); await p.screenshot({path:`${OUT}/${name}.png`}); } await playZap(p); await speed(p,5); }
     else {
-      if(s.mode==='hidden') cluesOk=cluesOk && s.marks>=4 && /SHADE THE SAME RULE/.test(s.sign);
       const good=s.mode==='band' ? await setBand(p,waves%2?'drag':'keys') : await setGraph(p,wantGraph(s.rule),hows[waves%4]);
       if(good) setOk++; else console.log('  (could not set the graph for '+s.rule.sign+')');
       if(shoot){ shots.add(s.zone+s.mode); await speed(p,1); await p.keyboard.press('Enter'); await p.waitForTimeout(3300); await p.screenshot({path:`${OUT}/${name}.png`}); await speed(p,5); }
       else await p.keyboard.press('Enter');
     }
+    await afterRun(p,s); const a=await st(p);
+    if(a.phase==='orders' && a.wi===s.wi && a.zone===s.zone){ turns++;
+      if(!shots.has('turn'+a.zone)){ shots.add('turn'+a.zone); await setPick(p,a.orders[0].example); await p.screenshot({path:`${OUT}/${a.zone+2}b_your_turn.png`}); }
+      picksOk=(await doOrders(p))&&picksOk; }
     waves++; await nextWave(p,s);
   }
   await p.waitForSelector('#report:not(.hidden)',{timeout:8000});
@@ -104,10 +134,13 @@ async function open(p,{zone=0,practice=false,fast=5}={}){
   ok(true,`finished all 5 zones (${waves} waves)`);
   ok(setOk===waves-2,`every graph was set through the controls (${setOk} of ${waves-2} graph waves)`);
   ok(used.keys>=1&&used.buttons>=1&&used.drag>=1&&used.tapLine>=1,`edge moved by keys (${used.keys}), buttons (${used.buttons}), dragging (${used.drag}) and tapping the line (${used.tapLine}); circle tapped ${used.tapEdge} times`);
-  ok(used.zapKey>=2&&used.zapTap>=2,`pods zapped by number key (${used.zapKey}) and by tapping (${used.zapTap})`);
+  ok(used.zapKey>=1&&used.zapTap>=1,`pods zapped by number key (${used.zapKey}) and by tapping (${used.zapTap})`);
   ok(['graph','zap','hidden','band'].every(m=>modes.has(m)),'every kind of wave appeared: '+[...modes].join(', '));
   ok(['plain','decimal','words','story','solve','band'].every(k=>kinds.has(k)),'every kind of rule appeared: '+[...kinds].join(', '));
-  ok(cluesOk,'hidden rules: the test pods left their marks before the student had to shade');
+  ok(cluesOk,'hidden rules: the student tests numbers, each leaves a mark and scores nothing, then they shade');
+  ok(turns===waves-2 && picksOk,`every other wave ended with the student's turn (${turns} turns), each order filled by a number they slid to`);
+  ok(['land','block','nonwhole','whole_edge','both'].every(x=>orderTypes.has(x)) && (orderTypes.has('first_only')||orderTypes.has('second_only')),'every kind of order appeared: '+[...orderTypes].join(', '));
+  ok(used.pickKeys>=2&&used.pickDrag>=2&&used.pickButtons>=1,`own pod moved by keys (${used.pickKeys}), dragging (${used.pickDrag}) and the arrow buttons (${used.pickButtons})`);
   ok(end.bad===0 && end.lives===3,'a correct graph every time means no mistakes and no damage ('+end.good+' pods right)');
   ok(res && res.bossDefeated && !res.practiceMode && res.total>=60 && res.stars===3,'result for the town: boss beaten, '+res.total+' pods judged, '+res.stars+' stars');
   await p.screenshot({path:OUT+'/8_report.png'});
@@ -120,26 +153,49 @@ async function open(p,{zone=0,practice=false,fast=5}={}){
   ok(new RegExp(want.closed?'CLOSED circle':'OPEN circle').test(msg) && msg.includes(String(s.rule.n)),'and the pod says why: '+msg.slice(0,110));
   ok(s.meter===25 && s.lives===3 && s.good>=0,'the mistake adds damage (meter '+s.meter+')');
   await p.screenshot({path:OUT+'/3_wrong_circle.png'});
-  await p.keyboard.press('Space'); await p.keyboard.press('Enter'); await nextWave(p,s);
-  ok((await st(p)).bad===1,'fixing the circle while the action is stopped saves the rest of the wave');
+  await p.keyboard.press('Space'); await p.keyboard.press('Enter'); await afterRun(p,s);
+  s=await st(p); ok(s.bad===1 && !s.frozen && s.phase==='orders','fixing the circle while the action is stopped saves the rest of the wave');
+
+  console.log('\n[3b] Your turn: picking your own numbers');
+  let o=s.orders[0]; ok(o.type==='land' && /YOUR TURN 1\/2/.test(await p.textContent('#signSmall')) && (await p.textContent('#signText'))===o.text,'the sign gives the order and still shows the rule: '+(await p.textContent('#signSmall')));
+  ok(!isSol(s.rule,s.pick),'the pod never starts on a right answer (starts at '+s.pick+')');
+  await canPick(p); await p.keyboard.press('Enter'); await frozen(p); msg=await p.textContent('#calloutText');
+  ok(/is blocked/.test(msg) && (await st(p)).bad===2,'a number that is not a solution is blocked and explained: '+msg.slice(0,80)); await p.screenshot({path:OUT+'/3b_wrong_pick.png'});
+  await p.keyboard.press('Enter'); await canPick(p); ok((await st(p)).oi===0,'TRY AGAIN keeps the same order');
+  await p.keyboard.press('Enter'); await frozen(p); msg=await p.textContent('#calloutText');
+  ok(msg.includes('One that works: '+o.example),'two misses show a number that works: '+msg.slice(-40));
+  ok(await p.isVisible('#hint') && /make the rule TRUE/.test(await p.textContent('#hintText')),'and the same mistake twice opens its hint card'); await p.keyboard.press('Enter');
+  await p.keyboard.press('Enter'); await canPick(p); s=await st(p); ok(s.oi===1 && s.orders[1].type==='block','then the next order');
+  await setPick(p,o.example); await p.keyboard.press('Enter'); await frozen(p); msg=await p.textContent('#calloutText');
+  ok(/lands: .*TRUE/.test(msg),'asked for a blocked pod, a solution is explained: '+msg.slice(0,80));
+  await p.keyboard.press('Enter'); await setPick(p,s.orders[1].example); const sc=(await st(p)).score; await p.keyboard.press('Enter'); await nextWave(p,s);
+  ok((await st(p)).score>sc && (await st(p)).wi===1,'a right pick scores and the next wave begins');
 
   console.log('\n[4] Nothing shaded, then the wrong side: the hint card');
   await open(p); s=await st(p); want=wantGraph(s.rule);
   await p.keyboard.press('Enter'); await frozen(p);
   msg=await p.textContent('#calloutText'); ok(/should LAND/.test(msg) && /shade to the (LEFT|RIGHT)/.test(msg),'with nothing shaded, a blocked solution is explained: '+msg.slice(0,100));
   await setGraph(p,{...want,dir:want.dir==='left'?'right':'left'},'buttons');
-  await p.keyboard.press('Enter'); await p.waitForSelector('#hint:not(.hidden)',{timeout:20000});
+  await p.keyboard.press('Enter');
+  // The wrong side usually catches a second pod in this wave. If only the edge pod was left, shade the wrong side again in the next wave.
+  const flipped=(r)=>{ const g=wantGraph(r); return {...g,dir:g.dir==='left'?'right':'left'}; };
+  for(let guard=0;guard<8;guard++){ await p.waitForFunction(()=>{ const W=window.__field.W; return !document.getElementById('hint').classList.contains('hidden') || W.frozen || (W.phase==='orders' && W.pickEl); },null,{timeout:30000});
+    if(await p.isVisible('#hint')) break; s=await st(p);
+    if(!s.frozen){ await doOrders(p); await nextWave(p,s); s=await st(p); }
+    want=wantGraph(s.rule); await setGraph(p,flipped(s.rule),'keys'); await p.keyboard.press('Enter'); }
+  await p.waitForSelector('#hint:not(.hidden)',{timeout:20000});
   ok(/smaller values, shade LEFT/.test(await p.textContent('#hintText')),'the same mistake twice opens the hint card'); await p.screenshot({path:OUT+'/4_hint.png'});
   const before=(await st(p)).pods.filter(q=>q.state==='fall').length; await p.waitForTimeout(500);
   ok((await st(p)).pods.filter(q=>q.state==='fall').length===before && (await st(p)).frozen,'the action waits while the hint is open');
   await p.keyboard.press('Enter'); ok(!(await p.isVisible('#hint')) && await p.isVisible('#callout'),'closing the hint returns to the stopped pod');
-  await setGraph(p,want,'keys'); s=await st(p); await p.keyboard.press('Enter'); await nextWave(p,s);
-  ok((await st(p)).bad===2,'after the fix, no more damage in that wave');
+  await setGraph(p,want,'keys'); s=await st(p); await p.keyboard.press('Enter'); await afterRun(p,s);
+  ok((await st(p)).bad===s.bad && (await st(p)).phase==='orders','after the fix, no more damage in that wave');
 
   console.log('\n[5] Shield offline: zapping a solution');
   await open(p,{zone:3,fast:2}); s=await st(p); ok(s.mode==='zap' && s.zone===3,'started at zone 4 from the briefing');
   await p.keyboard.press('Enter');
-  let hit=null; for(let guard=0;guard<300&&!hit;guard++){ const now=await st(p); hit=now.pods.find(q=>q.state==='fall'&&isSol(now.rule,q.v)); if(!hit) await p.waitForTimeout(40); }
+  let hit=null; for(let guard=0;guard<300&&!hit;guard++){ const now=await st(p); if(now.frozen){ await p.keyboard.press('Enter'); continue; }   // a non-solution landed first: carry on
+    hit=now.pods.find(q=>q.state==='fall'&&isSol(now.rule,q.v)); if(!hit) await p.waitForTimeout(40); }
   await p.keyboard.press(String(hit.i+1)); await frozen(p);
   msg=await p.textContent('#calloutText'); ok(/was a solution/.test(msg),'zapping a solution is explained: '+msg.slice(0,90));
   await p.keyboard.press('Enter'); ok(!(await st(p)).frozen,'Enter carries on');

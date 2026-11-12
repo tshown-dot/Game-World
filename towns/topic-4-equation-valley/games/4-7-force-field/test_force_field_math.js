@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   seeded, SYMS, fmt, near, isSolution, inGraph, inBand, ruleGraph, sameGraph, ruleText, explain,
-  genRule, genBandRule, genPods, genClues, classify, classifyZap, ZONES, genWaves,
+  genRule, genBandRule, genPods, genClues, classify, classifyZap, ZONES, genWaves, wholeEdge, pickStep, makeOrder, checkOrder,
 } from './field.js';
 
 let passed = 0;
@@ -117,15 +117,60 @@ test('zones and waves', () => {
       assert.ok(waves.length >= 2);
       for (const w of waves) {
         assert.ok(['graph', 'zap', 'hidden', 'band'].includes(w.mode) && w.pods.length >= 4 && w.prep > 0 && noJunk(w.rule.sign));
-        if (w.mode === 'hidden') { assert.ok(w.clues.length >= 4); const s = w.rule.range.step; assert.ok(w.pods.every((v) => near(v / s, Math.round(v / s))), 'hidden-rule pods sit on the tick marks, like the clues'); }
+        if (w.mode === 'hidden') { assert.ok(w.probes >= 5 && w.orders.length === 0); const s = w.rule.range.step; assert.ok(w.pods.every((v) => near(v / s, Math.round(v / s))), 'hidden-rule pods sit on the tick marks, like the clues'); }
         if (w.mode === 'zap') assert.ok(w.pods.length <= 9, 'one number key per pod');
         if (w.mode === 'band') assert.ok(w.rule.band);
         if (z === 0) assert.ok(w.rule.kind === 'plain' && Number.isInteger(w.rule.n), 'whole-number boundaries first');
       }
       if (z === 3) assert.ok(waves.every((w) => w.mode === 'zap'));
+      if (z !== 4) assert.ok(waves.every((w) => w.orders.length >= 1), 'every wave has a turn for the student');
       if (z === 4) assert.deepEqual(waves.map((w) => w.mode), ['hidden', 'hidden', 'band', 'band']);
     }
   }
+});
+
+test('your turn: the smallest or largest whole number that works', () => {
+  const R = (sym, n) => ({ sym, n, letter: 'x', range: { lo: 0, hi: 20, step: 1 } });
+  assert.equal(wholeEdge(R('>', 8)), 9); assert.equal(wholeEdge(R('≥', 8)), 8); assert.equal(wholeEdge(R('>', 7.5)), 8); assert.equal(wholeEdge(R('≥', 7.5)), 8);
+  assert.equal(wholeEdge(R('<', 8)), 7); assert.equal(wholeEdge(R('≤', 8)), 8); assert.equal(wholeEdge(R('<', 7.5)), 7); assert.equal(wholeEdge(R('≤', 7.5)), 7);
+  const r = R('>', 8), o = makeOrder(r, 'whole_edge');
+  assert.ok(/SMALLEST/.test(o.text) && /LARGEST/.test(makeOrder(R('≤', 8), 'whole_edge').text));
+  assert.equal(checkOrder(r, o, 9).ok, true);
+  assert.equal(checkOrder(r, o, 8).key, 'pick_solution'); assert.ok(/edge itself is not a solution/.test(checkOrder(r, o, 8).message));
+  assert.equal(checkOrder(r, o, 10).key, 'whole_edge'); assert.ok(/9 is smaller and lands too/.test(checkOrder(r, o, 10).message));
+  assert.equal(checkOrder(r, o, 8.5).key, 'pick_whole');
+  assert.equal(checkOrder(r, makeOrder(r, 'nonwhole'), 9).key, 'pick_nonwhole'); assert.equal(checkOrder(r, makeOrder(r, 'nonwhole'), 8.5).ok, true);
+  assert.equal(checkOrder(r, makeOrder(r, 'block'), 12).key, 'pick_nonsolution'); assert.equal(checkOrder(r, makeOrder(r, 'block'), 8).ok, true);
+  assert.equal(checkOrder(r, makeOrder(r, 'land'), 3).key, 'pick_solution'); assert.equal(checkOrder(r, makeOrder(r, 'land'), 8.5).ok, true);
+});
+
+test(`your turn: every order in ${RUNS} waves can be filled on the line`, () => {
+  const seen = new Set();
+  for (let i = 0; i < RUNS; i++) {
+    for (const w of genWaves(rnd, i % 5)) {
+      const { lo, hi } = w.rule.range, s = pickStep(w.rule);
+      for (const o of w.orders) {
+        seen.add(o.type);
+        assert.ok(o.example >= lo && o.example <= hi, `${o.text}: ${o.example} is on the line for ${w.rule.sign}`);
+        assert.ok(near(o.example / s, Math.round(o.example / s)), 'and on a spot the student can pick');
+        assert.equal(checkOrder(w.rule, o, o.example).ok, true, `${o.example} fills "${o.text}" for ${w.rule.sign}`);
+        assert.ok(noJunk(o.text));
+        // a number that cannot fill it is explained
+        const bad = o.type === 'block' || o.type === 'first_only' || o.type === 'second_only' ? makeOrder(w.rule, w.rule.band ? 'both' : 'land').example : w.rule.band ? w.rule.band.b + 2 : makeOrder(w.rule, 'block').example;
+        const res = checkOrder(w.rule, o, bad);
+        assert.ok(res.ok === false && noJunk(res.message) && noJunk(res.key), `${bad} does not fill "${o.text}" for ${w.rule.sign}`);
+      }
+    }
+  }
+  assert.deepEqual([...seen].sort(), ['block', 'both', 'first_only', 'land', 'nonwhole', 'second_only', 'whole_edge']);
+});
+
+test('two rules at once: which rule does a number fit?', () => {
+  const rule = { kind: 'band', letter: 't', band: { a: 3, aClosed: false, b: 9, bClosed: true }, range: { lo: 0, hi: 20, step: 1 } };
+  assert.equal(checkOrder(rule, makeOrder(rule, 'both'), 9).ok, true); assert.equal(checkOrder(rule, makeOrder(rule, 'both'), 3).ok, false);
+  assert.equal(checkOrder(rule, makeOrder(rule, 'first_only'), 12).ok, true); assert.equal(checkOrder(rule, makeOrder(rule, 'first_only'), 2).ok, false);
+  assert.equal(checkOrder(rule, makeOrder(rule, 'second_only'), 3).ok, true); assert.equal(checkOrder(rule, makeOrder(rule, 'second_only'), 5).ok, false);
+  assert.ok(/t > 3 is FALSE, t ≤ 9 is TRUE/.test(checkOrder(rule, makeOrder(rule, 'both'), 3).message));
 });
 
 console.log(`\n${passed} tests passed`);
