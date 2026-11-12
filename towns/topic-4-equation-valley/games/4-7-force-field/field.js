@@ -1,14 +1,14 @@
-// Force Field (Lesson 4-7: Solve Inequalities — represent ALL the solutions): the math.
+// Force Field (Lesson 4-7: Solve Inequalities): the math.
 // No screen code here, so it can be tested with plain node (see test_force_field_math.js).
 //
-// A field rule is { letter, sym, n } ("x > 5"), or with a number in front of the letter { coef: 3 } ("3y < 25").
-// Its solutions are every value that makes it true: on the number line, everything under the shield.
+// Pods fall toward a number line. A RULE says which values may land, for example { sym: '≤', n: 12 }.
+// The student's GRAPH is the landing zone they shade: { edge, dir: 'left' | 'right', closed } (closed = the edge
+// value itself may land). A pod lands exactly when its value is inside the graph, so a graph that matches the
+// rule's solutions lets every solution land and blocks everything else.
+// In the boss, a BAND is two rules at once: { a, aClosed, b, bClosed } lets a..b land.
 
 export const SYMS = ['<', '≤', '>', '≥'];
-const FLIP = { '<': '>', '>': '<', '≤': '≥', '≥': '≤' };
 const EPS = 1e-9;
-let nextId = 1;
-
 export function seeded(seed = 1) {
   let t = seed >>> 0;
   return () => {
@@ -25,270 +25,174 @@ const shuffle = (rnd, list) => {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 };
-const r2 = (v) => Math.round(v * 100) / 100;
+export const r2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+export const near = (a, b) => Math.abs(a - b) < EPS + 1e-7;
+export const fmt = (v) => String(r2(v));
 
-/** 7.01 -> "7.01"; 1500 -> "1,500"; money -> "$12.75" */
-export function fmt(v, money = false) {
-  const x = r2(v);
-  if (money) return `$${x.toFixed(Number.isInteger(x) ? 0 : 2)}`;
-  return Number.isInteger(x) ? x.toLocaleString('en-US') : String(x);
+/* ================================================================== */
+/* Rules and graphs                                                    */
+/* ================================================================== */
+export function isSolution(rule, v) {
+  if (rule.band) return inBand(rule.band, v);
+  if (near(v, rule.n)) return rule.sym === '≤' || rule.sym === '≥';
+  return rule.sym === '<' || rule.sym === '≤' ? v < rule.n : v > rule.n;
 }
-export const ruleText = (r) => `${r.coef ? r.coef : ''}${r.letter} ${r.sym} ${fmt(r.n)}`;
-export const inclusive = (r) => r.sym === '≥' || r.sym === '≤';
-export const goesRight = (r) => r.sym === '>' || r.sym === '≥';
-/** Is v a solution? */
-export function passes(r, v) {
-  const left = (r.coef || 1) * v, d = left - r.n;
-  if (r.sym === '<') return d < -EPS;
-  if (r.sym === '≤') return d <= EPS;
-  if (r.sym === '>') return d > EPS;
-  return d >= -EPS;
+/** Does a value fall inside the student's shaded landing zone? */
+export function inGraph(g, v) {
+  if (near(v, g.edge)) return Boolean(g.closed);
+  return g.dir === 'right' ? v > g.edge : v < g.edge;
 }
-export const passesAll = (rules, v) => rules.every((r) => passes(r, v));
+export function inBand(b, v) {
+  if (near(v, b.a)) return Boolean(b.aClosed) && b.a <= b.b;
+  if (near(v, b.b)) return Boolean(b.bClosed) && b.a <= b.b;
+  return v > b.a && v < b.b;
+}
+/** The graph that matches a rule exactly. */
+export const ruleGraph = (rule) => ({ edge: rule.n, dir: rule.sym === '>' || rule.sym === '≥' ? 'right' : 'left', closed: rule.sym === '≤' || rule.sym === '≥' });
+export const sameGraph = (g, h) => near(g.edge, h.edge) && g.dir === h.dir && Boolean(g.closed) === Boolean(h.closed);
+export const ruleText = (rule) => (rule.band ? `${fmt(rule.band.a)} ${rule.band.aClosed ? '≤' : '<'} ${rule.letter} ${rule.band.bClosed ? '≤' : '<'} ${fmt(rule.band.b)}` : `${rule.letter} ${rule.sym} ${fmt(rule.n)}`);
+/** "12 ≤ 12 is true" */
+export function explain(rule, v) {
+  if (rule.band) return `${fmt(v)} is ${isSolution(rule, v) ? '' : 'NOT '}between ${fmt(rule.band.a)} and ${fmt(rule.band.b)}${near(v, rule.band.a) || near(v, rule.band.b) ? ' (check the edge)' : ''}`;
+  return `${fmt(v)} ${rule.sym} ${fmt(rule.n)} is ${isSolution(rule, v) ? 'TRUE' : 'FALSE'}`;
+}
 
-/** A typed value: "7.01", "$12.75", "2 1/2", "5/2", "1,505". Returns a number or null. */
-export function parseValue(raw) {
-  const t = String(raw ?? '').trim().replace(/^\$/, '').replace(/,/g, '').replace(/\s+/g, ' ');
-  let m;
-  if ((m = t.match(/^(\d+) (\d+)\/(\d+)$/))) return Number(m[3]) ? Number(m[1]) + Number(m[2]) / Number(m[3]) : null;
-  if ((m = t.match(/^(\d+)\/(\d+)$/))) return Number(m[2]) ? Number(m[1]) / Number(m[2]) : null;
-  if (/^(\d+\.?\d*|\.\d+)$/.test(t)) return Number(t);
+/* ---- making rules ---- */
+const LETTERS = ['x', 'n', 't', 'p', 'w', 'h'];
+const WORDS = [
+  ['≥', 'at least'], ['≤', 'at most'], ['≤', 'no more than'], ['≥', 'no less than'],
+  ['<', 'less than'], ['<', 'fewer than'], ['>', 'more than'], ['>', 'greater than'],
+];
+const STORIES = [
+  { sym: '≤', n: [20, 25, 30], sign: (n) => `GIFT CARD $${n}: LAND IF THE PRICE IS AT MOST $${n}`, letter: 'p' },
+  { sym: '≥', n: [42, 48, 54], sign: (n) => `RIDE: YOU MUST BE AT LEAST ${n} INCHES TALL`, letter: 'h' },
+  { sym: '≤', n: [8, 12, 15], sign: (n) => `ELEVATOR: NO MORE THAN ${n} PEOPLE`, letter: 'n' },
+  { sym: '<', n: [13, 16, 18], sign: (n) => `KIDS' TRAIL: ONLY HIKERS UNDER ${n} YEARS OLD`, letter: 't' },
+  { sym: '>', n: [32, 40, 50], sign: (n) => `FREEZER ALARM: SOUNDS WHEN IT IS WARMER THAN ${n}°F`, letter: 't' },
+];
+/** The stretch of number line shown for a boundary: 20 wide in steps of 1, or 10 wide in steps of 0.1. */
+function rangeFor(n, decimal) {
+  if (decimal) { const lo = Math.max(0, Math.floor(n) - 5); return { lo, hi: lo + 10, step: 0.1 }; }
+  const lo = Math.max(0, Math.round(n) - 10);
+  return { lo, hi: lo + 20, step: 1 };
+}
+/**
+ * kinds:  plain (x ≤ 12)   decimal (x > 7.5)   words ("at least 4")   story (gift card)
+ *         solve (x + 3 > 8: work out the boundary first)
+ */
+export function genRule(rnd, { kind = 'plain' } = {}) {
+  const letter = pick(rnd, LETTERS);
+  if (kind === 'story') {
+    const s = pick(rnd, STORIES), n = pick(rnd, s.n);
+    return { kind, letter: s.letter, sym: s.sym, n, sign: s.sign(n), range: rangeFor(n, false) };
+  }
+  if (kind === 'solve') {
+    const sym = pick(rnd, SYMS), form = pick(rnd, ['plus', 'minus', 'times']);
+    if (form === 'plus') { const a = int(rnd, 2, 9), n = int(rnd, 3, 14); return { kind, letter, sym, n, form, a, b: n + a, sign: `${letter} + ${a} ${sym} ${n + a}`, steps: `Subtract ${a} from both sides: ${letter} ${sym} ${n}`, range: rangeFor(n, false) }; }
+    if (form === 'minus') { const a = int(rnd, 2, 9), n = int(rnd, 6, 16); return { kind, letter, sym, n, form, a, b: n - a, sign: `${letter} − ${a} ${sym} ${n - a}`, steps: `Add ${a} to both sides: ${letter} ${sym} ${n}`, range: rangeFor(n, false) }; }
+    const a = int(rnd, 2, 6), n = int(rnd, 3, 12);
+    return { kind, letter, sym, n, form, a, b: n * a, sign: `${a}${letter} ${sym} ${n * a}`, steps: `Divide both sides by ${a}: ${letter} ${sym} ${n}`, range: rangeFor(n, false) };
+  }
+  const sym = pick(rnd, SYMS);
+  if (kind === 'decimal') { const n = r2(int(rnd, 2, 14) + pick(rnd, [0.5, 0.2, 0.4, 0.6, 0.8, 0.5])); return { kind, letter, sym, n, sign: `${letter} ${sym} ${fmt(n)}`, range: rangeFor(n, true) }; }
+  if (kind === 'words') {
+    const [s, phrase] = pick(rnd, WORDS), decimal = rnd() < 0.4, n = decimal ? r2(int(rnd, 3, 12) + 0.5) : int(rnd, 4, 16);
+    return { kind, letter, sym: s, n, sign: `${phrase.toUpperCase()} ${fmt(n)}`, range: rangeFor(n, decimal) };
+  }
+  const n = int(rnd, 4, 16);
+  return { kind, letter, sym, n, sign: `${letter} ${sym} ${n}`, range: rangeFor(n, false) };
+}
+/** Two rules at once: only the overlap may land. */
+export function genBandRule(rnd) {
+  const letter = pick(rnd, ['t', 'x', 'n']), a = int(rnd, 3, 8), b = a + int(rnd, 4, 9), aClosed = rnd() < 0.5, bClosed = rnd() < 0.5;
+  return { kind: 'band', letter, band: { a, aClosed, b, bClosed }, sign: `${letter} ${aClosed ? '≥' : '>'} ${a}  AND  ${letter} ${bClosed ? '≤' : '<'} ${b}`, range: { lo: 0, hi: 20, step: 1 } };
+}
+
+/* ================================================================== */
+/* Pods                                                                */
+/* ================================================================== */
+/**
+ * Values for one wave: the boundary itself, values right beside it, and a spread of others. A mix of both kinds.
+ * grid: only values on the tick marks (hidden-rule waves, where the clues are on the tick marks too).
+ */
+export function genPods(rnd, rule, count, grid = false) {
+  const { lo, hi, step } = rule.range;
+  const edges = rule.band ? [rule.band.a, rule.band.b] : [rule.n];
+  const inRange = (v) => v >= lo && v <= hi;
+  const out = [];
+  const add = (v) => { v = r2(v); if (inRange(v) && !out.some((x) => near(x, v))) out.push(v); };
+  edges.forEach((e) => add(e));                                             // the boundary: open or closed?
+  const tiny = grid ? step : step === 1 ? pick(rnd, [0.01, 0.1, 0.5]) : 0.01;
+  add(pick(rnd, edges) + tiny * pick(rnd, [-1, 1]));                         // just beside it: 11.99 or 12.01
+  add(pick(rnd, edges) + step * pick(rnd, [-1, 1]) * (step === 1 ? 1 : int(rnd, 1, 3)));
+  for (let guard = 0; out.length < count && guard < 200; guard++) add(lo + Math.round(rnd() * ((hi - lo) / step)) * step + (rnd() < 0.25 && step === 1 && !grid ? 0.5 : 0));
+  let pods = shuffle(rnd, out.slice(0, Math.max(count, edges.length)));
+  // make sure both kinds are present
+  const sol = pods.filter((v) => isSolution(rule, v)).length;
+  if (sol === 0 || sol === pods.length) {
+    const want = sol === 0;
+    for (let guard = 0; guard < 200; guard++) { const v = r2(lo + Math.round(rnd() * ((hi - lo) / step)) * step); if (isSolution(rule, v) === want && !pods.some((x) => near(x, v))) { pods[pods.length - 1] = v; break; } }
+  }
+  return pods;
+}
+/** Hidden-rule waves: values the city handles by itself first, chosen so the rule can be worked out. */
+export function genClues(rnd, rule) {
+  const { lo, hi, step } = rule.range, n = rule.n;
+  const far = (side) => r2(Math.min(hi, Math.max(lo, n + side * step * int(rnd, 3, 6))));
+  return shuffle(rnd, [...new Set([far(-1), far(1), r2(n - step), r2(n + step), n, far(-1), far(1)].filter((v) => v >= lo && v <= hi))]);
+}
+
+/* ================================================================== */
+/* Naming a mistake                                                    */
+/* ================================================================== */
+/**
+ * The student's graph treated value v differently from the rule. Why?
+ *   landed: what the student's graph did with it.   Returns { key, message }.
+ */
+export function classify(rule, graph, v, landed) {
+  const should = isSolution(rule, v), val = fmt(v), verdict = `${val} should ${should ? 'LAND' : 'be BLOCKED'}: ${explain(rule, v)}.`;
+  if (rule.band) {
+    const b = rule.band, onEdge = near(v, b.a) || near(v, b.b);
+    if (onEdge) { const closed = near(v, b.a) ? b.aClosed : b.bClosed; return { key: closed ? 'edge_included' : 'edge_excluded', message: `${verdict} That edge ${closed ? 'IS' : 'is NOT'} a solution: use ${closed ? 'a CLOSED' : 'an OPEN'} circle there.` }; }
+    return { key: 'band_range', message: `${verdict} Only values that fit BOTH rules land: from ${fmt(b.a)} to ${fmt(b.b)}.` };
+  }
+  const want = ruleGraph(rule);
+  if (graph.dir !== want.dir) return { key: 'direction', message: `${verdict} ${rule.sym} means ${want.dir === 'right' ? 'BIGGER' : 'SMALLER'} values: shade to the ${want.dir.toUpperCase()}.` };
+  if (!near(graph.edge, rule.n)) {
+    const how = rule.kind === 'solve' ? ` Solve first. ${rule.steps}.` : '';
+    return { key: rule.kind === 'solve' ? 'solve_first' : 'boundary', message: `${verdict} The boundary is ${fmt(rule.n)}, not ${fmt(graph.edge)}.${how}` };
+  }
+  if (near(v, rule.n)) return { key: want.closed ? 'edge_included' : 'edge_excluded', message: `${verdict} So the edge itself ${want.closed ? 'IS' : 'is NOT'} a solution: use ${want.closed ? 'a CLOSED' : 'an OPEN'} circle.` };
+  return { key: 'check_value', message: verdict };
+}
+/** Shield offline: the student zaps pods by hand. zapped = they shot it; otherwise it reached the line. */
+export function classifyZap(rule, v, zapped) {
+  const should = isSolution(rule, v);
+  if (zapped && should) return { key: 'zapped_solution', message: `${fmt(v)} was a solution: ${explain(rule, v)}. Let solutions land.` };
+  if (!zapped && !should) return { key: 'missed_nonsolution', message: `${fmt(v)} is NOT a solution: ${explain(rule, v)}. Zap it before it lands.` };
   return null;
 }
 
 /* ================================================================== */
-/* Number lines                                                        */
+/* Zones and waves                                                     */
 /* ================================================================== */
-/** The line to draw for a rule: whole-number ticks around n (never below 0), or tenths from a whole number to the next (ends labeled only). */
-export function lineFor(r) {
-  const b = r.coef ? r.n / r.coef : r.n;
-  if (Number.isInteger(r2(b))) { const lo = Math.max(0, r2(b) - 6); return { lo, hi: lo + 12, step: 1, labelEvery: true }; }
-  const lo = Math.floor(b);
-  return { lo, hi: lo + 1, step: 0.1, labelEvery: false };
-}
-export const ticks = (line) => Array.from({ length: Math.round((line.hi - line.lo) / line.step) + 1 }, (_, i) => r2(line.lo + i * line.step));
-
-/** The field the student built: { at, closed, dir }. */
-export function checkGraph(r, { at, closed, dir }) {
-  const line = lineFor(r), n = r.n;
-  if (Math.abs(at - n) > EPS) {
-    if (line.step < 1) return { correct: false, key: 'tenths', message: `Count the tenths from ${fmt(line.lo)}: ${fmt(n)} is ${Math.round((n - line.lo) * 10)} small steps past ${fmt(line.lo)}.` };
-    return { correct: false, key: 'graph_number', message: `The edge of the field goes at the boundary, ${fmt(n)}.` };
-  }
-  if (closed !== inclusive(r)) return { correct: false, key: 'graph_circle', message: inclusive(r) ? `${r.sym} includes ${fmt(n)}, so the circle is closed (●).` : `${r.sym} does not include ${fmt(n)}, so the circle is open (○): ${fmt(n)} itself is NOT a solution.` };
-  if (dir !== (goesRight(r) ? 'right' : 'left')) return { correct: false, key: 'graph_direction', message: `${ruleText(r)}: the solutions are ${goesRight(r) ? 'GREATER' : 'LESS'} than ${fmt(n)}, so shade to the ${goesRight(r) ? 'right' : 'left'}.` };
-  return { correct: true, key: 'correct', message: `Shield up! ${inclusive(r) ? 'Closed' : 'Open'} circle at ${fmt(n)}, shaded ${goesRight(r) ? 'right' : 'left'}: every value there is a solution.` };
-}
-
-/* ================================================================== */
-/* Generators                                                          */
-/* ================================================================== */
-const LETTERS = ['x', 'y', 't', 'w', 'r', 'm', 'g', 'h'];
-export function genRule(rnd, { decimal = false, sym = pick(rnd, SYMS) } = {}) {
-  const n = decimal ? r2(int(rnd, 1, 9) + int(rnd, 1, 9) / 10) : int(rnd, 3, 30);
-  return { letter: pick(rnd, LETTERS), sym, n };
-}
-/** Zone 1: put the shield on the line (some on tenths lines). */
-export const genGraph = (rnd, opts = {}) => ({ id: nextId++, type: 'graph', rule: genRule(rnd, opts) });
-
-/** Meteor values around a rule's boundary: the boundary itself, a hair either side, a step either side, and farther away. */
-function valuesFor(rnd, r, count = 5) {
-  const b = r.coef ? r.n / r.coef : r.n;
-  const step = Number.isInteger(r2(b)) && !r.coef ? 1 : 0.5;
-  const pool = r.coef
-    ? [Math.floor(b) - 1, Math.floor(b), Math.floor(b) + 0.5, Math.ceil(b), Math.ceil(b) + 0.5, Math.ceil(b) + 1]
-    : [b, b, r2(b + 0.01), r2(b - 0.01), r2(b + step), r2(b - step), r2(b + int(rnd, 2, 6) * step), r2(b - int(rnd, 2, 6) * step)];
-  for (let tries = 0; tries < 50; tries++) {
-    const vals = [...new Set(shuffle(rnd, pool))].filter((v) => v > 0).slice(0, count);
-    const yes = vals.filter((v) => passes(r, v)).length;
-    if (vals.length === count && yes > 0 && yes < count) return vals;
-  }
-  return [b - 3, b - 1, b, b + 1, b + 3].filter((v) => v > 0);
-}
-/** Zone 2: a meteor shower. Zap every solution before it lands. */
-export function genMeteors(rnd, { coef = false } = {}) {
-  let rule;
-  if (coef) { const c = pick(rnd, [2, 3, 4, 5]), n = c * int(rnd, 4, 12) + int(rnd, 1, c - 1); rule = { letter: pick(rnd, LETTERS), coef: c, sym: pick(rnd, SYMS), n }; }
-  else rule = genRule(rnd, { decimal: rnd() < 0.3 });
-  return { id: nextId++, type: 'meteor', rules: [rule], values: valuesFor(rnd, rule) };
-}
-/** Zone 3: name three solutions (sometimes whole numbers only). */
-export function genName3(rnd, { whole = rnd() < 0.3 } = {}) {
-  const r = genRule(rnd, { decimal: !whole && rnd() < 0.4 });
-  return { id: nextId++, type: 'name3', rule: r, whole };
-}
-/** Zone 4: a shield is up; write its rule. */
-export function genRead(rnd) {
-  const r = genRule(rnd, { decimal: rnd() < 0.4 });
-  return { id: nextId++, type: 'read', rule: r, tiles: [r.n] };
-}
-/** Zone 4: how many solutions? */
-export function genCount(rnd) {
-  const r = genRule(rnd);
-  const options = shuffle(rnd, [
-    { text: 'Infinitely many', ok: true },
-    { text: '1', trap: 'one_solution' },
-    { text: '2', trap: 'one_solution' },
-    { text: fmt(r.n), trap: 'one_solution' },
-  ]);
-  return { id: nextId++, type: 'pick', ask: 'count', rule: r, options };
-}
-/** Boss: x > a and x < a on one line. Which value is in neither field? */
-export function genNeither(rnd) {
-  const a = int(rnd, 3, 20), L = pick(rnd, LETTERS);
-  const rules = [{ letter: L, sym: '>', n: a }, { letter: L, sym: '<', n: a }];
-  const options = shuffle(rnd, [
-    { text: `${L} = ${a}`, ok: true },
-    { text: `${L} = ${a + 1}`, trap: 'neither' },
-    { text: `${L} = ${a - 1}`, trap: 'neither' },
-    { text: 'Every number is in one of them', trap: 'neither' },
-  ]);
-  return { id: nextId++, type: 'pick', ask: 'neither', rules, rule: rules[0], options };
-}
-/** Boss: Death Valley — two fields at once; zap the temperatures in BOTH. */
-export function genOverlap(rnd) {
-  const lo = int(rnd, 10, 20), hi = int(rnd, 120, 134), L = 't';
-  const rules = [{ letter: L, sym: '≥', n: lo }, { letter: L, sym: '≤', n: hi }];
-  const values = shuffle(rnd, [lo, hi, lo - int(rnd, 1, 5), hi + int(rnd, 1, 5), int(rnd, lo + 10, hi - 10)]);
-  return { id: nextId++, type: 'meteor', rules, values, story: `Death Valley's lowest recorded temperature is ${lo}°F and its highest is ${hi}°F. Zap every temperature that could have been recorded.` };
-}
-/** Boss: Francine's gift card is enough for ANY app shown: v ≥ the most expensive. */
-export function genGiftCard(rnd) {
-  const prices = [...new Set(Array.from({ length: 4 }, () => r2(int(rnd, 99, 1299) / 100)))];
-  while (prices.length < 4) prices.push(r2(int(rnd, 99, 1299) / 100 + prices.length));
-  const max = Math.max(...prices);
-  return { id: nextId++, type: 'read', gift: true, rule: { letter: 'v', sym: '≥', n: max }, tiles: prices,
-    story: `Francine's gift card, worth v dollars, is enough to buy ANY one of these apps: ${prices.map((p) => fmt(p, true)).join(', ')}. Write a rule for v.` };
-}
-/** Boss: the freight elevator (w ≤ 1,500). */
-export function genElevator(rnd) {
-  const n = pick(rnd, [1000, 1200, 1500, 2000]);
-  const rule = { letter: 'w', sym: '≤', n };
-  return { id: nextId++, type: 'meteor', rules: [rule], values: shuffle(rnd, [n, n + 5, n + 100, n - 0.5, n - int(rnd, 50, 400)]),
-    story: `The law says a freight elevator can carry w ≤ ${fmt(n)} pounds. Zap every load that is allowed.` };
-}
-
 export const ZONES = [
-  { name: 'Shield Up', blurb: 'Graph the solutions: circle, then shade' },
-  { name: 'Meteor Shower', blurb: 'Zap every solution before it lands' },
-  { name: 'Name Three', blurb: 'Any three solutions: there are lots!' },
-  { name: 'Read the Field', blurb: 'Write the rule. How many solutions?' },
-  { name: 'Twin Fields', blurb: 'Boss: two fields, gift cards and elevators' },
+  { name: 'Raise the Shield', blurb: 'Shade where pods may land' },
+  { name: 'Edge Cases', blurb: 'Decimals, words and the edge itself' },
+  { name: 'Shifting Rules', blurb: 'New rules, fast. Some need solving' },
+  { name: 'Shield Offline', blurb: 'Zap what is NOT a solution' },
+  { name: 'The Storm Front', blurb: 'Boss: a hidden rule, then two at once' },
 ];
-export function genZone(rnd, zone) {
-  if (zone === 0) return shuffle(rnd, [genGraph(rnd), genGraph(rnd), genGraph(rnd, { decimal: true }), genGraph(rnd), genGraph(rnd, { decimal: true })]);
-  if (zone === 1) return shuffle(rnd, [genMeteors(rnd), genMeteors(rnd), genMeteors(rnd, { coef: true }), genMeteors(rnd)]);
-  if (zone === 2) return [genName3(rnd, { whole: false }), genName3(rnd, { whole: true }), genName3(rnd, { whole: false }), genName3(rnd)];
-  if (zone === 3) return shuffle(rnd, [genRead(rnd), genRead(rnd), genRead(rnd), genCount(rnd), genCount(rnd)]);
-  return [genOverlap(rnd), genNeither(rnd), genGiftCard(rnd), genElevator(rnd), genName3(rnd, { whole: false })];
-}
-export function genBackup(rnd, p) {
-  if (p.type === 'graph') return genGraph(rnd, { decimal: !Number.isInteger(p.rule.n) });
-  if (p.type === 'name3') return genName3(rnd, { whole: p.whole });
-  if (p.type === 'read') return p.gift ? genGiftCard(rnd) : genRead(rnd);
-  if (p.type === 'pick') return p.ask === 'neither' ? genNeither(rnd) : genCount(rnd);
-  if (p.rules.length === 2) return genOverlap(rnd);
-  if (p.story) return genElevator(rnd);
-  return genMeteors(rnd, { coef: Boolean(p.rules[0].coef) });
-}
-
-/* ================================================================== */
-/* Checking                                                            */
-/* ================================================================== */
-/** A finished meteor shower: which meteors did the student zap? */
-export function checkShower(p, zapped) {
-  const errors = p.values.map((v, i) => ({ v, i, good: passesAll(p.rules, v), zapped: zapped.has(i) })).filter((m) => m.good !== m.zapped);
-  if (!errors.length) return { correct: true, key: 'correct', message: 'Every solution zapped, every other meteor let go!' };
-  const e = errors[0], r = p.rules.find((x) => !passes(x, e.v)) || p.rules[0];
-  const b = r.coef ? r.n / r.coef : r.n;
-  const sub = r.coef ? `${r.coef} × ${fmt(e.v)} = ${fmt(r.coef * e.v)}, and ${fmt(r.coef * e.v)} ${r.sym} ${fmt(r.n)}` : `${fmt(e.v)} ${r.sym} ${fmt(r.n)}`;
-  const verdict = passes(r, e.v) ? 'TRUE' : 'FALSE';
-  let key, message;
-  if (r.coef) { key = 'substitute'; message = `Put ${fmt(e.v)} in for ${r.letter}: ${sub} is ${verdict}.`; }
-  else if (Math.abs(e.v - r.n) < EPS) { key = 'boundary_meteor'; message = `${fmt(e.v)} is the boundary. ${inclusive(r) ? `${r.sym} includes it, so it IS a solution.` : `${r.sym} leaves it out, so it is NOT a solution.`}`; }
-  else if (Math.abs(e.v - b) < 0.1) { key = 'decimal_near'; message = `${fmt(e.v)} is very close to ${fmt(r.n)}, but ${sub} is ${verdict}. Even a hundredth counts!`; }
-  else if (p.rules.length === 2) { key = 'both_fields'; message = `A solution must be in BOTH fields: ${p.rules.map(ruleText).join(' and ')}. ${fmt(e.v)} ${passesAll(p.rules, e.v) ? 'is' : 'is not'}.`; }
-  else { key = e.good ? 'missed_solution' : 'zapped_wrong'; message = `Check it: ${sub} is ${verdict}.`; }
-  return { correct: false, key, message: `${errors.length} meteor${errors.length > 1 ? 's' : ''} wrong. ${message}`, errors };
-}
-
-/** Three different solutions, typed. */
-export function checkName3(p, raws) {
-  const r = p.rule;
-  const vals = raws.map(parseValue);
-  if (vals.some((v) => v === null)) return { correct: false, nudge: true, key: 'not_a_number', message: 'Type a number in each box, like 12, 7.5 or 2 1/2.' };
-  if (new Set(vals.map((v) => Math.round(v * 1e6))).size < 3) return { correct: false, nudge: true, key: 'not_different', message: 'Use three DIFFERENT solutions.' };
-  for (const v of vals) {
-    if (!passes(r, v)) {
-      if (Math.abs(v - r.n) < EPS) return { correct: false, key: 'boundary', message: `${fmt(v)} is the boundary, and ${r.sym} leaves it out. Try values just past it.`, value: v };
-      return { correct: false, key: 'wrong_side', message: `${fmt(v)} ${r.sym} ${fmt(r.n)} is false. The solutions are ${goesRight(r) ? 'greater' : 'less'} than ${fmt(r.n)}.`, value: v };
-    }
-    if (p.whole && Math.abs(v - Math.round(v)) > EPS) return { correct: false, key: 'not_whole', message: `Whole numbers only this time: ${fmt(v)} is not a whole number.`, value: v };
-  }
-  return { correct: true, key: 'correct', message: 'All three work! And there are infinitely many more.' };
-}
-
-/** Writing the rule for a field (or Francine's card). Letter first or number first. */
-export function readTiles(tiles) {
-  if (tiles.length !== 3 || tiles[1].t !== 'sym' || tiles[0].t === 'sym' || tiles[2].t === 'sym') return null;
-  return tiles;
-}
-export const tilesText = (tiles) => tiles.map((t) => (t.t === 'num' ? fmt(t.v) : t.v)).join(' ');
-export function checkWritten(p, tiles) {
-  const r = p.rule;
-  if (!readTiles(tiles)) return { correct: false, nudge: true, key: 'incomplete', message: 'A rule has three parts: the letter, a symbol and a number.' };
-  let sym, num;
-  if (tiles[0].t === 'var') { sym = tiles[1].v; num = tiles[2]; }
-  else if (tiles[2].t === 'var') { sym = FLIP[tiles[1].v]; num = tiles[0]; }
-  else return { correct: false, nudge: true, key: 'incomplete', message: `Use the letter ${r.letter}.` };
-  if (num.t !== 'num' || Math.abs(num.v - r.n) > EPS) {
-    if (p.gift) return { correct: false, key: 'not_max', message: `To buy ANY of the apps, the card needs at least the price of the most expensive one, ${fmt(r.n, true)}.` };
-    return { correct: false, key: 'graph_number', message: `The edge of the field is at ${fmt(r.n)}.` };
-  }
-  const want = ruleText(r);
-  if (sym === r.sym) return { correct: true, key: 'correct', message: `Yes! ${tilesText(tiles)}${tiles[0].t !== 'var' ? ` is the same as ${want}` : ''}.` };
-  if (tiles[0].t !== 'var' && tiles[1].v === r.sym) return { correct: false, key: 'flipped_order', message: `With the number first, turn the symbol around: ${want} is ${fmt(r.n)} ${FLIP[r.sym]} ${r.letter}.` };
-  const strictSwap = { '<': '≤', '≤': '<', '>': '≥', '≥': '>' }[r.sym];
-  if (sym === strictSwap) {
-    return { correct: false, key: 'graph_circle', message: p.gift ? `Exactly ${fmt(r.n, true)} is enough, so use ≥.` : `Look at the circle: ${inclusive(r) ? `closed ●, so ${fmt(r.n)} is included (${r.sym})` : `open ○, so ${fmt(r.n)} is not included (${r.sym})`}.` };
-  }
-  return { correct: false, key: 'graph_direction', message: p.gift ? `The card's value must be at LEAST the price: v ≥ ${fmt(r.n)}.` : `The shield covers values ${goesRight(r) ? 'GREATER' : 'LESS'} than ${fmt(r.n)}, so the symbol is ${r.sym}.` };
-}
-export function checkPick(p, i) {
-  const o = p.options[i], right = p.options.find((x) => x.ok);
-  if (p.ask === 'count') {
-    if (o.ok) return { correct: true, key: 'correct', message: `Yes! ${ruleText(p.rule)} has infinitely many solutions: whole numbers, decimals, fractions…` };
-    const r = p.rule, d = goesRight(r) ? 1 : -1;
-    return { correct: false, key: 'one_solution', message: `An inequality is not like an equation: ${ruleText(r)} has infinitely many solutions (think of ${fmt(r.n + d)}, ${fmt(r.n + d * 0.5)}, ${fmt(r.n + d * 0.01)}…).` };
-  }
-  const a = p.rules[0].n;
-  if (o.ok) return { correct: true, key: 'correct', message: `Yes! ${p.rules.map(ruleText).join(' and ')} both leave out ${a} itself (open circles).` };
-  return { correct: false, key: 'neither', message: `Both circles are open, so ${a} is in NEITHER field. Every other number is in one of them. The answer: ${right.text}.` };
-}
-
-/* ================================================================== */
-/* Worked solutions (after two misses)                                 */
-/* ================================================================== */
-export function workedSolution(p) {
-  if (p.type === 'graph' || p.type === 'read') {
-    const r = p.rule, line = lineFor(r);
-    const lines = [];
-    if (p.gift) lines.push(`The most expensive app is ${fmt(r.n, true)}; the card must be at least that.`);
-    if (line.step < 1 && p.type === 'graph') lines.push(`Each small step is 0.1, so ${fmt(r.n)} is ${Math.round((r.n - line.lo) * 10)} steps past ${fmt(line.lo)}.`);
-    lines.push(`${fmt(r.n)} itself: ${inclusive(r) ? 'included, closed circle ●' : 'not included, open circle ○'}.`);
-    lines.push(`Solutions are ${goesRight(r) ? 'greater: shade right' : 'less: shade left'}. Rule: ${ruleText(r)}.`);
-    return lines;
-  }
-  if (p.type === 'name3') {
-    const r = p.rule, n = r.n;
-    const ex = goesRight(r) ? (p.whole ? [n + 1, n + 2, n + 10] : [n + 1, r2(n + 0.5), n + 10])
-      : (p.whole ? [n - 1, n - 2, 0] : [r2(n - 0.5), r2(n / 2), r2(n / 4)]);
-    return [`${ruleText(r)}: solutions are ${goesRight(r) ? 'greater' : 'less'} than ${fmt(n)}${inclusive(r) ? ` (and ${fmt(n)} itself)` : ` (not ${fmt(n)} itself)`}.`,
-      `For example: ${ex.map((v) => fmt(v)).join('; ')}.`, 'Check each one by putting it in the rule. There are infinitely many more.'];
-  }
-  if (p.type === 'pick') {
-    if (p.ask === 'count') return [`${ruleText(p.rule)} is true for every value ${goesRight(p.rule) ? 'past' : 'below'} ${fmt(p.rule.n)}, including decimals.`, 'You can never list them all: infinitely many.'];
-    return [`${ruleText(p.rules[0])} and ${ruleText(p.rules[1])} both have open circles at ${p.rules[0].n}.`, `So ${p.rules[0].n} is the only value in neither field.`];
-  }
-  return [`Rule${p.rules.length > 1 ? 's' : ''}: ${p.rules.map(ruleText).join(' and ')}.`, ...p.values.map((v) => `${fmt(v)}: ${passesAll(p.rules, v) ? 'solution, zap it' : 'not a solution'}`)];
+/**
+ * A wave: { mode, rule, pods, clues?, prep }.
+ *   mode  graph (shade the zone)   zap (no shield)   hidden (work the rule out from clues)   band (two edges)
+ *   prep  seconds to set the graph before the first pod falls
+ */
+export function genWaves(rnd, zone) {
+  const wave = (mode, rule, count, prep) => ({ mode, rule, pods: genPods(rnd, rule, count, mode === 'hidden'), prep, ...(mode === 'hidden' ? { clues: genClues(rnd, rule) } : {}) });
+  if (zone === 0) return [0, 1, 2].map(() => wave('graph', genRule(rnd, { kind: 'plain' }), 7, 9));
+  if (zone === 1) return shuffle(rnd, ['decimal', 'words', 'story']).map((kind) => wave('graph', genRule(rnd, { kind }), 7, 9));
+  if (zone === 2) return ['plain', 'solve', 'words', 'solve', 'solve'].map((kind) => wave('graph', genRule(rnd, { kind }), 6, 6));
+  if (zone === 3) return [wave('zap', genRule(rnd, { kind: 'plain' }), 9, 3), wave('zap', genRule(rnd, { kind: pick(rnd, ['decimal', 'solve']) }), 9, 3)];
+  return [wave('hidden', genRule(rnd, { kind: 'plain' }), 6, 4), wave('hidden', genRule(rnd, { kind: 'decimal' }), 6, 4), wave('band', genBandRule(rnd), 7, 9), wave('band', genBandRule(rnd), 7, 7)];
 }

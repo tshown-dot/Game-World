@@ -1,47 +1,51 @@
-/* Force Field (Lesson 4-7): the shield, meteors, number line and inputs. Shared looks are in shared/game/game.css. */
-.pop-in { animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: center; }
-@keyframes popIn { from { transform: scale(0.3); opacity: 0; } }
-.shimmer { animation: shimmer 1.6s ease-in-out infinite alternate; }
-@keyframes shimmer { from { opacity: 0.45; } to { opacity: 0.8; } }
-.boom { animation: boom 0.5s ease-out forwards; transform-box: fill-box; transform-origin: center; }
-@keyframes boom { to { transform: scale(2.2); opacity: 0; } }
-.meteor { cursor: pointer; }
-.tick-hit { cursor: pointer; }
-.tick-hit:hover rect { fill: rgba(255, 210, 63, 0.35); }
+/* Force Field (Lesson 4-7): the sky, the number line, the shield, the pods. Shared looks are in shared/game/game.css. */
+#app.arcade { grid-template-columns: 1fr; background: #171331; }
+#app.arcade .hud { grid-column: 1; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; font-weight: 900; }
+#scene { touch-action: none; }
 
-/* ---- the equation strip under the gearbox ---- */
-.eq-strip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; min-width: 440px; width: max-content; max-width: 94%;
-  background: #fff4d6; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 6px 16px; text-align: center; }
-.eq-line { font-family: ui-monospace, 'Courier New', monospace; font-size: 23px; font-weight: 900; color: var(--ink); white-space: nowrap; line-height: 1.35; }
-.eq-line.small { font-size: 17px; color: #5e5640; white-space: normal; }
-.eq-strip .you { color: #1f63c9; background: #dbe9ff; border-radius: 6px; padding: 0 2px; }
-.eq-strip .good { color: #1f8a4c; } .eq-strip .bad { color: #d6283a; }
-.prompt .story { display: block; font-size: 15px; font-weight: 800; background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 7px 10px; margin-top: 6px; }
+/* ---- the rule sign ---- */
+.sign { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); min-width: 380px; max-width: 900px; text-align: center; white-space: nowrap;
+  background: #fff8e1; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 8px 22px 10px; pointer-events: none; }
+.sign small { display: block; font-size: 8px; color: #8a6d3b; margin-bottom: 6px; }
+#signText { font-family: ui-monospace, 'Courier New', monospace; font-size: 28px; font-weight: 900; color: var(--ink); }
+#signText.long { font-size: 20px; }
+.sign.new { animation: signPop 0.4s ease-out; }
+@keyframes signPop { from { transform: translateX(-50%) scale(1.12); background: var(--gold); } to { transform: translateX(-50%) scale(1); } }
+#app.arcade .boss-bar { left: auto; right: 12px; transform: none; width: 210px; }
 
-/* ---- writing equations with tiles ---- */
-.rail { min-height: 54px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 5px 8px; border: 3px dashed #8a6d3b; border-radius: 12px; background: #fff; }
-.rail.filled { border-style: solid; border-color: var(--ink); }
-.rail.drop-target { background: #fff3c4; box-shadow: 0 0 0 4px var(--gold); }
-.rail .empty { color: #a99a74; font-size: 13px; font-weight: 800; }
-.done-eq { font-family: ui-monospace, monospace; font-size: 18px; font-weight: 900; color: #1f6b3e; background: #d9f7e3; border: 3px solid var(--ink); border-radius: 10px; padding: 5px 10px; }
-.tiles { display: flex; flex-wrap: wrap; gap: 8px; }
-.tile { min-width: 52px; height: 46px; padding: 0 10px; border: 3px solid var(--ink); border-radius: 10px; font-family: ui-monospace, 'Courier New', monospace;
-  font-size: 22px; font-weight: 900; box-shadow: 0 4px 0 var(--ink); touch-action: none; position: relative; background: #fff; color: var(--ink); }
-.tile.num { background: #6b6f80; color: #fff; }
-.tile.var { background: #3a8ef0; color: #fff; }
-.tile.eqs { background: var(--gold); }
-.tile small { position: absolute; top: 1px; right: 4px; font-size: 8px; font-family: 'Press Start 2P', monospace; opacity: 0.75; }
-.tile:disabled { opacity: 0.25; box-shadow: none; }
-.tile.chip { min-width: 40px; height: 38px; font-size: 19px; box-shadow: 0 2px 0 var(--ink); padding: 0 8px; }
-.row-btns { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 8px; }
-.row-btns button { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 10px; box-shadow: 0 4px 0 var(--ink); }
-.row-btns .go { background: var(--red); color: #fff; }
+/* ---- what went wrong ---- */
+.callout { position: absolute; top: 118px; left: 50%; transform: translateX(-50%); width: 720px; z-index: 5; background: #ffe3cc; border: 4px solid var(--ink); border-radius: 14px;
+  box-shadow: 0 5px 0 var(--ink); padding: 10px 14px; font-size: 17px; font-weight: 800; line-height: 1.35; text-align: center; }
+.callout button { margin-top: 8px; height: 40px; padding: 0 16px; border: 3px solid var(--ink); border-radius: 10px; background: var(--gold); font-size: 10px; }
 
-/* ---- controls ---- */
-.line-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.line-btns button { height: 50px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 11px; box-shadow: 0 4px 0 var(--ink); }
-.line-btns button.on { background: var(--gold); }
-.name3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.name3 input { width: 100%; min-width: 0; height: 58px; font-size: 26px; font-weight: 900; text-align: center; border: 3px solid var(--ink); border-radius: 12px; background: var(--night); color: var(--gold); font-family: ui-monospace, monospace; }
-.name3 input.bad { background: #6b1f2b; }
-.zap-help { font-size: 15px; font-weight: 800; }
+/* ---- controls along the bottom ---- */
+.ctl { position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 0 14px;
+  background: var(--night); border-top: 4px solid var(--ink); }
+.cbtn { height: 46px; padding: 0 14px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 #000; font-size: 15px; font-weight: 900; color: var(--ink); }
+.cbtn.sq { width: 52px; padding: 0; font-size: 18px; }
+.cbtn.wide { width: 300px; }
+.cbtn.on { background: #b9f3c9; }
+.cbtn.go { background: var(--red); color: #fff; font-size: 10px; min-width: 250px; }
+.cbtn.go:disabled { background: #4a3a57; color: #c9b8e8; box-shadow: none; cursor: default; }
+.zap-tip { color: #fff; font-size: 16px; font-weight: 800; }
+.wave-tag { color: var(--gold); font-size: 9px; min-width: 90px; text-align: right; }
+
+/* ---- the scene ---- */
+.tick-label { font: 900 15px ui-monospace, 'Courier New', monospace; fill: #fff; text-anchor: middle; }
+.edge-tag { font: 900 16px ui-monospace, 'Courier New', monospace; fill: var(--ink); text-anchor: middle; }
+.mark-label { font: 900 13px ui-monospace, 'Courier New', monospace; text-anchor: middle; }
+.pod text { font: 900 18px ui-monospace, 'Courier New', monospace; fill: #2b1b2e; text-anchor: middle; }
+.pod .key { font-size: 12px; fill: #fff; }
+.pod.zappable { cursor: crosshair; }
+.pod-in { transform-box: fill-box; transform-origin: center; }
+.pod.landed .pod-in { animation: podLand 0.6s ease-in forwards; }
+.pod.blocked .pod-in { animation: podBlock 0.6s ease-out forwards; }
+.pod.zapped .pod-in { animation: podZap 0.4s ease-out forwards; }
+.pod.wrong .body { fill: #ff8f8f; stroke: #e5484d; stroke-width: 5; }
+@keyframes podLand { to { transform: translateY(58px) scale(0.75); opacity: 0; } }
+@keyframes podBlock { to { transform: translateY(-46px) scale(0.5); opacity: 0; } }
+@keyframes podZap { to { transform: scale(1.7); opacity: 0; } }
+.hint-card { width: 620px; }
+.hint-text { font-size: 17px; font-weight: 800; line-height: 1.45; margin: 12px 0 14px; }
+.hint-text .mono { display: block; margin-top: 8px; font-size: 20px; }

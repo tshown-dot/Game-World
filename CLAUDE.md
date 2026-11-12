@@ -23,7 +23,7 @@ shared/                            code used by every town: progressStore.js (si
                                    cartridgeHarness.js (opens a game inside a town)
 shared/town/                       the shared town engine: townState.js (progress and unlock rules inside a
                                    town), townHub.js (map, walking, briefings, victory, My Progress), town.css
-shared/game/                       the shared game parts: gameShell.js (zones, timer meter, 3 lives, scoring,
+shared/game/                       the shared game parts: arcadeShell.js (action games, see below), gameShell.js (zones, timer meter, 3 lives, scoring,
                                    feedback, worked solution + backup, report, town messages), drag.js (drag
                                    or tap a piece), game.css (top bar, side panel, controls, briefing, report)
 towns/<town-name>/index.html       a town map (one building per lesson)
@@ -35,7 +35,14 @@ docs/lessons.md                    lesson lists from the textbook database
   its building list (`js/valley.js`) and art (`js/valleyArt.js`). Built so far: 4-1 Key Fitter, 4-2 Counterweight, 4-3 Undo Machine, 4-4 Gear Shift, 4-5 Food Truck, 4-6 Ride Gate, 4-7 Force Field, 4-8 Cause and Effect Lab, 4-9 Rune Machine, 4-10 Trail Mapper
   and the Golem Fort boss (`games/4-boss-golem-fort/`, a review of 4-1 to 4-10). Every Equation Valley building is built.
   In other towns, unbuilt buildings show "under construction" and are skipped in the unlock chain until they exist.
-- Every game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
+- **Design standard (owner decision): action first, not a polished quiz.** The move the student repeats must BE the math
+  (shade a graph and watch numbers test it, sort like terms), with no question panel, many small decisions per minute,
+  and hints only after a mistake. Topic 3's Term Popper and Drone Drop and Grade 7's Log Flume are the models.
+  4-7 Force Field is the first game rebuilt this way, on `shared/game/arcadeShell.js`: `createArcade({...})` runs the
+  briefing, top bar, damage meter, 3 lives, hint card (same mistake twice in a zone), fail and report; the game runs its
+  own action loop and calls `arcade.good()` / `arcade.bad(key)` / `arcade.zoneCleared()`. Its page has no side panel
+  (`<main id="app" class="arcade">`). Other games are reworked only after the owner reviews Force Field.
+- Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the
   page layout from an existing game's `index.html` (the shell needs its ids, including `lives` for the 3 lives).
   Each game also links `shared/game/game.css` plus its own small `style.css` for its scene. Use `shared/game/drag.js`

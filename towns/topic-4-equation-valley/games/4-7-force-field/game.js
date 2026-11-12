@@ -1,402 +1,398 @@
-// Force Field (Lesson 4-7): the shield screen and controls. The math lives in field.js;
-// zones, timer, lives, scoring and the report come from the shared game shell (shared/game/gameShell.js).
+// Force Field (Lesson 4-7: Solve Inequalities): the screen and the controls.
+// The math is in field.js. The shared parts of an action game (briefing, top bar, lives, hint card, report)
+// are in shared/game/arcadeShell.js.
 //
-// Problem types: graph (put the shield on the number line), meteor (zap every solution before it lands),
-// name3 (type three solutions), read (write the rule a shield shows, or Francine's card) and pick.
-import {
-  ZONES, SYMS, fmt, ruleText, inclusive, goesRight, passesAll, lineFor, ticks, genZone, genBackup,
-  checkGraph, checkShower, checkName3, checkWritten, checkPick, tilesText, workedSolution,
-} from './field.js';
-import { hubAudio } from '../../../../shared/audio.js';
-import { createGame } from '../../../../shared/game/gameShell.js';
-import { dragOrTap, inside } from '../../../../shared/game/drag.js';
+// How a zone runs: it is a list of WAVES. In each wave the sign shows a rule, the student shades the landing
+// zone on the number line, and pods (numbers) fall. A pod lands only if its number is inside the shaded zone.
+// Solutions must land; everything else must be blocked. All timing goes through update(), so the action
+// stops cleanly whenever a banner, hint, help screen or mistake message is showing.
+import { createArcade } from '../../../../shared/game/arcadeShell.js';
+import { ZONES, genWaves, isSolution, inGraph, inBand, ruleGraph, sameGraph, classify, classifyZap, fmt, r2, near } from './field.js';
 
-const SKILL_TIPS = {
-  tenths: 'On a tenths line, count the small steps: each one is 0.1.',
-  graph_number: 'The edge of the shield goes on the boundary number.',
-  graph_circle: 'Closed circle ● for ≤ and ≥ (the number counts); open ○ for < and > (it does not).',
-  graph_direction: 'Greater than: shade right. Less than: shade left.',
-  boundary_meteor: 'The boundary itself is a solution only for ≤ and ≥.',
-  decimal_near: 'Every value past the boundary counts, even 7.01 for x > 7.',
-  substitute: 'For 3y < 25, multiply 3 × the value first, then compare.',
-  both_fields: 'With two fields, a solution must be inside BOTH.',
-  missed_solution: 'Put each value into the rule: true means zap it.',
-  zapped_wrong: 'Put each value into the rule: false means let it go.',
-  boundary: 'For < and >, the boundary number is NOT a solution.',
-  wrong_side: 'Check which way the solutions go: greater or less.',
-  not_whole: 'Read the question: sometimes only whole numbers count.',
-  flipped_order: 'With the number first, turn the symbol around.',
-  not_max: 'To buy ANY item, you need at least the price of the most expensive one.',
-  one_solution: 'Inequalities have infinitely many solutions.',
-  neither: 'Two open circles at the same number leave that one number out.',
+const NS = 'http://www.w3.org/2000/svg';
+const L = 90, WD = 1186;                 // the number line: left end and width, in scene units (the scene is 1366 x 698)
+const TOP = 104, SHIELD_Y = 430, LINE_Y = 520;
+const PACE = [{ speed: 66, gap: 1.3 }, { speed: 66, gap: 1.3 }, { speed: 80, gap: 1.1 }, { speed: 62, gap: 1.2 }, { speed: 74, gap: 1.2 }];
+const BOSS = ZONES.length - 1;
+const $ = (id) => document.getElementById(id);
+const scene = $('scene');
+
+// Everything about the wave being played.
+const W = {
+  waves: [], wi: 0, wave: null, phase: 'idle',      // phase: idle, clues, prep, run, gap
+  t: 0, prepLeft: 0, gapLeft: 0, pods: [], marks: [],
+  graph: null, band: null, active: 'a',             // the student's shading (one edge, or two in the boss)
+  frozen: false, speed: 1, podsDone: 0, podsTotal: 0,
 };
 
-const FALL_MS = 9000, FALL_PRACTICE_MS = 14000;
-const shell = createGame({
-  zones: ZONES, makeZone: genZone, makeBackup: genBackup, workedSolution, showProblem,
-  seconds: [55, 70, 60, 55, 80],                       // power drain: seconds until a blackout, per zone
-  isTimed: (p) => p.type !== 'meteor',                 // the meteors are their own clock
-  meterFloor: 8, wrongBump: 30, rightRelief: 25, pauseOnBanner: true,
-  lifeLostText: (left) => (left > 0 ? 'BLACKOUT!' : 'OUTPOST DARK!'),
-  bossHitText: 'HELD!', winDelay: (p) => (p.type === 'pick' ? 1300 : 1600),
-  skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. Shields at 100%!',
-  lettersAreInput: () => G.problem?.type === 'read', onKey, testName: '__field',
+const HINTS = {
+  direction: 'Read the symbol like an arrow of sizes.<span class="mono">&lt; and ≤ : smaller values, shade LEFT<br>&gt; and ≥ : bigger values, shade RIGHT</span>Test one number from your shaded side in the rule. Is it true?',
+  boundary: 'The edge of the landing zone sits on the number in the rule.<span class="mono">x ≤ 12 : the edge is at 12</span>Words work the same way: "at least 4" has its edge at 4.',
+  solve_first: 'This rule is not solved yet. Undo what is done to the letter, on both sides, just like an equation.<span class="mono">x + 3 &gt; 8 → x &gt; 5</span>The edge goes on the solved number.',
+  edge_included: 'Put the edge number itself into the rule.<span class="mono">12 ≤ 12 is TRUE</span>≤ and ≥ (and "at least", "at most", "no more than") include the edge: use a SOLID circle.',
+  edge_excluded: 'Put the edge number itself into the rule.<span class="mono">12 &lt; 12 is FALSE</span>&lt; and &gt; (and "less than", "more than", "under") leave the edge out: use an OPEN circle.',
+  band_range: 'A pod must make BOTH rules true.<span class="mono">t &gt; 3 AND t ≤ 9</span>Shade only where the two zones overlap: between the two edges.',
+  zapped_solution: 'Before you zap, put the number into the rule.<span class="mono">Is it TRUE? Let it land.</span>Only zap numbers that make the rule false.',
+  missed_nonsolution: 'Put each number into the rule as it falls.<span class="mono">Is it FALSE? Zap it.</span>Watch numbers right beside the edge, like 12.01.',
+  check_value: 'Put the pod\'s number into the rule and check: true or false?',
+};
+const TIPS = {
+  direction: 'Which way to shade: < and ≤ go left (smaller), > and ≥ go right (bigger).',
+  boundary: 'The edge of the graph goes on the number in the rule.',
+  solve_first: 'Solve the inequality first (undo on both sides), then graph it.',
+  edge_included: '≤ and ≥ include the edge value: a solid circle.',
+  edge_excluded: '< and > leave the edge value out: an open circle.',
+  band_range: 'With two rules, only values that fit both are solutions.',
+  zapped_solution: 'Test a value in the inequality before deciding it is not a solution.',
+  missed_nonsolution: 'Values just past the edge (like 12.01) are easy to miss. Test them.',
+  check_value: 'Test a value by putting it into the inequality.',
+};
+
+const arcade = createArcade({
+  zones: ZONES, startZone, stopZone, onKey, hints: HINTS, skillTips: TIPS, testName: '__field',
+  perfectText: 'A perfect shield: no mistakes to sharpen!',
+  lifeLostText: (left) => (left > 0 ? `A CORE BURNED OUT! ${left} LEFT` : 'THE SHIELD FELL'),
 });
-const { G, UI, $, win, miss, showFeedback } = shell;
-Object.assign(G, { rail: [], used: [], tried: [], line: { at: 0, closed: false, dir: null }, shower: null });
+const { G, hubAudio } = arcade;
+if (window.__field) window.__field.W = W;
+
+/* ================================================================== */
+/* Where things are on the line                                        */
+/* ================================================================== */
+const range = () => W.wave.rule.range;
+const X = (v) => L + ((v - range().lo) / (range().hi - range().lo)) * WD;
+function snap(v) {                                   // the nearest tick, kept on the line
+  const { lo, hi, step } = range();
+  return r2(lo + Math.round((Math.min(hi, Math.max(lo, v)) - lo) / step) * step);
+}
+const valueAt = (x) => snap(range().lo + ((x - L) / WD) * (range().hi - range().lo));
+const isBand = () => W.wave && W.wave.mode === 'band';
+const isZap = () => W.wave && W.wave.mode === 'zap';
+const canEdit = () => W.wave && !isZap() && (W.phase === 'prep' || W.phase === 'run') && !arcade.paused();
+
+/* ================================================================== */
+/* Zones and waves                                                     */
+/* ================================================================== */
+function startZone(z) {
+  W.waves = genWaves(Math.random, z);
+  W.podsTotal = W.waves.reduce((sum, w) => sum + w.pods.length, 0);
+  W.podsDone = 0;
+  startWave(0, true);
+}
+function stopZone() {
+  W.phase = 'idle'; W.frozen = false; W.pods = [];
+  $('callout').classList.add('hidden');
+  const pods = $('gPods'); if (pods) pods.innerHTML = '';
+}
+function startWave(i, first = false) {
+  const wave = W.waves[i];
+  Object.assign(W, { wi: i, wave, t: 0, pods: [], marks: [], frozen: false, phase: wave.mode === 'hidden' ? 'clues' : 'prep', prepLeft: wave.prep });
+  const { lo, hi } = wave.rule.range;
+  if (wave.mode === 'band') { W.band = { a: lo + 1, aClosed: true, b: hi - 1, bClosed: true }; W.active = 'a'; }
+  else if (wave.mode !== 'zap') {
+    // A new zone starts with nothing shaded. Later waves keep the old shading, so the student has to change it.
+    const start = snap(lo + (hi - lo) * (wave.rule.n > (lo + hi) / 2 ? 0.25 : 0.75));
+    const g = first || !W.graph ? { edge: start, dir: null, closed: true } : { ...W.graph, edge: snap(W.graph.edge) };
+    if (g.dir && sameGraph(g, ruleGraph(wave.rule))) g.dir = null;
+    W.graph = g;
+  }
+  drawBase(); drawGraph(); renderSign(true); renderCtl();
+  if (wave.mode === 'hidden') makePods(wave.clues, { clue: true, gap: 0.55, speed: 230 });
+}
+function makePods(values, { clue = false, gap, speed }) {
+  W.t = 0;
+  W.pods = values.map((v, i) => ({ v, i, clue, spawnAt: 0.3 + i * gap, speed, y: TOP, state: 'wait', el: null }));
+}
+function launch() {
+  if (W.phase !== 'prep' || arcade.paused() || W.frozen) return;
+  W.phase = 'run';
+  hubAudio.playCartridgeLaunch();
+  makePods(W.wave.pods, PACE[G.zone]);
+  renderCtl();
+}
+function perfectShield() {
+  if (isZap()) return false;
+  const rule = W.wave.rule;
+  if (isBand()) { const b = rule.band, s = W.band; return near(s.a, b.a) && near(s.b, b.b) && s.aClosed === b.aClosed && s.bClosed === b.bClosed; }
+  return Boolean(W.graph.dir) && sameGraph(W.graph, ruleGraph(rule));
+}
+function endWave() {
+  if (perfectShield()) { G.score += 20; arcade.renderHud(); arcade.flash('EXACT GRAPH! +20'); }
+  W.phase = 'gap'; W.gapLeft = 0.9;
+  renderCtl();
+}
+function afterWave() {
+  if (W.wi + 1 < W.waves.length) return startWave(W.wi + 1);
+  W.phase = 'idle';
+  arcade.zoneCleared();
+}
+
+/* ================================================================== */
+/* The action                                                          */
+/* ================================================================== */
+function update(dt) {
+  if (W.phase === 'idle' || W.frozen || arcade.paused()) return;
+  if (W.phase === 'prep') {
+    if (!G.practice) { W.prepLeft -= dt; if (W.prepLeft <= 0) return launch(); }
+    return renderCtl();
+  }
+  if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) afterWave(); return; }
+  W.t += dt;
+  for (const p of W.pods) {
+    if (p.state === 'wait' && W.t >= p.spawnAt) { p.state = 'fall'; p.el = podEl(p); }
+    if (p.state !== 'fall') continue;
+    p.y = Math.min(SHIELD_Y, p.y + p.speed * dt);
+    place(p);
+    if (p.y >= SHIELD_Y) { resolve(p); if (W.phase === 'idle' || W.frozen || arcade.paused()) return; }
+  }
+  if (W.pods.length && W.pods.every((p) => p.state === 'done')) {
+    if (W.phase === 'clues') { W.phase = 'prep'; W.pods = []; renderSign(true); renderCtl(); } else endWave();
+  }
+}
+/** A pod reached the shield: does it land, and should it have? */
+function resolve(p) {
+  const rule = W.wave.rule, should = isSolution(rule, p.v);
+  if (p.clue) {                                      // the city shows how the hidden rule treats this number
+    W.marks.push({ v: p.v, ok: should }); drawMarks();
+    return finishPod(p, should ? 'landed' : 'blocked');
+  }
+  if (isZap()) {
+    const res = classifyZap(rule, p.v, false);
+    return res ? mistake(p, res) : right(p, 'landed');
+  }
+  const landed = isBand() ? inBand(W.band, p.v) : Boolean(W.graph.dir) && inGraph(W.graph, p.v);
+  if (landed === should) return right(p, landed ? 'landed' : 'blocked');
+  mistake(p, classify(rule, isBand() ? null : { ...W.graph, dir: W.graph.dir || 'none' }, p.v, landed));
+}
+function countPod() {
+  W.podsDone += 1;
+  if (G.zone === BOSS) arcade.setBossProgress((W.podsDone / W.podsTotal) * 100);
+}
+function right(p, how) {
+  countPod();
+  arcade.good(10);
+  hubAudio.playCoinClink();
+  finishPod(p, how);
+}
+function finishPod(p, how) {
+  p.state = 'done';
+  const el = p.el;
+  el.classList.add(how);
+  setTimeout(() => el.remove(), 650);
+}
+/** The pod that exposes a mistake stops the action and says what went wrong. The student fixes the graph, then carries on. */
+function mistake(p, res) {
+  p.state = 'done';
+  p.el.classList.add('wrong');
+  countPod();
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;                    // that was the last core: the zone has stopped
+  W.frozen = true; W.wrongPod = p;
+  $('calloutText').textContent = res.message;
+  $('resumeBtn').textContent = isZap() ? 'CONTINUE (ENTER)' : 'FIX THE GRAPH, THEN CONTINUE (ENTER)';
+  $('callout').classList.remove('hidden');
+}
+function resume() {
+  if (!W.frozen || arcade.paused()) return;
+  W.frozen = false;
+  $('callout').classList.add('hidden');
+  if (W.wrongPod && W.wrongPod.el) W.wrongPod.el.remove();
+  W.wrongPod = null;
+}
+function zap(p) {
+  if (!isZap() || W.phase !== 'run' || W.frozen || arcade.paused() || !p || p.state !== 'fall') return;
+  const res = classifyZap(W.wave.rule, p.v, true);
+  if (res) return mistake(p, res);
+  right(p, 'zapped');
+}
+
+/* ================================================================== */
+/* The student's controls                                              */
+/* ================================================================== */
+function changed() { hubAudio.playStep(); drawGraph(); renderCtl(); }
+function setEdge(v) {
+  if (!canEdit()) return;
+  v = snap(v);
+  if (isBand()) { if (near(W.band[W.active], v)) return; W.band[W.active] = v; } else { if (near(W.graph.edge, v)) return; W.graph.edge = v; }
+  changed();
+}
+function moveEdge(steps) { if (canEdit()) setEdge((isBand() ? W.band[W.active] : W.graph.edge) + steps * range().step); }
+function setDir(dir) { if (!canEdit() || isBand()) return; W.graph.dir = dir; changed(); }
+const flip = () => setDir(W.graph && W.graph.dir === 'right' ? 'left' : 'right');
+function toggleCircle() {
+  if (!canEdit()) return;
+  if (isBand()) W.band[`${W.active}Closed`] = !W.band[`${W.active}Closed`]; else W.graph.closed = !W.graph.closed;
+  changed();
+}
+function switchEdge() { if (!canEdit() || !isBand()) return; W.active = W.active === 'a' ? 'b' : 'a'; changed(); }
+
+function onKey(e) {
+  const k = e.key;
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else launch(); return; }
+  if (isZap()) { if (/^[1-9]$/.test(k)) zap(W.pods[Number(k) - 1]); return; }
+  if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); moveEdge((k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)); }
+  else if (k === 'ArrowUp' || k === 'ArrowDown') { e.preventDefault(); flip(); }
+  else if (k === ' ') { e.preventDefault(); toggleCircle(); }
+  else if (k === 'Tab' && isBand()) { e.preventDefault(); switchEdge(); }
+}
+const press = (id, fn) => $(id).addEventListener('click', (e) => { e.currentTarget.blur(); fn(); });
+press('leftBtn', () => setDir('left'));
+press('rightBtn', () => setDir('right'));
+press('stepL', () => moveEdge(-1));
+press('stepR', () => moveEdge(1));
+press('circleBtn', toggleCircle);
+press('switchBtn', switchEdge);
+press('goBtn', launch);
+press('resumeBtn', resume);
+
+// Drag the edge along the line, tap the line to move the edge there, tap the edge circle to switch solid / open.
+let drag = null;
+function scenePoint(e) {
+  const r = scene.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) / r.width) * 1366, y: ((e.clientY - r.top) / r.height) * 698 };
+}
+scene.addEventListener('pointerdown', (e) => {
+  if (!canEdit()) return;
+  const pt = scenePoint(e);
+  if (pt.y < SHIELD_Y - 20 || pt.y > LINE_Y + 46) return;
+  if (isBand()) { const want = Math.abs(pt.x - X(W.band.a)) <= Math.abs(pt.x - X(W.band.b)) ? 'a' : 'b'; if (want !== W.active) { W.active = want; changed(); } }
+  const edgeX = X(isBand() ? W.band[W.active] : W.graph.edge);
+  drag = { startX: pt.x, moved: false, onEdge: Math.abs(pt.x - edgeX) <= 20 && pt.y > LINE_Y - 30 };
+  scene.setPointerCapture(e.pointerId);
+  if (!drag.onEdge) { drag.moved = true; setEdge(valueAt(pt.x)); }
+});
+scene.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const pt = scenePoint(e);
+  if (drag.moved || Math.abs(pt.x - drag.startX) > 6) { drag.moved = true; setEdge(valueAt(pt.x)); }
+});
+const endDrag = () => { if (drag && !drag.moved && drag.onEdge) toggleCircle(); drag = null; };
+scene.addEventListener('pointerup', endDrag);
+scene.addEventListener('pointercancel', () => { drag = null; });
 
 /* ================================================================== */
 /* Drawing                                                             */
 /* ================================================================== */
-const K = '#1d1433';
-const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const LINE_Y = 410;
-
-function sky() {
-  let stars = '';
-  for (let i = 0; i < 40; i++) stars += `<circle cx="${(i * 197) % 800}" cy="${(i * 89) % 300}" r="${i % 3 ? 1.5 : 2.5}" fill="#fff" opacity="0.7"/>`;
-  return `<rect x="-300" y="-300" width="1400" height="1120" fill="#2a1f4a"/>${stars}
-    <path d="M0 470 L120 440 L260 462 L400 430 L540 458 L680 436 L800 456 V520 H0 Z" fill="#6b3a2a" ${O}/>`;
-}
-const X = (line, v) => 80 + ((v - line.lo) / (line.hi - line.lo)) * 640;
-/** A number line with fields drawn on it. fields: [{ at, closed, dir, color }] */
-function numberLine(line, fields = [], { interactive = false, showAllLabels = line.labelEvery } = {}) {
-  const ts = ticks(line);
-  let out = `<rect x="30" y="${LINE_Y - 60}" width="740" height="112" rx="14" fill="#fff4d6" opacity="0.95" ${O}/>`;
-  for (const f of fields) {
-    if (f.dir) {
-      const x0 = X(line, f.at), x1 = f.dir === 'right' ? 760 : 40;
-      out += `<rect class="shimmer" x="${Math.min(x0, x1)}" y="${LINE_Y - 22}" width="${Math.abs(x1 - x0)}" height="44" fill="${f.color || '#3ad0f0'}"/>`;
-      out += `<path d="${f.dir === 'right' ? `M760 ${LINE_Y} l-20 -14 v28 Z` : `M40 ${LINE_Y} l20 -14 v28 Z`}" fill="${f.color || '#3a8ef0'}" ${O}/>`;
-    }
+const STARS = [[60, 40], [180, 120], [300, 60], [420, 170], [520, 90], [1010, 60], [1120, 150], [1230, 80], [1320, 190], [760, 210], [640, 300], [90, 260], [1280, 320], [930, 280], [240, 330]];
+const TOWERS = [[40, 70, 60], [120, 100, 44], [240, 60, 70], [320, 120, 50], [450, 80, 62], [540, 110, 40], [660, 70, 66], [750, 130, 46], [900, 90, 58], [1000, 60, 72], [1080, 120, 42], [1210, 80, 64], [1300, 60, 50]];
+function drawBase() {
+  const { lo, hi, step } = range();
+  let ticks = '';
+  const count = Math.round((hi - lo) / step);
+  for (let i = 0; i <= count; i++) {
+    const v = r2(lo + i * step), x = X(v), whole = near(v, Math.round(v)), half = near(v * 2, Math.round(v * 2));
+    const len = whole ? 14 : half ? 10 : 6;
+    ticks += `<line x1="${x}" y1="${LINE_Y - len}" x2="${x}" y2="${LINE_Y + len}" stroke="#fff" stroke-width="${whole ? 3 : 2}"/>`;
+    if (whole) ticks += `<text class="tick-label" x="${x}" y="${LINE_Y + 34}">${fmt(v)}</text>`;
   }
-  out += `<path d="M40 ${LINE_Y} H760" stroke="${K}" stroke-width="4"/>`;
-  ts.forEach((v, i) => {
-    const x = X(line, v), big = showAllLabels || i === 0 || i === ts.length - 1;
-    out += `<g ${interactive ? `class="tick-hit" data-tick="${v}"` : ''}><rect x="${x - (line.step < 1 ? 26 : 24)}" y="${LINE_Y - 40}" width="${line.step < 1 ? 52 : 48}" height="86" fill="transparent"/>
-      <path d="M${x} ${LINE_Y - (big ? 12 : 8)} V${LINE_Y + (big ? 12 : 8)}" stroke="${K}" stroke-width="3"/>
-      ${big ? `<text x="${x}" y="${LINE_Y + 36}" text-anchor="middle" font-size="16" font-weight="900" fill="${K}" font-family="ui-monospace, monospace">${fmt(v)}</text>` : ''}</g>`;
-  });
-  for (const f of fields) {
-    if (f.at === null || f.at === undefined) continue;
-    out += `<circle cx="${X(line, f.at)}" cy="${LINE_Y}" r="13" fill="${f.closed ? '#1f63c9' : '#fff'}" stroke="#1f63c9" stroke-width="5"/>`;
-  }
-  return out;
+  const x1 = L - 40, x2 = L + WD + 40;
+  scene.innerHTML = `
+    <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#171331"/><stop offset="1" stop-color="#3b2a6e"/></linearGradient></defs>
+    <rect width="1366" height="698" fill="url(#sky)"/>
+    ${STARS.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2" fill="#fff" opacity="0.7"/>`).join('')}
+    ${TOWERS.map(([x, w, h]) => `<rect x="${x}" y="${632 - h}" width="${w}" height="${h}" fill="#241a44" stroke="#120d26" stroke-width="3"/><rect x="${x + 10}" y="${644 - h}" width="10" height="10" fill="#ffd166" opacity="0.8"/><rect x="${x + w - 22}" y="${660 - h}" width="10" height="10" fill="#ffd166" opacity="0.5"/>`).join('')}
+    <g id="gGraph"></g>
+    <line x1="${x1}" y1="${LINE_Y}" x2="${x2}" y2="${LINE_Y}" stroke="#fff" stroke-width="4"/>
+    <path d="M${x1 - 14} ${LINE_Y} l14 -9 v18 Z M${x2 + 14} ${LINE_Y} l-14 -9 v18 Z" fill="#fff"/>
+    ${ticks}
+    <g id="gEdge"></g><g id="gMarks"></g><g id="gPods"></g>`;
 }
-function outpost(label) {
-  return `<g transform="translate(400 300)"><path d="M-120 40 A120 120 0 0 1 120 40 Z" fill="#3ad0f0" opacity="0.25"/>
-    <rect x="-46" y="0" width="92" height="40" rx="6" fill="#8b90a3" ${O}/><path d="M-30 0 A30 30 0 0 1 30 0" fill="#c4935a" ${O}/>
-    ${label ? `<rect x="-140" y="-150" width="280" height="54" rx="10" fill="#fff4d6" ${O}/><text x="0" y="-113" text-anchor="middle" font-size="28" font-weight="900" fill="${K}" font-family="ui-monospace, monospace">${esc(label)}</text>` : ''}</g>`;
-}
-function strip(lines) {
-  const el = $('eqStrip');
-  if (!el) return;
-  if (!lines.length) { el.classList.add('hidden'); return; }
-  el.classList.remove('hidden');
-  el.innerHTML = lines.map((l) => `<div class="eq-line ${l.small ? 'small' : ''}">${l.html ?? esc(l)}</div>`).join('');
-}
-const fieldOf = (r) => ({ at: r.n / (r.coef || 1), closed: inclusive(r), dir: goesRight(r) ? 'right' : 'left' });
-
-/* ================================================================== */
-/* Problems                                                            */
-/* ================================================================== */
-const TAGS = { graph: 'SHIELD UP: GRAPH IT', meteor: 'ZAP THE SOLUTIONS', name3: 'NAME THREE SOLUTIONS', read: 'READ THE FIELD', pick: 'THINK IT THROUGH' };
-function showProblem(p, isBackup) {
-  stopShower();
-  G.shower = null;
-  const r = p.rule || p.rules[0];
-  Object.assign(G, { rail: [], used: [], tried: [], line: { at: lineFor(r).lo + (lineFor(r).step < 1 ? 0.5 : 3), closed: false, dir: null } });
-  G.line.at = Math.round(G.line.at * 10) / 10;
-  UI.taskTag.textContent = `${p.gift ? 'GIFT CARD' : TAGS[p.type]}${isBackup ? ' · BACKUP' : ''}`;
-  renderPrompt();
-  renderControls();
-  showState();
-  if (p.type === 'meteor') startShower();
-}
-function renderPrompt() {
-  const p = G.problem;
-  const box = (t) => `<span style="display:block;font-size:15px;background:#fff;border:3px solid var(--ink);border-radius:10px;padding:7px 10px;margin-top:6px">${esc(t)}</span>`;
-  let html;
-  if (p.type === 'graph') html = `Put the shield on the number line: every solution must be covered.<span class="eq">${esc(ruleText(p.rule))}</span>`;
-  else if (p.type === 'meteor') html = `${p.story ? box(p.story) : `Zap every meteor that is a <b>solution</b>.`}<span class="eq">${esc(p.rules.map(ruleText).join('  and  '))}</span>`;
-  else if (p.type === 'name3') html = `Type <b>three different solutions</b>${p.whole ? ' — <b>whole numbers only</b>' : ' (decimals and fractions are fine)'}.<span class="eq">${esc(ruleText(p.rule))}</span>`;
-  else if (p.type === 'read') html = p.gift ? box(p.story) : 'This shield is up. Write the rule it shows.';
-  else html = p.ask === 'count' ? `How many solutions does this inequality have?<span class="eq">${esc(ruleText(p.rule))}</span>` : `Two fields share one line. Which value is in <b>neither</b> field?<span class="eq">${esc(p.rules.map(ruleText).join('  and  '))}</span>`;
-  UI.prompt.innerHTML = html;
-}
-function showState() {
-  const p = G.problem;
-  if (p.type === 'graph') {
-    const line = lineFor(p.rule);
-    UI.scene.innerHTML = `${sky()}${outpost(ruleText(p.rule))}${numberLine(line, [{ ...G.line, color: '#3ad0f0' }], { interactive: true })}`;
-    UI.scene.querySelectorAll('[data-tick]').forEach((t) => t.addEventListener('click', () => setPost(Number(t.dataset.tick))));
-    strip(line.step < 1 ? [{ html: `Small steps are tenths (0.1). Tap where ${fmt(p.rule.n)} goes.`, small: true }] : []);
-  } else if (p.type === 'meteor') {
-    drawShower();
-  } else if (p.type === 'name3') {
-    const line = lineFor(p.rule);
-    UI.scene.innerHTML = `${sky()}${outpost(ruleText(p.rule))}${numberLine(line, [fieldOf(p.rule)])}`;
-    strip([{ html: p.whole ? 'Whole numbers only: 0, 1, 2, 3 …' : 'Any solution works: whole numbers, decimals, fractions.', small: true }]);
-  } else if (p.type === 'read') {
-    const line = lineFor(p.rule);
-    UI.scene.innerHTML = `${sky()}${outpost(G.rail.length ? tilesText(G.rail) : '? ? ?')}${p.gift ? '' : numberLine(line, [fieldOf(p.rule)])}`;
-    strip(p.gift ? [{ html: p.tiles.map((v) => fmt(v, true)).join('   '), small: false }] : []);
+function drawGraph() {
+  const x1 = L - 40, x2 = L + WD + 40;
+  let shield = [[x1, x2]], open = null, edges = [];
+  if (isZap()) shield = [];
+  else if (isBand()) {
+    const b = W.band, xa = X(b.a), xb = X(b.b);
+    if (b.a < b.b) { shield = [[x1, xa], [xb, x2]]; open = [xa, xb]; }
+    edges = [{ x: xa, v: b.a, closed: b.aClosed, on: W.active === 'a' }, { x: xb, v: b.b, closed: b.bClosed, on: W.active === 'b' }];
   } else {
-    const rules = p.rules || [p.rule];
-    const line = lineFor(rules[0]);
-    UI.scene.innerHTML = `${sky()}${outpost('')}${numberLine(line, rules.map((r, i) => ({ ...fieldOf(r), color: i ? '#ff9f43' : '#3ad0f0' })))}`;
-    strip([]);
+    const g = W.graph, xe = X(g.edge);
+    if (g.dir === 'right') { shield = [[x1, xe]]; open = [xe, x2]; }
+    if (g.dir === 'left') { shield = [[xe, x2]]; open = [x1, xe]; }
+    edges = [{ x: xe, v: g.edge, closed: g.closed, on: false }];
   }
+  let back = isZap() ? `<line x1="${x1}" y1="${SHIELD_Y}" x2="${x2}" y2="${SHIELD_Y}" stroke="#7df9ff" stroke-width="3" stroke-dasharray="6 14" opacity="0.35"/>` : '';
+  for (const [a, b] of shield) back += `<rect x="${a}" y="${SHIELD_Y}" width="${b - a}" height="${LINE_Y - SHIELD_Y}" fill="#7df9ff" opacity="0.09"/><rect x="${a}" y="${SHIELD_Y - 6}" width="${b - a}" height="12" rx="6" fill="#7df9ff"/>`;
+  let front = '';
+  if (open) {
+    const [a, b] = open;
+    back += `<rect x="${a}" y="${SHIELD_Y - 6}" width="${b - a}" height="${LINE_Y - SHIELD_Y + 6}" fill="#54d678" opacity="0.25"/>`;
+    front += `<line x1="${a}" y1="${LINE_Y}" x2="${b}" y2="${LINE_Y}" stroke="#54d678" stroke-width="11"/>`;
+    if (!isBand()) front += W.graph.dir === 'right' ? `<path d="M${x2 + 16} ${LINE_Y} l-22 -14 v28 Z" fill="#54d678"/>` : `<path d="M${x1 - 16} ${LINE_Y} l22 -14 v28 Z" fill="#54d678"/>`;
+  }
+  for (const e of edges) {
+    front += `<line x1="${e.x}" y1="${SHIELD_Y - 6}" x2="${e.x}" y2="${LINE_Y}" stroke="#fff" stroke-width="2" stroke-dasharray="5 6" opacity="0.7"/>`;
+    if (e.on) front += `<circle cx="${e.x}" cy="${LINE_Y}" r="20" fill="none" stroke="#ffd166" stroke-width="4"/>`;
+    front += `<circle cx="${e.x}" cy="${LINE_Y}" r="12" fill="${e.closed ? '#54d678' : '#241a44'}" stroke="${e.closed ? '#eafff0' : '#54d678'}" stroke-width="5"/>`;
+    front += `<rect x="${e.x - 30}" y="${LINE_Y + 44}" width="60" height="26" rx="8" fill="#ffd166" stroke="#2b1b2e" stroke-width="3"/><text class="edge-tag" x="${e.x}" y="${LINE_Y + 63}">${fmt(e.v)}</text>`;
+  }
+  $('gGraph').innerHTML = back;
+  $('gEdge').innerHTML = front;
 }
-
-/* ================================================================== */
-/* The meteor shower                                                   */
-/* ================================================================== */
-function startShower() {
-  const p = G.problem;
-  stopShower();
-  const order = p.values.map((v, i) => i);
-  G.shower = { zapped: new Set(), landed: new Set(), t: 0, last: performance.now(), raf: null, done: false, p, lanes: order };
-  const fall = G.practice ? FALL_PRACTICE_MS : FALL_MS;
-  const step = (now) => {
-    const s = G.shower;
-    if (!s || s.p !== G.problem || s.done) return;
-    const dt = Math.min(100, now - s.last); s.last = now;
-    const paused = !UI.briefing.classList.contains('hidden') || !UI.banner.classList.contains('hidden');
-    if (!paused) s.t += dt;
-    p.values.forEach((v, i) => {
-      if (s.zapped.has(i) || s.landed.has(i)) return;
-      const prog = (s.t - i * 900) / fall;
-      const g = $(`m${i}`);
-      if (g) g.setAttribute('transform', `translate(${laneX(i)} ${-40 + Math.max(0, prog) * (LINE_Y - 80)})`);
-      if (prog >= 1) { s.landed.add(i); if (g) g.classList.add('boom'); hubAudio.playTone(120, 'sawtooth', 0.15, 0.05); }
-    });
-    if (s.zapped.size + s.landed.size === p.values.length) return endShower();
-    s.raf = requestAnimationFrame(step);
-  };
-  G.shower.raf = requestAnimationFrame(step);
-}
-function stopShower() { if (G.shower) { cancelAnimationFrame(G.shower.raf); G.shower.done = true; } }
-const laneX = (i) => 140 + i * 130;
-function drawShower() {
-  const p = G.problem, s = G.shower;
-  const line = lineFor(p.rules[0].coef ? { ...p.rules[0], n: p.rules[0].n } : p.rules[0]);
-  const fields = p.rules.map((r, i) => ({ ...fieldOf(r), color: i ? '#ff9f43' : '#3ad0f0' }));
-  const wide = p.rules.length === 2 || p.story;                 // big ranges: show just the rule plates, no line
-  const meteors = p.values.map((v, i) => {
-    const gone = s && (s.zapped.has(i) || s.landed.has(i));
-    return `<g id="m${i}" class="meteor ${gone ? 'boom' : ''}" data-m="${i}" transform="translate(${laneX(i)} -60)">
-      <path d="M-14 -40 L0 -10 L14 -40" stroke="#ff9f43" stroke-width="6" opacity="0.7"/>
-      <circle r="36" fill="#8f3f22" ${O}/><circle r="30" fill="#c4935a"/>
-      <text y="7" text-anchor="middle" font-size="${fmt(v).length > 5 ? 15 : 19}" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${esc(fmt(v))}</text>
-      <text y="-44" text-anchor="middle" font-size="12" font-weight="900" fill="#ffd23f" font-family="'Press Start 2P', monospace">${i + 1}</text></g>`;
+/** Hidden rule: what the city did with each test number. ✓ landed, ✕ blocked. */
+function drawMarks() {
+  const sorted = [...W.marks].sort((a, b) => a.v - b.v);
+  $('gMarks').innerHTML = sorted.map((m, i) => {
+    const x = X(m.v), y = LINE_Y - 30 - (i % 3) * 19, color = m.ok ? '#7dffa0' : '#ff9a9a';
+    return `<line x1="${x}" y1="${y + 5}" x2="${x}" y2="${LINE_Y - 8}" stroke="${color}" stroke-width="2"/><circle cx="${x}" cy="${LINE_Y}" r="5" fill="${color}"/><text class="mark-label" x="${x}" y="${y}" fill="${color}">${fmt(m.v)}${m.ok ? '✓' : '✕'}</text>`;
   }).join('');
-  UI.scene.innerHTML = `${sky()}${wide ? `<g transform="translate(400 ${LINE_Y - 10})"><rect x="-250" y="-34" width="500" height="64" rx="12" fill="#3ad0f0" opacity="0.35" class="shimmer"/>
-      <text x="0" y="10" text-anchor="middle" font-size="26" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${esc(p.rules.map(ruleText).join('  and  '))}</text></g>`
-    : numberLine(line, fields)}${meteors}`;
-  UI.scene.querySelectorAll('[data-m]').forEach((g) => g.addEventListener('pointerdown', (e) => { e.preventDefault(); zap(Number(g.dataset.m)); }));
-  strip([]);
 }
-function zap(i) {
-  const s = G.shower, p = G.problem;
-  if (!s || s.done || G.locked || p.type !== 'meteor' || s.zapped.has(i) || s.landed.has(i)) return;
-  s.zapped.add(i);
-  $(`m${i}`)?.classList.add('boom');
-  hubAudio.playTone(passesAll(p.rules, p.values[i]) ? 880 : 300, 'square', 0.1, 0.06);
-  if (s.zapped.size + s.landed.size === p.values.length) endShower();
+function podEl(p) {
+  const g = document.createElementNS(NS, 'g');
+  const zapKey = isZap() ? `<circle cx="-36" cy="-20" r="11" fill="#2b1b2e" stroke="#fff" stroke-width="2"/><text class="key" x="-36" y="-16">${p.i + 1}</text>` : '';
+  g.setAttribute('class', `pod${isZap() ? ' zappable' : ''}`);
+  g.innerHTML = `<g class="pod-in"><path d="M-9 -19 L0 -34 L9 -19 Z" fill="#ff9f43" stroke="#2b1b2e" stroke-width="3"/><rect class="body" x="-36" y="-20" width="72" height="38" rx="14" fill="${p.clue ? '#c3ccff' : '#ffd166'}" stroke="#2b1b2e" stroke-width="3"/><text y="6">${fmt(p.v)}</text>${zapKey}</g>`;
+  if (isZap()) g.addEventListener('pointerdown', (e) => { e.stopPropagation(); zap(p); });
+  $('gPods').appendChild(g);
+  return g;
 }
-function endShower() {
-  const s = G.shower, p = G.problem;
-  if (!s || s.done) return;
-  s.done = true;
-  const res = checkShower(p, s.zapped);
-  const marks = p.values.map((v, i) => `<span class="${passesAll(p.rules, v) === s.zapped.has(i) ? 'good' : 'bad'}">${esc(fmt(v))}${passesAll(p.rules, v) ? '✓' : '✗'}</span>`).join('  ');
-  strip([{ html: marks }]);
-  if (res.correct) return win(res);
-  miss(res, { lock: true, delay: 1800, retry: () => { stopShower(); G.shower = null; showState(); startShower(); } });   // the same shower again
+const place = (p) => p.el.setAttribute('transform', `translate(${X(p.v)} ${p.y})`);
+
+function renderSign(isNew = false) {
+  const { mode, rule } = W.wave;
+  let small = 'ONLY SOLUTIONS MAY LAND', text = `LAND IF  ${rule.sign}`;
+  if (rule.kind === 'words') text = `LAND IF ${rule.letter} IS ${rule.sign}`;
+  if (rule.kind === 'story') { small = 'WHICH VALUES FIT? ONLY THOSE MAY LAND'; text = rule.sign; }
+  if (mode === 'zap') small = 'SHIELD OFFLINE: ZAP EVERYTHING THAT IS NOT A SOLUTION';
+  if (mode === 'band') small = 'TWO RULES AT ONCE: A POD MUST FIT BOTH';
+  if (mode === 'hidden') { small = 'THE RULE IS HIDDEN'; text = W.phase === 'clues' ? 'WATCH:  ✓ LANDS   ✕ BLOCKED' : 'NOW SHADE THE SAME RULE'; }
+  $('signSmall').textContent = small;
+  $('signText').textContent = text;
+  $('signText').classList.toggle('long', text.length > 30);
+  if (isNew) { const s = $('sign'); s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); }
+}
+let ctlKey = '';
+function renderCtl() {
+  const zapMode = isZap(), band = isBand(), g = W.graph, closed = band ? W.band[`${W.active}Closed`] : g && g.closed;
+  const go = W.phase === 'prep' ? (G.practice ? 'SEND THE PODS (ENTER)' : `PODS IN ${Math.max(1, Math.ceil(W.prepLeft))} · GO NOW (ENTER)`)
+    : W.phase === 'clues' ? 'WATCH THE TEST PODS' : W.phase === 'run' ? 'PODS INCOMING' : 'CLEAR';
+  const key = [W.wi, zapMode, band, W.active, closed, g && g.dir, go].join('|');
+  if (key === ctlKey) return;                        // nothing to redraw
+  ctlKey = key;
+  for (const id of ['leftBtn', 'rightBtn']) $(id).classList.toggle('hidden', zapMode || band);
+  for (const id of ['stepL', 'stepR', 'circleBtn']) $(id).classList.toggle('hidden', zapMode);
+  $('switchBtn').classList.toggle('hidden', !band);
+  $('zapTip').classList.toggle('hidden', !zapMode);
+  $('leftBtn').classList.toggle('on', !band && g && g.dir === 'left');
+  $('rightBtn').classList.toggle('on', !band && g && g.dir === 'right');
+  $('circleBtn').textContent = closed ? '● SOLID: the edge LANDS' : '○ OPEN: the edge is BLOCKED';
+  $('goBtn').textContent = go;
+  $('goBtn').disabled = W.phase !== 'prep';
+  $('waveTag').textContent = W.waves.length ? `WAVE ${W.wi + 1}/${W.waves.length}` : '';
 }
 
 /* ================================================================== */
-/* Controls                                                            */
+/* The clock                                                           */
 /* ================================================================== */
-function renderControls() {
-  const p = G.problem;
-  if (p.type === 'meteor') {
-    UI.controls.innerHTML = `<div class="zap-help">Tap a meteor (or press its number, <kbd>1</kbd>–<kbd>5</kbd>) to zap it.</div>
-      <div class="help-line">Zap only the solutions. Let the others hit the ground: they burn up harmlessly.${G.practice ? ' (Practice: the meteors fall slower.)' : ''}</div>`;
-    return;
-  }
-  if (p.type === 'pick') {
-    UI.controls.innerHTML = p.options.map((o, i) => `<button type="button" class="choice" data-choice="${i}" ${G.tried.includes(i) ? 'disabled' : ''}><b>${i + 1}</b>${esc(o.text)}</button>`).join('');
-    UI.controls.querySelectorAll('[data-choice]').forEach((b) => b.addEventListener('click', () => answerPick(Number(b.dataset.choice))));
-    return;
-  }
-  if (p.type === 'name3') {
-    UI.controls.innerHTML = `
-      <div class="label px">THREE DIFFERENT SOLUTIONS</div>
-      <div class="name3">${[1, 2, 3].map((i) => `<input id="v${i}" inputmode="decimal" autocomplete="off" maxlength="9" placeholder="?">`).join('')}</div>
-      <button type="button" id="checkBtn" class="apply px">CHECK (ENTER)</button>
-      <div id="helpLine" class="help-line">Use <kbd>Tab</kbd> to move between boxes. Mixed numbers like 2 1/2 are fine.</div>`;
-    $('checkBtn').addEventListener('click', submitName3);
-    setTimeout(() => $('v1')?.focus(), 50);
-    return;
-  }
-  if (p.type === 'graph') {
-    const L = G.line;
-    UI.controls.innerHTML = `
-      <div class="label px">1. THE EDGE (TAP THE LINE OR MOVE IT)</div>
-      <div class="line-btns"><button type="button" data-move="-1" class="px">◁ LEFT</button><div></div><button type="button" data-move="1" class="px">RIGHT ▷</button></div>
-      <div class="label px">2. THE CIRCLE</div>
-      <div class="line-btns" style="grid-template-columns:1fr 1fr"><button type="button" data-closed="0" class="px ${!L.closed ? 'on' : ''}">○ OPEN</button><button type="button" data-closed="1" class="px ${L.closed ? 'on' : ''}">● CLOSED</button></div>
-      <div class="label px">3. SHADE THE SOLUTIONS</div>
-      <div class="line-btns" style="grid-template-columns:1fr 1fr"><button type="button" data-dir="left" class="px ${L.dir === 'left' ? 'on' : ''}">◀ LESS</button><button type="button" data-dir="right" class="px ${L.dir === 'right' ? 'on' : ''}">GREATER ▶</button></div>
-      <button type="button" id="checkBtn" class="apply px">SHIELD UP (ENTER)</button>
-      <div id="helpLine" class="help-line">Keys: <kbd>←</kbd> <kbd>→</kbd> move · <kbd>space</kbd> circle · <kbd>&lt;</kbd> <kbd>&gt;</kbd> shade</div>`;
-    UI.controls.querySelectorAll('[data-move]').forEach((b) => b.addEventListener('click', () => movePost(Number(b.dataset.move))));
-    UI.controls.querySelectorAll('[data-closed]').forEach((b) => b.addEventListener('click', () => setLine({ closed: b.dataset.closed === '1' })));
-    UI.controls.querySelectorAll('[data-dir]').forEach((b) => b.addEventListener('click', () => setLine({ dir: b.dataset.dir })));
-    $('checkBtn').addEventListener('click', submitGraph);
-    return;
-  }
-  // read: tiles
-  const chip = (t) => `<span class="tile chip ${t.t === 'num' ? 'num' : t.t === 'var' ? 'var' : 'eqs'}">${esc(t.t === 'num' ? fmt(t.v) : t.v)}</span>`;
-  UI.controls.innerHTML = `
-    <div class="label px">THE RULE</div>
-    <div id="rail" class="rail ${G.rail.length ? 'filled' : ''}">${G.rail.length ? G.rail.map(chip).join('') : '<span class="empty">Drag or tap tiles to build it here</span>'}</div>
-    <div class="tiles">
-      <button type="button" class="tile var" data-tile="var" data-v="${p.rule.letter}" ${G.rail.some((t) => t.t === 'var') ? 'disabled' : ''}>${p.rule.letter}</button>
-      ${p.tiles.map((v, i) => `<button type="button" class="tile num" data-tile="num" data-i="${i}" ${G.used.includes(i) ? 'disabled' : ''}>${esc(p.gift ? fmt(v, true) : fmt(v))}<small>${6 + i}</small></button>`).join('')}
-    </div>
-    <div class="tiles">${SYMS.map((sy, i) => `<button type="button" class="tile eqs" data-tile="sym" data-v="${sy}">${esc(sy)}<small>${i + 1}</small></button>`).join('')}</div>
-    <div class="row-btns"><button type="button" id="undoTile" class="px">⌫ BACK</button><button type="button" id="clearRail" class="px">CLEAR</button>
-      <button type="button" id="buildBtn" class="go px">BUILD IT (ENTER)</button></div>
-    <div id="helpLine" class="help-line">Keys: <kbd>${p.rule.letter}</kbd> · <kbd>1</kbd>–<kbd>4</kbd> symbols · ${p.tiles.map((_, i) => `<kbd>${6 + i}</kbd>`).join(' ')} numbers</div>`;
-  UI.controls.querySelectorAll('[data-tile]').forEach((b) => b.addEventListener('pointerdown', (e) => {
-    if (G.locked || b.disabled) return;
-    dragOrTap(e, b, {
-      targetAt: (x, y) => (inside($('rail'), x, y) ? 'rail' : null), glow: (t) => $('rail')?.classList.toggle('drop-target', Boolean(t)),
-      onDrop: () => addTile(b), onTap: () => addTile(b), lift: false,
-    });
-  }));
-  $('undoTile').addEventListener('click', removeTile);
-  $('clearRail').addEventListener('click', () => { if (!G.locked) { G.rail = []; G.used = []; renderControls(); showState(); } });
-  $('buildBtn').addEventListener('click', submitWritten);
+let last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  update(dt * W.speed);
+  requestAnimationFrame(frame);
 }
-function nudge(text) {
-  const h = $('helpLine');
-  if (h) h.innerHTML = `<span class="warn">${text}</span>`;
-  else showFeedback(true, text);
-  hubAudio.playTone(220, 'square', 0.12, 0.05);
-}
-
-/* ================================================================== */
-/* Answers                                                             */
-/* ================================================================== */
-function setPost(v) {
-  if (G.locked || G.problem.type !== 'graph') return;
-  G.line.at = v;
-  hubAudio.playTone(500, 'triangle', 0.06, 0.05);
-  renderControls(); showState();
-}
-function movePost(d) {
-  if (G.problem.type !== 'graph') return;
-  const line = lineFor(G.problem.rule);
-  setPost(Math.max(line.lo, Math.min(line.hi, Math.round((G.line.at + d * line.step) * 10) / 10)));
-}
-function setLine(change) {
-  if (G.locked || G.problem.type !== 'graph') return;
-  Object.assign(G.line, change);
-  hubAudio.playSelect();
-  renderControls(); showState();
-}
-function submitGraph() {
-  if (G.locked || G.problem.type !== 'graph') return;
-  if (!G.line.dir) return nudge('Choose which way to shade: LESS or GREATER.');
-  const res = checkGraph(G.problem.rule, G.line);
-  strip([{ html: res.correct ? `<span class="good">Shield up at ${fmt(G.problem.rule.n)} ✓</span>` : `<span class="bad">Shield failed ✗</span>` }]);
-  if (res.correct) return win(res);
-  miss(res, { lock: true, delay: 1300, retry: () => { renderControls(); showState(); } });
-}
-function submitName3() {
-  const p = G.problem;
-  if (G.locked || p.type !== 'name3') return;
-  const raws = [1, 2, 3].map((i) => $(`v${i}`).value);
-  const res = checkName3(p, raws);
-  if (res.nudge) return nudge(res.message);
-  if (res.correct) {
-    strip([{ html: `<span class="good">${raws.map(esc).join(' ✓  ')} ✓</span>` }]);
-    return win(res);
-  }
-  [1, 2, 3].forEach((i) => $(`v${i}`).classList.toggle('bad', Math.abs((parseFloat($(`v${i}`).value.replace(/,/g, '')) || NaN) - res.value) < 1e-9));
-  miss(res, { lock: true, delay: 1300, retry: () => { [1, 2, 3].forEach((i) => $(`v${i}`)?.classList.remove('bad')); $('v1')?.focus(); } });
-}
-function addTile(src) {
-  if (G.locked || G.problem.type !== 'read' || !src || src.disabled) return;
-  if (G.rail.length >= 3) return nudge('A rule has three parts. Use ⌫ BACK or CLEAR to change it.');
-  const kind = src.dataset.tile;
-  if (kind === 'num') { const i = Number(src.dataset.i); G.used.push(i); G.rail.push({ t: 'num', v: G.problem.tiles[i], i }); }
-  else G.rail.push({ t: kind, v: src.dataset.v });
-  hubAudio.playTone(440 + G.rail.length * 40, 'triangle', 0.08, 0.06);
-  renderControls(); showState();
-}
-function removeTile() {
-  if (G.locked || !G.rail.length) return;
-  const t = G.rail.pop();
-  if (t.t === 'num') G.used = G.used.filter((i) => i !== t.i);
-  renderControls(); showState();
-}
-function submitWritten() {
-  if (G.locked || G.problem.type !== 'read') return;
-  const res = checkWritten(G.problem, G.rail);
-  if (res.nudge) return nudge(res.message);
-  strip([{ html: `<span class="${res.correct ? 'good' : 'bad'}">${esc(tilesText(G.rail))} ${res.correct ? '✓' : '✗'}</span>` }]);
-  if (res.correct) return win(res);
-  miss(res, { lock: true, delay: 1300, retry: () => { G.rail = []; G.used = []; renderControls(); showState(); } });
-}
-function answerPick(i) {
-  const p = G.problem;
-  if (G.locked || G.tried.includes(i)) return;
-  const res = checkPick(p, i);
-  UI.controls.querySelector(`[data-choice="${i}"]`)?.classList.add(res.correct ? 'right' : 'wrong');
-  if (res.correct) return win(res);
-  G.tried.push(i);
-  miss(res, { lock: true, delay: 1300, retry: () => renderControls() });
-}
-
-/* ================================================================== */
-/* Keys and start-up                                                   */
-/* ================================================================== */
-function onKey(e) {
-  const key = e.key, p = G.problem;
-  if (p.type === 'meteor') { const n = Number(key); if (n >= 1 && n <= p.values.length) zap(n - 1); return; }
-  if (p.type === 'pick') { const n = Number(key); if (n >= 1 && n <= p.options.length) answerPick(n - 1); return; }
-  if (p.type === 'name3') { if (key === 'Enter') { e.preventDefault(); submitName3(); } return; }
-  if (p.type === 'graph') {
-    if (key === 'ArrowLeft') { e.preventDefault(); return movePost(-1); }
-    if (key === 'ArrowRight') { e.preventDefault(); return movePost(1); }
-    if (key === ' ') { e.preventDefault(); return setLine({ closed: !G.line.closed }); }
-    if (key === '<' || key === ',') return setLine({ dir: 'left' });
-    if (key === '>' || key === '.') return setLine({ dir: 'right' });
-    if (key === 'Enter') { e.preventDefault(); return submitGraph(); }
-    return;
-  }
-  const btn = (sel) => UI.controls.querySelector(sel);
-  const n = Number(key);
-  if (n >= 1 && n <= 4) return addTile(btn(`[data-tile="sym"][data-v="${SYMS[n - 1]}"]`));
-  if (n >= 6 && n < 6 + p.tiles.length) return addTile(btn(`[data-tile="num"][data-i="${n - 6}"]`));
-  if (key === '<' || key === '>') return addTile(btn(`[data-tile="sym"][data-v="${key}"]`));
-  if (key.toLowerCase() === p.rule.letter) return addTile(btn('[data-tile="var"]'));
-  if (key === 'Backspace') { e.preventDefault(); return removeTile(); }
-  if (key === 'Enter') { e.preventDefault(); return submitWritten(); }
-}
-
-function init() {
-  const stripEl = document.createElement('div');
-  stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
-  $('stage').appendChild(stripEl);
-  const demo = { letter: 'x', sym: '>', n: 5 };              // a sample shield behind the briefing
-  UI.scene.innerHTML = `${sky()}${outpost('x > 5')}${numberLine(lineFor(demo), [fieldOf(demo)])}`;
-}
-
-init();
+// Something to look at behind the briefing.
+W.wave = { mode: 'graph', rule: { kind: 'plain', letter: 'x', sym: '≤', n: 12, sign: 'x ≤ 12', range: { lo: 2, hi: 22, step: 1 } }, pods: [], prep: 9 };
+W.graph = { edge: 12, dir: 'left', closed: true };
+drawBase(); drawGraph(); renderSign(); renderCtl();
+requestAnimationFrame(frame);

@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -23,12 +23,12 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, the outpost has a blackout">
-      <div class="px hud-label">DRAIN</div>
+    <div class="hud-meter" id="meterBox" title="Every mistake adds damage. When this fills, a power core burns out">
+      <div class="px hud-label">DAMAGE</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
     <div class="hud-crates">
-      <div class="px hud-label">POWER CELLS</div>
+      <div class="px hud-label">CORES</div>
       <div id="lives" class="crates"></div>
     </div>
     <div class="hud-score">
@@ -42,21 +42,30 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The force field"></svg>
+    <svg id="scene" viewBox="0 0 1366 698" preserveAspectRatio="none" aria-label="Pods fall toward a number line. Shade where they may land."></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
-      <div class="px boss-name">TWIN FIELDS</div>
+      <div class="px boss-name">THE STORM FRONT</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">FIX IT, THEN CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <button type="button" id="leftBtn" class="cbtn" title="Shade the left side (up arrow flips)">◀ SHADE LEFT</button>
+      <button type="button" id="stepL" class="cbtn sq" title="Move the edge left (left arrow)">◀</button>
+      <button type="button" id="switchBtn" class="cbtn hidden" title="Switch to the other edge (Tab)">OTHER EDGE</button>
+      <button type="button" id="stepR" class="cbtn sq" title="Move the edge right (right arrow)">▶</button>
+      <button type="button" id="circleBtn" class="cbtn wide" title="Solid or open circle (Space)"></button>
+      <button type="button" id="rightBtn" class="cbtn" title="Shade the right side (up arrow flips)">SHADE RIGHT ▶</button>
+      <div id="zapTip" class="zap-tip hidden">Tap a pod, or press its number, to zap it. Let the solutions land.</div>
+      <button type="button" id="goBtn" class="cbtn go px"></button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -70,34 +79,41 @@
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. THE SHIELD</div>
-          <p>The shield covers part of the number line: <b>every value under it is a solution</b>. An inequality has lots of solutions, not just one.</p>
-          <p class="mono">x &gt; 5: 6, 7.5, 100, 5.01 …</p></div>
-        <div class="brief-col"><div class="px col-h">2. ZAP THE SOLUTIONS</div>
-          <p>Meteors carry numbers. Tap (or press <kbd>1</kbd>–<kbd>5</kbd>) to zap every <b>solution</b> before it lands. Let the others burn up.</p>
-          <p class="mono">x &gt; 7: zap 7.01, not 7</p></div>
+        <div class="brief-col"><div class="px col-h">1. PODS ARE NUMBERS</div>
+          <p>Pods fall toward the city. The sign gives the rule. Only <b>solutions</b> of the rule may land.</p>
+          <p class="mono">LAND IF x ≤ 12</p></div>
+        <div class="brief-col"><div class="px col-h">2. SHADE THE LANDING ZONE</div>
+          <p><b>Drag the edge</b> along the number line, <b>shade a side</b>, and choose a <b>solid ●</b> edge (it lands) or an <b>open ○</b> edge (it is blocked). The shield covers the rest.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>Power <b>DRAINS</b> while you work, and mistakes drain it faster. Three blackouts and the outpost goes dark. Hold the Twin Fields to win!</p></div>
+          <p>A wrong pod landing, or a good pod blocked, <b>damages</b> the city. Burn out all <b>3 cores</b> and the shield falls. Hold off the Storm Front to win!</p></div>
       </div>
-      <div class="brief-keys">Tap or drag · <kbd>1</kbd>–<kbd>5</kbd> zap meteors · number line: <kbd>←</kbd> <kbd>→</kbd> move, <kbd>space</kbd> circle, <kbd>&lt;</kbd> <kbd>&gt;</kbd> shade · <kbd>Enter</kbd> check · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>←</kbd> <kbd>→</kbd> move the edge · <kbd>↑</kbd> flip the shaded side · <kbd>Space</kbd> solid or open · <kbd>Enter</kbd> send the pods · <kbd>H</kbd> help</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
-        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🛡️ SHIELDS UP (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no blackouts</small></button>
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🛡️ RAISE THE SHIELD (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no countdown · no damage</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">SHIELD TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">
-      <div class="px big-title">OUTPOST DARK!</div>
-      <p id="failText">Three blackouts: the power cells are empty.</p>
+      <div class="px big-title">THE SHIELD FELL!</div>
+      <p id="failText">All three power cores burned out.</p>
       <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
     </div>
   </div>

@@ -34,7 +34,7 @@ export const STAGES = [
   }),
   stage(7, 'Force Field', 'Solve Inequalities', { x: 1240, y: 400 }, {
     built: true, building: 'force_field', url: './games/4-7-force-field/index.html',
-    description: 'Meteors are falling on the canyon outpost! Put the shield over every solution of an inequality, zap the meteors that are solutions, name your own solutions, and hold the Twin Fields.',
+    description: 'Pods are falling on the canyon city, and only solutions may land! Read the rule, shade the landing zone on the number line (which side? solid or open edge?), then watch every pod test your graph. Hold off the Storm Front.',
   }),
   stage(8, 'Cause and Effect Lab', 'Understand Dependent and Independent Variables', { x: 1030, y: 320 }, {
     built: true, building: 'cause_lab', url: './games/4-8-cause-effect-lab/index.html',
