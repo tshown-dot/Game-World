@@ -45,8 +45,15 @@ const rangerStation = `
   <path d="M36 -14 V-104 M26 -90 H46 M29 -74 H43" stroke="${K}" stroke-width="3.5"/>
   <circle class="sway" cx="36" cy="-108" r="5" fill="#e5484d" ${O}/>`;
 
+const twinBridges = `
+  <ellipse cx="0" cy="-14" rx="50" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <path d="M-46 -22 Q0 -62 46 -22" fill="none" stroke="${K}" stroke-width="11"/><path d="M-46 -22 Q0 -62 46 -22" fill="none" stroke="#c98a4b" stroke-width="6"/>
+  <path d="M-46 -46 Q0 -86 46 -46" fill="none" stroke="${K}" stroke-width="11"/><path d="M-46 -46 Q0 -86 46 -46" fill="none" stroke="#c98a4b" stroke-width="6"/>
+  <rect x="-52" y="-56" width="10" height="42" fill="#8a5a2b" ${O}/><rect x="42" y="-56" width="10" height="42" fill="#8a5a2b" ${O}/>`;
+
 export function buildingSvg(stage, state) {
   if (stage.isBoss) return thunderFalls + (state === 'wip' ? constructionSvg() : '');
   if (stage.building === 'ranger_station') return rangerStation;
+  if (stage.building === 'twin_bridges') return twinBridges;
   return constructionSvg();
 }

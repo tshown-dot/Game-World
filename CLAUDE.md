@@ -58,7 +58,9 @@ docs/lessons.md                    lesson lists from the textbook database
   land mirrored (`pointOf` in `world/superMapArt.js`).
 - Factor Falls (`towns/g7-topic-4-factor-falls/`, Grade 7 Topic 4, id `g7_topic_4`) is the first Grade 7 town: 8 lessons
   plus the Thunder Falls boss, on the shared town engine. Built so far: 4-1 Ranger Station (`games/4-1-ranger-station/`,
-  build `start ± rate·v` by dragging number chips, then evaluate with decimals and negatives). The other building names
+  build `start ± rate·v` by dragging number chips, then evaluate with decimals and negatives) and 4-2 Twin Bridges
+  (`games/4-2-twin-bridges/`: test two expressions with a value, name the property, fill boxes to build a twin, select
+  every twin; expressions are stored as text plus what they equal, `m·x + k`). The other building names
   in `js/falls.js` are working names until each game is planned with the owner. (A town with `gamesReady: false` in
   `shared/towns.js` is left off `stations.html`.)
   Grade 7 problems go beyond Grade 6 Topic 3 (negative, decimal and fraction coefficients, two variables, subtracting
