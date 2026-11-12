@@ -89,7 +89,8 @@ test('setupSheet makes 250 unique valid codes, a Progress tab and checkboxes; re
   assert.ok(codes.every(c => /^[A-HJ-NP-Z2-9]{6}$/.test(c)), 'codes use the safe alphabet');
   assert.deepEqual(w.book.Progress.rows[0], ['student_code', 'progress', 'updated_at']);
   assert.equal(w.book.Unlocks.rows[0][9], 'full_access');
-  assert.ok(w.book.Unlocks.rows.slice(1).every(r => r.slice(1, 10).every(v => v === false)), 'town and full_access cells are unchecked checkboxes');
+  assert.deepEqual(w.book.Unlocks.rows[0].slice(10, 18), [1, 2, 3, 4, 5, 6, 7, 8].map(n => `g7_town_${n}`), 'Grade 7 town columns K-R');
+  assert.ok(w.book.Unlocks.rows.slice(1).every(r => r.slice(1, 18).every(v => v === false)), 'town, full_access and Grade 7 cells are unchecked checkboxes');
   const before = JSON.stringify(w.book.Unlocks.rows);
   w.ctx.setupSheet();
   assert.equal(JSON.stringify(w.book.Unlocks.rows), before, 'second run adds nothing and keeps all codes');
@@ -106,9 +107,34 @@ test('load: valid code merges the ALL row; lowercase accepted', () => {
   w.cache.clear();
   const res = w.call.get({ action: 'load', code: code.toLowerCase() });
   assert.equal(res.ok, true);
-  assert.deepEqual(res.open, [false, false, true, false, true, false, false, false]);
+  assert.deepEqual(res.open, [false, false, true, false, true, false, false, false, ...Array(8).fill(false)], 'Grade 6 towns, then 8 Grade 7 towns');
   assert.equal(res.full_access, false);
   assert.equal(res.progress, null);
+});
+
+test('Grade 7 columns: ticks come from the code row or the ALL row; old ticks and full_access do not move', () => {
+  const w = makeWorld(); w.ctx.setupSheet(3);
+  const code = w.book.Unlocks.rows[2][0];
+  w.book.Unlocks.rows[2][4] = true;     // Grade 6 town_4 (column E), ticked before the update
+  w.book.Unlocks.rows[2][13] = true;    // student's g7_town_4 (column N)
+  w.book.Unlocks.rows[1][10] = true;    // ALL row, g7_town_1 (column K)
+  w.ctx.setupSheet(3);                  // running setup again keeps every tick
+  w.cache.clear();
+  const res = w.call.get({ action: 'load', code });
+  assert.equal(res.open.length, 16);
+  assert.deepEqual(res.open.slice(0, 8), [false, false, false, true, false, false, false, false]);
+  assert.deepEqual(res.open.slice(8), [true, false, false, true, false, false, false, false]);
+  assert.equal(res.full_access, false, 'a Grade 7 tick is not full access');
+  w.book.Unlocks.rows[2][9] = true; w.cache.clear();
+  assert.equal(w.call.get({ action: 'load', code }).full_access, true, 'full_access is still column J');
+});
+
+test('a sheet that has not had setupSheet run again (no Grade 7 columns) still loads, with Grade 7 closed', () => {
+  const w = makeWorld(); w.ctx.setupSheet(2);
+  w.book.Unlocks.rows = w.book.Unlocks.rows.map(r => r.slice(0, 10));   // only columns A-J, like the sheet today
+  w.cache.clear();
+  const res = w.call.get({ action: 'load', code: w.book.Unlocks.rows[2][0] });
+  assert.ok(res.ok && res.open.length === 16 && res.open.slice(8).every(v => v === false));
 });
 
 test('load: rejects unknown codes, bad shapes and missing action; never leaks other rows', () => {

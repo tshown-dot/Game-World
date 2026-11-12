@@ -30,7 +30,7 @@ await test('a station store: everything open, stars kept in the tab only, nothin
     storage: local, stationStorage: tab, inStation: () => true, sleep: async () => {} });
   assert.equal(store.getActiveCode(), STATION_CODE, 'no sign-in: the station code is used');
   const res = await store.loadStudent(STATION_CODE, { fast: true });
-  assert.ok(res.ok && res.fullAccess && res.open.length === 8 && res.open.every(Boolean) && res.source === 'station');
+  assert.ok(res.ok && res.fullAccess && res.open.length === 16 && res.open.every(Boolean) && res.source === 'station');
   assert.equal(res.progress, null);
   await store.saveProgress(STATION_CODE, { v: 1, xp: 50, towns: { topic_4: { nodeRecords: { a: { cleared: true } } } } });
   await store.logResult(STATION_CODE, { town: 'topic_4', score: 5 });

@@ -1,10 +1,11 @@
-// Game World: Unlocks, Progress & Results web app (version 2)
+// Game World: Unlocks, Progress & Results web app (version 3: adds the Grade 7 town columns)
 //
 // Paste this whole file into the Apps Script project, replace SHEET_ID below with the real sheet ID
 // (the long text between /d/ and /edit in the sheet's address), then see README.md in this folder.
 
 const SHEET_ID = 'PASTE_THE_SHEET_ID_HERE';
-const TOWNS = 8;
+const TOWNS = 8;                                // Grade 6 town columns B-I, then full_access in column J
+const G7_TOWNS = 8;                             // Grade 7 town columns K-R (after full_access, so nothing moved)
 const STUDENT_COUNT = 250;                      // how many student codes setupSheet() makes sure exist
 const CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;          // 6 characters, no I, O, 0 or 1
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 characters
@@ -12,7 +13,8 @@ const MAX_PROGRESS_CHARS = 8000;
 
 // ---------- Web app entry points ----------
 
-// GET ?action=load&code=ABC234  ->  { ok, open: [8 booleans], full_access: boolean, progress: "<json text>" | null }
+// GET ?action=load&code=ABC234  ->  { ok, open: [16 booleans], full_access: boolean, progress: "<json text>" | null }
+// open: the first 8 are the Grade 6 towns 1-8, the next 8 are the Grade 7 towns 1-8.
 // full_access (a teacher or preview code) means every building in every town is open.
 function doGet(e) {
   try {
@@ -24,6 +26,7 @@ function doGet(e) {
     const mine = table.codes[code];
     const open = [];
     for (let i = 0; i < TOWNS; i++) open.push(mine[i] || table.all[i]);
+    for (let i = 0; i < G7_TOWNS; i++) open.push(Boolean(mine[TOWNS + 1 + i] || table.all[TOWNS + 1 + i]));
     const fullAccess = mine[TOWNS] || table.all[TOWNS];
     return json_({ ok: true, open: open, full_access: fullAccess, progress: readProgress_(code) });
   } catch (err) {
@@ -59,23 +62,24 @@ function doPost(e) {
 
 // ---------- Reading ----------
 
-// Unlocks tab as { all: [9 booleans], codes: { CODE: [9 booleans] } }, cached for 60 seconds.
-// Booleans 0-7 are the town columns; boolean 8 is the full_access column.
+// Unlocks tab as { all: [17 booleans], codes: { CODE: [17 booleans] } }, cached for 60 seconds.
+// Booleans 0-7 are the Grade 6 town columns; boolean 8 is the full_access column; 9-16 are the Grade 7 town columns.
 function unlockTable_() {
   const cache = CacheService.getScriptCache();
-  const hit = cache.get('unlocks');
+  const hit = cache.get('unlocks3');
   if (hit) return JSON.parse(hit);
   const rows = book_().getSheetByName('Unlocks').getDataRange().getValues();
   const table = { all: [], codes: {} };
-  for (let t = 0; t <= TOWNS; t++) table.all.push(false);
+  const FLAGS = TOWNS + 1 + G7_TOWNS;
+  for (let t = 0; t < FLAGS; t++) table.all.push(false);
   for (let r = 1; r < rows.length; r++) {
     const id = String(rows[r][0]).trim().toUpperCase();
     if (!id) continue;
     const flags = [];
-    for (let t = 0; t <= TOWNS; t++) flags.push(isTrue_(rows[r][t + 1]));
+    for (let t = 0; t < FLAGS; t++) flags.push(isTrue_(rows[r][t + 1]));
     if (id === 'ALL') table.all = flags; else table.codes[id] = flags;
   }
-  try { cache.put('unlocks', JSON.stringify(table), 60); } catch (err) { /* too big to cache: fine */ }
+  try { cache.put('unlocks3', JSON.stringify(table), 60); } catch (err) { /* too big to cache: fine */ }
   return table;
 }
 
@@ -112,7 +116,8 @@ function addResult_(code, d) {
 
 // ---------- One-time setup: run this from the Apps Script editor ----------
 
-// Creates the Progress tab, adds the full_access column, and tops the Unlocks tab up to STUDENT_COUNT student codes.
+// Creates the Progress tab, adds the full_access column and the 8 Grade 7 town columns, and tops the Unlocks tab up
+// to STUDENT_COUNT student codes. Boxes that are already ticked stay ticked.
 // Existing codes are never changed. To add more students later, raise STUDENT_COUNT and run it again.
 function setupSheet(count) {
   const n = count || STUDENT_COUNT;
@@ -138,8 +143,9 @@ function setupSheet(count) {
   if (fresh.length) unlocks.getRange(unlocks.getLastRow() + 1, 1, fresh.length, 1).setValues(fresh);
   unlocks.getRange(1, TOWNS + 2).setValue('full_access');      // extra column: tick to open every building everywhere
   const last = unlocks.getLastRow();
-  unlocks.getRange(2, 2, last - 1, TOWNS + 1).insertCheckboxes();   // tick a box to open that town
-  CacheService.getScriptCache().remove('unlocks');
+  for (let t = 0; t < G7_TOWNS; t++) unlocks.getRange(1, TOWNS + 3 + t).setValue('g7_town_' + (t + 1));   // columns K-R
+  unlocks.getRange(2, 2, last - 1, TOWNS + 1 + G7_TOWNS).insertCheckboxes();   // tick a box to open that town
+  CacheService.getScriptCache().remove('unlocks3');
   Logger.log('Student codes now in the Unlocks tab: ' + (students + fresh.length) + ' (added ' + fresh.length + ')');
 }
 

@@ -151,7 +151,7 @@ export function createStore(options = {}) {
 
     /**
      * Signs a code in. Resolves to one of:
-     *   { ok: true, source: 'sheet' | 'device', open: [8 booleans], fullAccess, progress | null }
+     *   { ok: true, source: 'sheet' | 'device', open: [booleans in TOWNS order], fullAccess, progress | null }
      *   { ok: false, error: 'bad_code' }   the code is not in the sheet
      *   { ok: false, error: 'offline' }    cannot reach the sheet and this device has never seen the code
      */
@@ -162,7 +162,7 @@ export function createStore(options = {}) {
      */
     loadStudent(code, { fast = false, onFresh = null } = {}) {
       if (isStation(code)) {                                // a classroom station: every town open, this tab's stars only
-        return Promise.resolve({ ok: true, source: 'station', open: Array(8).fill(true), fullAccess: true, progress: readJson(stationStorage, STATION_KEY, null) });
+        return Promise.resolve({ ok: true, source: 'station', open: Array(16).fill(true), fullAccess: true, progress: readJson(stationStorage, STATION_KEY, null) });
       }
       const local = fast ? readLocal(code) : null;
       if (!local) return api.loadFromSheet(code);

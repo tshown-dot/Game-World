@@ -26,6 +26,12 @@ export const TOWN_POINTS = {
   8: { x: 352, y: 250 },
 };
 
+/** A town's spot on its map. The Grade 7 Isles are the same map flipped left to right, so they look like new land. */
+export const pointOf = (town) => {
+  const p = TOWN_POINTS[town.number];
+  return town.grade === 7 ? { x: MAP_W - p.x, y: p.y } : p;
+};
+
 export const BIOMES = {
   harbor:    { label: 'Harbor coast',     tiles: ['#f2d58a', '#ead07f'] },
   highlands: { label: 'Rocky highlands',  tiles: ['#8fb86b', '#86ad63'] },
@@ -35,6 +41,7 @@ export const BIOMES = {
   volcano:   { label: 'Volcano fields',   tiles: ['#7b6168', '#735a61'] },
   tundra:    { label: 'Frozen tundra',    tiles: ['#e3f0ff', '#d8e8fb'] },
   sky:       { label: 'Cloud kingdom',    tiles: ['#c4b2ff', '#bba8fb'] },
+  falls:     { label: 'Waterfall cliffs', tiles: ['#4fb5a0', '#48ab97'] },
 };
 
 /* ------------------------------------------------------------------ */
@@ -49,7 +56,8 @@ function hash(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-function isLand(x, y) {
+function isLand(x0, y, mirror = false) {
+  const x = mirror ? MAP_W - x0 : x0;
   const cx = 690, cy = 386, rx = 640, ry = 300;
   const dx = (x - cx) / rx, dy = (y - cy) / ry;
   const angle = Math.atan2(dy, dx);
@@ -61,7 +69,7 @@ function isLand(x, y) {
 export function regionAt(x, y, towns) {
   let best = null, bestD = Infinity;
   for (const t of towns) {
-    const p = TOWN_POINTS[t.number];
+    const p = pointOf(t);
     const noise = Math.sin(x * 0.035 + t.number * 1.7) * 22 + Math.cos(y * 0.04 - t.number) * 22
       + Math.sin((x + y) * 0.06 + t.number) * 12;
     const d = Math.hypot(x - p.x, y - (p.y - 40)) + noise;
@@ -90,13 +98,14 @@ export function drawLand(canvas, towns, states) {
   ctx.scale(dpr, dpr);
   ctx.imageSmoothingEnabled = false;
 
+  const mirror = towns.length > 0 && towns[0].grade === 7;       // the Grade 7 Isles: the land flipped left to right
   const cols = Math.ceil(MAP_W / TILE), rows = Math.ceil(MAP_H / TILE);
   const regionGrid = [];
   for (let r = 0; r < rows; r++) {
     regionGrid.push([]);
     for (let c = 0; c < cols; c++) {
       const x = c * TILE + TILE / 2, y = r * TILE + TILE / 2;
-      regionGrid[r].push(isLand(x, y) ? regionAt(x, y, towns) : null);
+      regionGrid[r].push(isLand(x, y, mirror) ? regionAt(x, y, towns) : null);
     }
   }
   const landAt = (r, c) => r >= 0 && c >= 0 && r < rows && c < cols && regionGrid[r][c];
@@ -197,6 +206,13 @@ const puff = (x, y, s = 1) => `
   <g transform="translate(${x} ${y}) scale(${s})">
     <path d="M-26 6 Q-32 -4 -20 -8 Q-16 -20 -2 -16 Q8 -24 18 -12 Q30 -10 26 4 Z" fill="#ffffff" ${O2}/>
   </g>`;
+const waterfall = (x, y, s = 1) => `
+  <g transform="translate(${x} ${y}) scale(${s})">
+    <path d="M-30 0 L-22 -44 L22 -44 L30 0 Z" fill="#7d8a99" ${O}/>
+    <rect x="-9" y="-44" width="18" height="44" fill="#9fdcff" ${O2}/>
+    <path class="river-flow" d="M-3 -40 V-4 M4 -40 V-4" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 8"/>
+    <ellipse cx="0" cy="2" rx="20" ry="6" fill="#bfe9ff" ${O2}/>
+  </g>`;
 const pier = (x, y) => `
   <g transform="translate(${x} ${y})">
     <rect x="0" y="-6" width="56" height="10" fill="#c4935a" ${O2}/>
@@ -265,6 +281,13 @@ const LANDMARKS = {
     <rect x="-6" y="-66" width="12" height="20" rx="6" fill="#4a2f9e" ${O2}/>`,
 };
 
+LANDMARKS.falls = `
+    <path d="M-40 -24 L-30 -96 L30 -96 L40 -24 Z" fill="#7d8a99" ${O}/>
+    <path d="M-30 -96 L-18 -110 L18 -110 L30 -96 Z" fill="#3fa56b" ${O}/>
+    <rect x="-12" y="-98" width="24" height="74" fill="#9fdcff" ${O2}/>
+    <path class="river-flow" d="M-5 -94 V-28 M5 -94 V-28" stroke="#ffffff" stroke-width="2.5" stroke-dasharray="7 9"/>
+    <ellipse cx="0" cy="-22" rx="26" ry="7" fill="#e8f7ff" ${O2}/>`;
+
 /* Scatter props for each biome, as [prop, dx, dy, scale] around the town tile. Tuned to stay off the road. */
 const PROPS = {
   harbor:    [[palm, -78, -18, 1], [palm, 70, -54, 0.9], [rock, -44, 30, 1], [flowers, 46, 12], [pier, -150, 28], [boat, -172, 46]],
@@ -274,6 +297,7 @@ const PROPS = {
   swamp:     [[pond, -84, -6, 1], [pond, 50, 40, 0.8], [mushroom, 72, -18, 1], [mushroom, -44, 34, 0.8], [bush, -100, 40, 0.9]],
   volcano:   [[lava, -88, 0, 1], [lava, 84, -30, 0.8], [rock, -46, 30, 1.2], [rock, 56, 22, 1], [rock, 100, 30, 0.8]],
   tundra:    [[snowPine, -80, -14, 1], [snowPine, 84, -34, 0.9], [crystal, -40, 30, 1], [crystal, 52, 28, 0.8], [snowPine, 120, 8, 0.8]],
+  falls:     [[waterfall, -96, -14, 0.8], [pine, 84, -44, 1], [pine, 112, 8, 0.85], [rock, -48, 32, 1.1], [pond, 60, 40, 0.8]],
   sky:       [[puff, -92, -30, 1], [puff, 96, -50, 0.9], [star, -50, -110, 1], [star, 70, -100, 0.8], [star, 110, 10, 0.9]],
 };
 
@@ -283,7 +307,7 @@ const PROPS = {
 export function roadSvg(towns, states) {
   let out = '';
   for (let i = 0; i < towns.length - 1; i++) {
-    const a = TOWN_POINTS[towns[i].number], b = TOWN_POINTS[towns[i + 1].number];
+    const a = pointOf(towns[i]), b = pointOf(towns[i + 1]);
     const lit = states[towns[i + 1].number] === 'open' && states[towns[i].number] === 'open';
     const mx = (a.x + b.x) / 2 + (b.y - a.y) * 0.12, my = (a.y + b.y) / 2 - (b.x - a.x) * 0.12;
     const d = `M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}`;
@@ -317,7 +341,7 @@ function townTile(number, state, cleared) {
 /** Everything drawn on top of the land: props, landmarks, town tiles and nameplates. */
 export function townsSvg(entries, currentNumber) {
   return entries.map(({ town, state, summary }) => {
-    const p = TOWN_POINTS[town.number];
+    const p = pointOf(town);
     const props = (PROPS[town.biome] || []).map(([fn, dx, dy, s]) => fn(p.x + dx, p.y + dy, s)).join('');
     const plate = town.name;
     return `
