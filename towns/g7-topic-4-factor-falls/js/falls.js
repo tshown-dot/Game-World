@@ -25,7 +25,10 @@ export const STAGES = [
     built: true, building: 'spray_deck', url: './games/4-4-spray-deck/index.html',
     description: 'Build viewing decks at the falls. The number outside the parentheses is the width, each term inside is a section: find every section\'s area to expand the expression, signs and all, before the mist rolls in.',
   }),
-  stage(5, 'Factor Mill', 'Factor Expressions', { x: 920, y: 600 }),
+  stage(5, 'Factor Mill', 'Factor Expressions', { x: 920, y: 600 }, {
+    built: true, building: 'factor_mill', url: './games/4-5-factor-mill/index.html',
+    description: 'The mill runs the Spray Deck backward. Set the wheel to the greatest common factor, the biggest number that divides every term, then divide each term to fill the parentheses before the millstone wears out.',
+  }),
   stage(6, 'The Confluence', 'Add Expressions', { x: 1130, y: 520 }),
   stage(7, 'The Spillway', 'Subtract Expressions', { x: 1180, y: 330 }),
   stage(8, 'Lookout Tower', 'Analyze Equivalent Expressions', { x: 960, y: 290 }),

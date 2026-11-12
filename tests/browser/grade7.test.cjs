@@ -65,7 +65,7 @@ async function signIn(p,code){
   await p.keyboard.press('Enter'); await p.waitForURL(/g7-topic-4-factor-falls/,{timeout:5000}); await p.waitForTimeout(1800);
   ok((await p.textContent('#hudCode')).trim()==='ACCE27' && !(await vis(p,'#lockedModal')),'Factor Falls opens, signed in with the same code');
   ok(/GRADE 7 · TOWN 4/.test(await p.textContent('#worldMapBtn')),'the town sign says GRADE 7 · TOWN 4');
-  ok(await p.$$eval('.stage',s=>s.length)===9 && await p.$$eval('.stage-wip',s=>s.length)===5,'9 stops (lessons 4-1 to 4-8 and the boss); 5 are still under construction');
+  ok(await p.$$eval('.stage',s=>s.length)===9 && await p.$$eval('.stage-wip',s=>s.length)===4,'9 stops (lessons 4-1 to 4-8 and the boss); 4 are still under construction');
   ok((await p.textContent('#panelName'))==='Ranger Station' && !(await p.isDisabled('#enterBtn')),'Ranger Station (4-1) is open');
   await p.keyboard.press('Enter'); await p.waitForTimeout(400); await p.keyboard.press('Enter'); await p.waitForTimeout(2500);
   ok(p.frames().some(fr=>/4-1-ranger-station/.test(fr.url())),'the Ranger Station game opens inside the town');
