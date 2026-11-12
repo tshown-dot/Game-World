@@ -52,8 +52,8 @@
   const here = (path) => new URL(path, location.href).href;
   const rows = [
     { title: 'THE WHOLE WORLD', text: 'The Super Map with every built town and every building open.', url: here('index.html?station') },
-    ...TOWNS.filter((t) => t.built).map((t) => ({
-      title: `TOWN ${t.number}: ${t.name.toUpperCase()}`,
+    ...TOWNS.filter((t) => t.built && t.gamesReady !== false).map((t) => ({      // towns with no games yet are not listed
+      title: `${t.grade === 7 ? 'GRADE 7 ' : ''}TOWN ${t.number}: ${t.name.toUpperCase()}`,
       text: `${t.topic}. Every building open; students stay in this town.`,
       url: here(`${t.url}?station`),
     })),

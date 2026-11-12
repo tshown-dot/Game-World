@@ -25,6 +25,7 @@ const starText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
  *   terrainSvg(): string,                       background art (1366 x 768)
  *   buildingSvg(stage, state): string,          a building, origin at the stage tile, drawn above it
  *   legacyIds (optional): { oldStageId: newStageId } for stages renamed since older saves
+ *   signLabel (optional): the small line on the world-map sign, e.g. 'GRADE 7 · TOWN 4' (default: 'WORLD <number>')
  * }
  */
 export function startTown(config) {
@@ -51,7 +52,7 @@ function buildDom(c) {
   root.innerHTML = `
     <svg id="townMap" viewBox="0 0 1366 768" preserveAspectRatio="xMidYMid slice" aria-label="${c.name} map"></svg>
     <button type="button" id="worldMapBtn" class="town-sign" title="Back to the world map">
-      <span class="px t1">WORLD ${c.number}</span><span class="px t2">${c.name.toUpperCase()}</span><span class="t3">◂ world map</span>
+      <span class="px t1">${c.signLabel || `WORLD ${c.number}`}</span><span class="px t2">${c.name.toUpperCase()}</span><span class="t3">◂ world map</span>
     </button>
     <div class="town-top">
       <span id="teacherBanner" class="hidden chip chip-purple px">TEACHER: ALL OPEN</span>

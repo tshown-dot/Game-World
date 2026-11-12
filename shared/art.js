@@ -179,3 +179,13 @@ export function heroSvg() {
       </g>
     </g>`;
 }
+
+/** Scaffolding for a building that is not built yet (origin at the stage tile, drawn above it). Used by every town. */
+export function constructionSvg() {
+  return `
+  <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
+  <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
+  <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34" stroke="${K}" stroke-width="1.5" fill="none"/>
+  <g transform="translate(0 -30)"><rect x="-30" y="-8" width="60" height="14" rx="3" fill="${PALETTE.gold}" ${O2}/>
+    <path d="M-22 -8 L-30 6 M-8 -8 L-16 6 M6 -8 L-2 6 M20 -8 L12 6" stroke="${K}" stroke-width="5"/></g>`;
+}

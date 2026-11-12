@@ -1,5 +1,5 @@
 // Equation Valley art: a red-rock canyon with a river, mesas and cacti, plus one building per lesson.
-import { PALETTE, rock, cloud } from '../../../shared/art.js';
+import { PALETTE, rock, cloud, constructionSvg } from '../../../shared/art.js';
 
 const K = PALETTE.ink;
 const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"`;
@@ -116,13 +116,6 @@ const trailMapper = `
   <path d="M-18 -30 L14 -52" stroke="#e5484d" stroke-width="3" stroke-dasharray="4 3"/>
   <path d="M0 -88 V-104 L16 -98 L0 -92" fill="${PALETTE.gold}" ${O2}/>`;
 
-const construction = () => `
-  <ellipse cx="0" cy="-16" rx="42" ry="7" fill="rgba(0,0,0,0.18)"/>
-  <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34 M-34 -82 L34 -50 M34 -82 L-34 -50" stroke="#8a5a2b" stroke-width="5" stroke-linecap="round"/>
-  <path d="M-34 -18 V-82 M34 -18 V-82 M-34 -82 H34 M-34 -50 H34" stroke="${K}" stroke-width="1.5" fill="none"/>
-  <g transform="translate(0 -30)"><rect x="-30" y="-8" width="60" height="14" rx="3" fill="${PALETTE.gold}" ${O2}/>
-    <path d="M-22 -8 L-30 6 M-8 -8 L-16 6 M6 -8 L-2 6 M20 -8 L12 6" stroke="${K}" stroke-width="5"/></g>`;
-
 const golemFort = `
   <ellipse cx="0" cy="-16" rx="60" ry="9" fill="rgba(0,0,0,0.2)"/>
   <path d="M-62 -18 L-48 -78 L48 -78 L62 -18 Z" fill="#a9512b" ${O}/>
@@ -131,8 +124,8 @@ const golemFort = `
   <circle cx="-26" cy="-58" r="5" fill="${PALETTE.gold}"/><circle cx="26" cy="-58" r="5" fill="${PALETTE.gold}"/>`;
 
 export function buildingSvg(stage, state) {
-  if (stage.isBoss) return golemFort + (state === 'wip' ? construction() : '');
-  if (!stage.built) return construction();
+  if (stage.isBoss) return golemFort + (state === 'wip' ? constructionSvg() : '');
+  if (!stage.built) return constructionSvg();
   if (stage.building === 'scale_lift') return scaleLift;
   if (stage.building === 'key_vault') return keyVault;
   if (stage.building === 'undo_machine') return undoMachine;
@@ -143,5 +136,5 @@ export function buildingSvg(stage, state) {
   if (stage.building === 'cause_lab') return causeLab;
   if (stage.building === 'rune_machine') return runeMachine;
   if (stage.building === 'trail_mapper') return trailMapper;
-  return construction();
+  return constructionSvg();
 }
