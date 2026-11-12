@@ -58,10 +58,19 @@ const logFlume = `
   <rect x="-40" y="-52" width="8" height="38" fill="#8a5a2b" ${O}/><rect x="28" y="-22" width="8" height="10" fill="#8a5a2b" ${O}/>
   <g class="sway"><rect x="-14" y="-58" width="30" height="12" rx="6" fill="#c98a4b" ${O} transform="rotate(23 0 -52)"/></g>`;
 
+const sprayDeck = `
+  <ellipse cx="0" cy="-14" rx="50" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <rect x="-44" y="-50" width="88" height="14" fill="#c98a4b" ${O}/>
+  <path d="M-30 -50 V-36 M-10 -50 V-36 M10 -50 V-36 M30 -50 V-36" stroke="${K}" stroke-width="2"/>
+  <rect x="-40" y="-36" width="8" height="24" fill="#8a5a2b" ${O}/><rect x="32" y="-36" width="8" height="24" fill="#8a5a2b" ${O}/>
+  <path d="M-44 -50 V-72 H44 V-50 M-22 -72 V-50 M0 -72 V-50 M22 -72 V-50" fill="none" stroke="${K}" stroke-width="3"/>
+  <g class="sway"><circle cx="-30" cy="-86" r="4" fill="#e8f7ff"/><circle cx="-12" cy="-94" r="3" fill="#e8f7ff"/><circle cx="16" cy="-88" r="4" fill="#e8f7ff"/></g>`;
+
 export function buildingSvg(stage, state) {
   if (stage.isBoss) return thunderFalls + (state === 'wip' ? constructionSvg() : '');
   if (stage.building === 'ranger_station') return rangerStation;
   if (stage.building === 'twin_bridges') return twinBridges;
   if (stage.building === 'log_flume') return logFlume;
+  if (stage.building === 'spray_deck') return sprayDeck;
   return constructionSvg();
 }

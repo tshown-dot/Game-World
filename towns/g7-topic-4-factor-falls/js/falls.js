@@ -21,7 +21,10 @@ export const STAGES = [
     built: true, building: 'log_flume', url: './games/4-3-log-flume/index.html',
     description: 'Every log carries one term, sign and all. Sort the logs into channels of like terms, add up each channel, and read off the simplified expression before the flume backs up.',
   }),
-  stage(4, 'Spray Deck', 'Expand Expressions', { x: 720, y: 520 }),
+  stage(4, 'Spray Deck', 'Expand Expressions', { x: 720, y: 520 }, {
+    built: true, building: 'spray_deck', url: './games/4-4-spray-deck/index.html',
+    description: 'Build viewing decks at the falls. The number outside the parentheses is the width, each term inside is a section: find every section\'s area to expand the expression, signs and all, before the mist rolls in.',
+  }),
   stage(5, 'Factor Mill', 'Factor Expressions', { x: 920, y: 600 }),
   stage(6, 'The Confluence', 'Add Expressions', { x: 1130, y: 520 }),
   stage(7, 'The Spillway', 'Subtract Expressions', { x: 1180, y: 330 }),

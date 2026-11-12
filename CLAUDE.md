@@ -61,7 +61,8 @@ docs/lessons.md                    lesson lists from the textbook database
   build `start ± rate·v` by dragging number chips, then evaluate with decimals and negatives) and 4-2 Twin Bridges
   (`games/4-2-twin-bridges/`: test two expressions with a value, name the property, fill boxes to build a twin, select
   every twin; expressions are stored as text plus what they equal, `m·x + k`) and 4-3 Log Flume (`games/4-3-log-flume/`:
-  each term is a log `{ c, v }`; sort logs into channels of like terms, then type each channel's total). The other building names
+  each term is a log `{ c, v }`; sort logs into channels of like terms, then type each channel's total) and 4-4 Spray Deck
+  (`games/4-4-spray-deck/`: an area model, `a(inside) + tail`; type each section's area, then simplify). The other building names
   in `js/falls.js` are working names until each game is planned with the owner. (A town with `gamesReady: false` in
   `shared/towns.js` is left off `stations.html`.)
   Grade 7 problems go beyond Grade 6 Topic 3 (negative, decimal and fraction coefficients, two variables, subtracting
