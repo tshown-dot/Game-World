@@ -163,16 +163,38 @@ maintainable by an LLM plus a novice owner. Guardrails:
 - Deployable as a static site (Render or GitHub Pages) with no server required. Use relative paths so it works from a subfolder.
 
 ## Design pillars
-1. **Genre fits the math.** The concept dictates the mechanic. Never pause play for disconnected pop-up quiz cards.
+A game can meet every pillar on paper and still be a polished quiz. Check each new game, and each rework, against the
+tests written under the pillars before calling it done.
+
+1. **Genre fits the math.** The concept dictates the mechanic (exponents: a reactor surge; GCF: splitting loot;
+   distributive property: drone deliveries). Never pause play for disconnected pop-up quiz cards.
+   - *The verb test:* name the action the student repeats most. If it is "read a prompt and answer it", it is a quiz,
+     whatever the theme. If it is "shade a graph", "sort like terms" or "split the loot", the math is the mechanic.
+   - *The reskin test:* if another lesson's problems could be swapped in without changing the controls, the genre does
+     not fit the math.
+   - No question panel by default. The rule or goal lives in the scene (a sign, a gauge), not in a side box.
 2. **Real stakes, fast retry.** Timers, health, lives or limited moves. A failure gives diagnostic feedback and a retry in under 2 seconds.
+   - *Consequences, not verdicts:* the game world shows the mistake before any text does (a wrong circle lets exactly
+     the edge pod through). The explanation comes after the consequence.
 3. **Reinforce and extend.** Assume direct instruction already happened. Challenge from new angles and finish with a higher-order boss or dilemma.
+   - *Produce, don't just judge:* the student makes something of their own (a number, an expression, a graph), not only
+     recognizes a right answer.
+   - Include at least one "work backward" or "find the hidden rule" phase where the student decides what to test.
 4. **Real game feel.** Objective clear within 10 seconds (what do I control, what stops me, how do I win). Juice: screen shake, crisp sound, punchy animation.
+   - *Volume:* many small decisions per minute, not five big questions per zone.
+   - *Plan, then watch:* a moment to set something up, then the game tests the plan.
 5. **Classroom flow.** Fits 1366x768 with no vertical scrolling. Runs last 3-10 minutes. Students can start from any zone for differentiation.
 6. **Briefing first.** Every game opens with a briefing or worked demo (objective, controls, stakes) and a clear Start button. This also unlocks browser audio. A help toggle stays available during play.
-7. **Feedback that teaches.** Detect specific misconceptions and explain them. After two misses, show the full worked solution and give a backup problem of the same type.
+7. **Feedback that teaches.** Detect specific misconceptions and explain them. Hints come only after a mistake, and a
+   fuller hint after the same mistake twice. After two misses, show the worked solution (or an answer that works) and
+   give another try of the same type.
 8. **Accessibility options.** Offer a no-timer, no-damage practice mode. Sound is easy to mute. Support keyboard, touch and trackpad.
 9. **Generated problems.** Problems are randomly generated each play, and the generator accepts equivalent answer formats (for example 15, $15, 15.00).
 10. **One world.** Towns share look, controls and progress so moving between them feels like one game.
+11. **The representation is the playfield.** The math's own picture (number line, balance, area model, table) is the
+    game board, drawn the way the textbook draws it, so the skill transfers back to paper.
+12. **Boundary cases on purpose.** Every wave includes the values where misconceptions live (the edge itself, 12.01,
+    zero, a negative), because that is where understanding is separated from pattern-matching.
 
 ## Privacy (non-negotiable)
 - No student names or personal information, ever. No logins that collect names or emails.
