@@ -10,7 +10,7 @@ const stage = (n, title, subtitle, coords, extra = {}) => ({
 export const STAGES = [
   stage(1, 'Key Fitter', 'Understand Equations and Solutions', { x: 150, y: 555 }, {
     built: true, building: 'key_vault', url: './games/4-1-key-fitter/index.html',
-    description: 'Crack the bandit vault in the canyon wall. Every lock is an equation: test each key by putting it in for the letter, and find the one that makes both sides equal. Watch out: sometimes no key fits!',
+    description: 'You hold a key, and every lock is an equation. Tap each lock your key opens as they roll past, then choose the keys yourself, forge a lock of your own and crack the Locksmith\'s mystery lock.',
   }),
   stage(2, 'Counterweight', 'Apply Properties of Equality', { x: 360, y: 600 }, {
     built: true, building: 'scale_lift', url: './games/4-2-counterweight/index.html',

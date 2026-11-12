@@ -1,164 +1,119 @@
-// Tests for Lesson 4-1 "Key Fitter" math (keys.js).  Run with:  node test_key_fitter_math.js
+// Tests for Key Fitter (keys.js). Run with:  node towns/topic-4-equation-valley/games/4-1-key-fitter/test_key_fitter_math.js
 import assert from 'node:assert/strict';
 import {
-  seeded, r2, fmt, parseNumber, leftValue, lockText, substitute, genLock, genWordLock, genMasterKey, genForge,
-  genRun, genBackup, checkKey, checkMaster, checkForge, workedSolution, ZONES,
+  seeded, fmt, parseNumber, leftValue, lockText, substitute, genLock, genForge, checkForge,
+  genBelt, checkTap, genRing, genStoryRing, genMystery, checkTry, ZONES, genZone,
 } from './keys.js';
 
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('PASS', name); }
-const RUNS = 3000;
-const rnd = seeded(41);
+const RUNS = 2000;
+const rnd = seeded(20261119);
 const noJunk = (s) => typeof s === 'string' && s.length > 0 && !/undefined|NaN|null|Infinity|\[object/.test(s);
+const same = (a, b) => Math.abs(a - b) < 1e-9;
 
-/** Evaluates a displayed lock like "12 = 3m + 2.5" or "$4.10 = $6.25 − y" with the variable replaced by v. */
-function lockHolds(text, x, v) {
-  const js = text.replace(/\$/g, '').replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-')
-    .replace(new RegExp(`(\\d)${x}\\b`, 'g'), `$1*(${v})`).replace(new RegExp(`\\b${x}\\b`, 'g'), `(${v})`);
-  const [l, r] = js.split('=');
-  return Math.abs(Function(`return (${l});`)() - Function(`return (${r});`)()) < 1e-6;
-}
-
-test('number entry: whole, decimal and money formats; no negatives or 3 decimal places', () => {
-  assert.equal(parseNumber('12'), 12);
-  assert.equal(parseNumber(' 12 '), 12);
-  assert.equal(parseNumber('12.5'), 12.5);
-  assert.equal(parseNumber('$4.10'), 4.1);
-  assert.equal(parseNumber('4.10'), 4.1);
-  assert.equal(parseNumber('-3'), null);
-  assert.equal(parseNumber('1.234'), null);
-  assert.equal(parseNumber(''), null);
-  assert.equal(parseNumber('abc'), null);
-});
-
-const KINDS = [
-  ['add', {}], ['sub', {}], ['subFrom', {}], ['mul', {}], ['divBy', {}], ['divOf', {}], ['two', {}],
-  ['mul', { decimal: true }], ['add', { decimal: true }], ['sub', { decimal: true }], ['subFrom', { decimal: true }],
-  ['add', { money: true }], ['sub', { money: true }], ['subFrom', { money: true }],
-];
-
-test(`locks: ${RUNS} of each kind have 4 different keys and exactly one fits`, () => {
-  for (const [kind, opts] of KINDS) {
-    for (let i = 0; i < RUNS / 3; i++) {
-      const lock = genLock(rnd, kind, opts);
-      assert.equal(lock.keys.length, 4, `${kind}: 4 keys`);
-      assert.equal(new Set(lock.keys.map((k) => k.value)).size, 4, `${kind}: different keys`);
-      const fits = lock.keys.filter((k) => substitute(lock, k.value).equal);
-      assert.equal(fits.length, 1, `${lockText(lock)}: exactly one key fits`);
-      assert.equal(fits[0].value, lock.answer);
-      assert.ok(lock.keys.every((k) => k.value > 0), 'all keys positive');
-      if (!lock.decimal) assert.ok(lock.keys.every((k) => Number.isInteger(k.value)), `whole-number keys: ${lockText(lock)}`);
-      if (lock.money) assert.ok(lock.keys.every((k) => r2(k.value) === k.value), 'money keys are whole cents');
-      assert.ok(lockHolds(lockText(lock), lock.x, lock.solution), `the shown lock is true for its answer: ${lockText(lock)} with ${lock.x}=${lock.solution}`);
-      assert.ok(lock.c > 0, 'the other side is positive');
-    }
-  }
-});
-
-test('"no key fits" locks: none of the 4 keys work, and NO KEY FITS is the answer', () => {
-  for (let i = 0; i < RUNS; i++) {
-    const lock = genLock(rnd, ['add', 'sub', 'mul', 'divBy', 'subFrom'][i % 5], { noKey: true });
-    assert.equal(lock.keys.length, 4);
-    assert.ok(lock.keys.every((k) => !substitute(lock, k.value).equal), lockText(lock));
-    assert.ok(checkKey(lock, 'none').correct);
-    const r = checkKey(lock, lock.keys[0].value);
-    assert.ok(!r.correct && /NO KEY FITS/.test(r.message), 'picking a key says to look for NO KEY FITS');
-  }
-});
-
-test('checking keys: the right key clicks, wrong keys get the hint for their mistake', () => {
-  const seen = new Set();
-  for (let i = 0; i < RUNS; i++) {
-    const [kind, opts] = KINDS[i % KINDS.length];
-    const lock = genLock(rnd, kind, opts);
-    const right = checkKey(lock, lock.answer);
-    assert.ok(right.correct && /Click!/.test(right.message));
-    assert.equal(checkKey(lock, 'none').key, 'missed_key', 'NO KEY FITS on a lock that has a key is caught');
-    for (const k of lock.keys.filter((k) => k.tag !== 'correct')) {
-      const r = checkKey(lock, k.value);
-      assert.ok(!r.correct);
-      assert.equal(r.key, k.tag);
-      seen.add(k.tag);
-      assert.ok(noJunk(r.message) && r.message.includes('≠'), `hint shows the substitution: ${r.message}`);
-    }
-  }
-  for (const tag of ['forward_op', 'answer_as_key', 'used_the_number', 'add_sub_instead', 'place_value', 'near_miss', 'forgot_divide']) {
-    assert.ok(seen.has(tag), `the "${tag}" mistake shows up as a key`);
-  }
-});
-
-test('substitution text: "16 + 9 = 25 ≠ 35", money keeps cents, two-step shows the middle step', () => {
-  const lock = { kind: 'add', x: 'd', a: 9, c: 35, money: false };
-  assert.equal(substitute(lock, 16).text, '16 + 9 = 25 ≠ 35');
-  assert.equal(substitute(lock, 26).text, '26 + 9 = 35 = 35');
-  const money = { kind: 'subFrom', x: 'y', a: 6.25, c: 4.1, money: true };
-  assert.equal(substitute(money, 2.15).text, '$6.25 − $2.15 = $4.10 = $4.10');
-  const two = { kind: 'two', x: 'n', k: 6, a: 5, c: 29, money: false };
-  assert.equal(substitute(two, 4).text, '6 × 4 + 5 = 24 + 5 = 29 = 29');
-  assert.equal(lockText({ ...two, flip: false }), '6n + 5 = 29');
+test('substituting a key into a lock', () => {
+  const lock = { kind: 'add', x: 'n', a: 8, c: 15, money: false };
+  assert.equal(lockText(lock), 'n + 8 = 15');
+  assert.equal(substitute(lock, 7).text, '7 + 8 = 15 = 15'); assert.equal(substitute(lock, 7).equal, true);
+  assert.equal(substitute(lock, 9).text, '9 + 8 = 17 ≠ 15'); assert.equal(substitute(lock, 9).equal, false);
+  assert.equal(lockText({ kind: 'mul', x: 'g', k: 3, c: 21 }), '3g = 21'); assert.equal(substitute({ kind: 'mul', x: 'g', k: 3, c: 21 }, 7).text, '3 × 7 = 21 = 21');
   assert.equal(lockText({ kind: 'divBy', x: 'm', a: 36, c: 4, flip: true }), '4 = 36 ÷ m');
+  assert.equal(substitute({ kind: 'two', x: 'x', k: 6, a: 5, c: 29 }, 4).text, '6 × 4 + 5 = 24 + 5 = 29 = 29');
+  assert.equal(lockText({ kind: 'subFrom', x: 'p', a: 12.5, c: 4.25, money: true }), '$12.50 − p = $4.25');
+  assert.equal(fmt(4.1, true), '$4.10'); assert.equal(parseNumber('$4.10'), 4.1); assert.equal(parseNumber(' 12 '), 12); assert.equal(parseNumber('abc'), null); assert.equal(parseNumber('-3'), null);
 });
 
-test('word problems: gift card prices use money and the right price fits', () => {
-  for (let i = 0; i < 500; i++) {
-    const w = genWordLock(rnd);
-    assert.ok(w.money && noJunk(w.story));
-    assert.ok(substitute(w, w.answer).equal);
-    assert.equal(w.keys.filter((k) => substitute(w, k.value).equal).length, 1);
-  }
-});
-
-test('master key: 1 to 3 of the 4 locks open, and the 5n-means-5-times-n trap is explained', () => {
-  let sawConcat = false;
+test(`belts: ${RUNS} belts, the key opens exactly the locks it should`, () => {
+  const traps = new Set(), kinds = new Set();
   for (let i = 0; i < RUNS; i++) {
-    const m = genMasterKey(rnd);
-    assert.equal(m.locks.length, 4);
-    const opens = m.locks.filter((l) => l.opens).length;
-    assert.ok(opens >= 1 && opens <= 3, `opens ${opens}`);
-    for (const l of m.locks) assert.equal(substitute(l, m.value).equal, l.opens, lockText(l));
-    const marks = Object.fromEntries(m.locks.map((l) => [l.id, l.opens]));
-    assert.ok(checkMaster(m, marks).correct);
-    const concat = m.locks.find((l) => l.trap === 'concatenation');
-    if (concat) {
-      sawConcat = true;
-      const r = checkMaster(m, { ...marks, [concat.id]: true });
-      assert.equal(r.key, 'concatenation');
-      assert.match(r.message, /means .* × /);
-    }
-    const flipOne = { ...marks, [m.locks[0].id]: !m.locks[0].opens };
-    assert.equal(checkMaster(m, flipOne).correct, false);
-  }
-  assert.ok(sawConcat);
-});
-
-test('forge a lock: any true equation for the key works; wrong ones show the check', () => {
-  const f = genForge(rnd);
-  const v = f.value;
-  assert.ok(checkForge(f, '+', 5, v + 5).correct);
-  assert.ok(checkForge(f, '-', 2, v - 2).correct);
-  assert.ok(checkForge(f, '×', 3, 3 * v).correct);
-  assert.ok(checkForge(f, '÷', 2, v / 2).correct);
-  const wrong = checkForge(f, '+', 5, v + 6);
-  assert.ok(!wrong.correct && wrong.key === 'forge_wrong' && wrong.message.includes(String(v + 5)));
-  assert.equal(checkForge(f, '×', 0, 0).key, 'zero');
-  assert.equal(checkForge(f, '+', 0, v).key, 'zero');
-  assert.equal(checkForge(f, '+', null, 3).key, 'incomplete');
-});
-
-test('a full run: zone sizes, 2 "no key fits" locks, worked solutions and backups for everything', () => {
-  for (let run = 0; run < 300; run++) {
-    const zones = genRun(rnd);
-    assert.equal(zones.length, ZONES.length);
-    assert.deepEqual(zones.map((z) => z.length), [4, 4, 4, 2, 5]);
-    assert.equal(zones.slice(0, 3).flat().filter((p) => p.noKey).length, 2);
-    for (const p of zones.flat()) {
-      const lines = workedSolution(p);
-      assert.ok(lines.length >= 2 && lines.every(noJunk), `worked solution for ${p.type}`);
-      const b = genBackup(rnd, p);
-      assert.equal(b.type, p.type);
-      if (p.type === 'lock') assert.equal(b.kind, p.kind, 'backup lock is the same kind');
+    const style = ['whole', 'whole', 'decimal', 'money'][i % 4], opens = i % 4;
+    const set = style === 'whole' ? (i % 8 < 4 ? ['add', 'sub', 'subFrom'] : ['mul', 'divBy', 'divOf']) : ['add', 'sub', 'subFrom', 'mul'];
+    const belt = genBelt(rnd, { kinds: set, opens, style, count: 6 });
+    assert.equal(belt.locks.length, 6); assert.equal(belt.locks.filter((l) => l.opens).length, opens);
+    assert.equal(new Set(belt.locks.map(lockText)).size, 6, 'no lock twice on a belt');
+    if (style === 'whole') assert.ok(Number.isInteger(belt.value)); if (style === 'money') assert.ok(belt.money && same(belt.value * 4, Math.round(belt.value * 4)));
+    for (const lock of belt.locks) {
+      kinds.add(lock.kind);
+      assert.equal(same(leftValue(lock, belt.value), lock.c), lock.opens, `${lockText(lock)} with key ${belt.value}`);
+      assert.ok(lock.c > 0 && noJunk(lockText(lock)) && lockText(lock).length <= 19, lockText(lock));
+      assert.equal(checkTap(belt, lock, lock.opens), null, 'the right call is never a mistake');
+      const res = checkTap(belt, lock, !lock.opens);
+      assert.ok(noJunk(res.message) && noJunk(res.key), `${lockText(lock)}: ${res.message}`);
+      if (lock.opens) assert.equal(res.key, 'missed_open'); else { assert.equal(res.key, lock.trap); traps.add(lock.trap); assert.ok(res.message.includes('≠'), 'a wrong tap shows both sides'); }
     }
   }
+  assert.deepEqual([...traps].sort(), ['answer_as_key', 'concatenation', 'near_miss', 'used_the_number', 'wrong_op']);
+  assert.deepEqual([...kinds].sort(), ['add', 'divBy', 'divOf', 'mul', 'sub', 'subFrom']);
+});
+
+test('belts: the traps are real mistakes', () => {
+  for (let i = 0; i < RUNS; i++) {
+    const belt = genBelt(rnd, { kinds: ['mul', 'add'], opens: 1 }), b = belt.value;
+    for (const l of belt.locks.filter((x) => !x.opens)) {
+      if (l.trap === 'concatenation') assert.equal(String(l.c), `${l.k}${b}`);
+      if (l.trap === 'answer_as_key') assert.equal(l.c, b);
+      if (l.trap === 'used_the_number') assert.equal(l.kind === 'mul' ? l.k : l.a, b);
+      if (l.trap === 'wrong_op' && l.kind === 'mul') assert.equal(l.c, l.k + b);
+      if (l.trap === 'near_miss') assert.ok(Math.abs(leftValue(l, b) - l.c) <= 2);
+    }
+  }
+  const two = genBelt(rnd, { kinds: ['two'], opens: 2 });
+  assert.ok(two.locks.every((l) => l.kind === 'two') && two.locks.some((l) => l.trap === 'forgot_part'));
+});
+
+test('key ring: free test keys, and the strip always holds the answer', () => {
+  for (let i = 0; i < RUNS; i++) {
+    const ring = i % 5 === 4 ? genStoryRing(rnd) : genRing(rnd, ['add', 'sub', 'subFrom', 'mul', 'divOf', 'divBy'][i % 6]);
+    const { lo, hi, step } = ring.strip, s = ring.lock.solution;
+    assert.ok(s >= lo && s <= hi && same((s - lo) / step, Math.round((s - lo) / step)), `${lockText(ring.lock)}: ${s} is on the strip ${lo}..${hi}`);
+    assert.equal(checkTry(ring, s).ok, true);
+    const miss = checkTry(ring, s + step);
+    assert.ok(miss.ok === false && /too (big|small)/.test(miss.message) && miss.text.includes('≠'), miss.message);
+    if (ring.story) assert.ok(/gift card/.test(ring.story) && ring.lock.money);
+  }
+  const jam = genRing(rnd, 'add', { order: 'jam', tries: 1 });
+  assert.equal(checkTry(jam, jam.lock.solution).ok, false); assert.equal(checkTry(jam, jam.lock.solution + 1).ok, true);
+  const r = { type: 'ring', order: 'open', lock: { kind: 'add', x: 'n', a: 8, c: 15, money: false, flip: false } };
+  assert.ok(/9 \+ 8 = 17 ≠ 15\. The left side came out too big/.test(checkTry(r, 9).message));
+});
+
+test('mystery lock: each test key shows what it makes', () => {
+  for (let i = 0; i < RUNS; i++) {
+    const m = genMystery(rnd), s = m.lock.solution;
+    assert.ok(s >= 0 && s <= 20 && m.tries === 4);
+    assert.equal(checkTry(m, s).ok, true);
+    const t = checkTry(m, 0);
+    assert.equal(t.ok, false); assert.equal(t.text, `Key 0 makes ${m.lock.kind === 'add' ? m.lock.a : 0}`);
+    // two test keys are enough to work the lock out
+    const at1 = leftValue(m.lock, 1), at0 = leftValue(m.lock, 0);
+    assert.equal(m.lock.kind === 'add' ? at1 - at0 : at1, m.lock.kind === 'add' ? 1 : m.lock.k);
+  }
+});
+
+test('forge: any true lock is accepted', () => {
+  const p = genForge(rnd); const v = p.value;
+  assert.equal(checkForge(p, '+', 5, v + 5).correct, true); assert.equal(checkForge(p, '-', 2, v - 2).correct, true);
+  assert.equal(checkForge(p, '×', 3, v * 3).correct, true); assert.equal(checkForge(p, '÷', 2, v / 2).correct, true);
+  const wrong = checkForge(p, '+', 5, v + 6); assert.equal(wrong.key, 'forge_wrong'); assert.ok(wrong.message.includes(`Make the right side ${v + 5}`));
+  assert.equal(checkForge(p, '+', null, 5).key, 'incomplete'); assert.equal(checkForge(p, '×', 0, 0).key, 'zero'); assert.equal(checkForge(p, '+', 0, v).key, 'zero');
+  const q = genForge(rnd, ['×', '÷']);
+  assert.equal(checkForge(q, '+', 5, q.value + 5).key, 'forge_op'); assert.equal(checkForge(q, '×', 2, q.value * 2).correct, true);
+});
+
+test('zones', () => {
+  assert.equal(ZONES.length, 5);
+  for (let i = 0; i < 300; i++) {
+    const z = [0, 1, 2, 3, 4].map((k) => genZone(rnd, k));
+    assert.ok(z[0].every((r) => r.type === 'belt' && !r.decimal) && z[0].length === 3);
+    assert.ok(z[1].some((r) => r.locks.every((l) => !l.opens)), 'one Gear Locks belt has no lock that opens');
+    assert.ok(z[2][0].decimal && !z[2][0].money && z[2][1].money && z[2].some((r) => r.locks.every((l) => !l.opens)));
+    assert.deepEqual(z[3].map((r) => r.type + ':' + r.order), ['ring:open', 'ring:open', 'ring:open', 'ring:open', 'ring:jam']);
+    assert.deepEqual(z[4].map((r) => r.type), ['belt', 'ring', 'forge', 'forge', 'mystery', 'mystery']);
+    assert.ok(z[4][1].story && z[4][3].ops.includes('×') && !z[4][2].ops);
+    for (const r of z.flat()) if (r.type === 'belt') assert.ok(r.locks.length >= 5 && noJunk(fmt(r.value, r.money)));
+  }
+  assert.ok(genLock(rnd, 'add').solution > 0);
 });
 
 console.log(`\n${passed} tests passed`);

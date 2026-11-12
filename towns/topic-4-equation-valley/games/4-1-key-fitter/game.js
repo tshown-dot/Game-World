@@ -1,287 +1,415 @@
-// Key Fitter (Lesson 4-1): screen, controls and game flow. The math lives in keys.js.
-import {
-  ZONES, genRun, genBackup, fmt, lockText, substitute, parseNumber, checkKey, checkMaster, checkForge, workedSolution,
-} from './keys.js';
-import { hubAudio } from '../../../../shared/audio.js';
-import { createGame } from '../../../../shared/game/gameShell.js';
+// Key Fitter (Lesson 4-1: Understand Equations and Solutions): the screen and the controls.
+// The math is in keys.js. The shared parts of an action game (briefing, top bar, chances, hint card, report)
+// are in shared/game/arcadeShell.js.
+//
+// A zone is a list of ROUNDS:
+//   belt     the student holds one key; locks roll past; tap every lock the key opens
+//   ring     one lock stands still; the student slides a key along a number strip and tries it (test keys are free)
+//   mystery  the same, but the lock hides its rule and only shows what each test key makes
+//   forge    the student builds an equation that a given key opens
+// All timing goes through update(), so the action stops cleanly whenever a banner, hint, help screen or mistake
+// message is showing.
+import { createArcade } from '../../../../shared/game/arcadeShell.js';
+import { ZONES, genZone, lockText, substitute, checkTap, checkTry, checkForge, parseNumber, fmt, r2 } from './keys.js';
 
-let run = null;                                       // this play's problems, all five zones
+const NS = 'http://www.w3.org/2000/svg';
+const BELT_Y = 330, EXIT_X = 150, GAP = 350, SPEED = 115;   // the belt: where locks ride, where they leave, spacing, pixels a second
+const L = 110, WD = 1146, LINE_Y = 520, PICK_Y = 452, LOCK_Y = 290;   // the key strip and the big lock
+const BOSS = ZONES.length - 1;
+const $ = (id) => document.getElementById(id);
+const scene = $('scene');
+const near = (a, b) => Math.abs(a - b) < 1e-7;
 
-const SKILL_TIPS = {
-  forward_op: 'Undo the operation in the lock: + becomes −, × becomes ÷.',
-  answer_as_key: 'The key replaces the letter, not the number on the other side.',
-  used_the_number: 'The key replaces the letter, not the number already in the lock.',
-  add_sub_instead: 'Read the operation carefully: 4x means 4 × x.',
-  place_value: 'Line up decimal points when you check a decimal key.',
-  near_miss: 'Check every key: both sides must be exactly equal.',
-  forgot_divide: 'In 6n + 5, multiply 6 × n first, then add 5.',
-  wrong_order: 'Multiply before you add.',
-  ignored_part: 'Use every part of the lock when you check.',
-  missed_key: 'Test each key before deciding no key fits.',
-  concatenation: '5n means 5 × n, not 5 next to n.',
-  said_open: 'A lock only opens when both sides are equal.',
-  said_shut: 'Work out both sides: some locks do open!',
-  forge_wrong: 'Test your own lock: put the key in and check both sides.',
+// Everything about the round being played.
+const W = {
+  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, belt, pick (ring or mystery), forge, gap
+  items: [], beltMiss: 0,                           // belt: one item per lock { lock, n, x, state, el }
+  pick: 0, pickEl: null, fly: null, tries: 0, marks: [],
+  op: '+', gapLeft: 0, frozen: false, wrongEl: null, afterResume: null, speed: 1,
 };
 
-const shell = createGame({
-  // One run is built at Start (and fresh on a retry), so its 2 "no key fits" locks really are spread over zones 1-3.
-  zones: ZONES, makeZone: (rnd, z) => (run ||= genRun(rnd))[z], makeBackup: genBackup, workedSolution, showProblem,
-  onStart: () => { run = null; }, onRetry: () => { run = null; },
-  seconds: [40, 40, 45, 0, 50],                        // alarm: seconds until a guard comes (0 = no timer in that zone)
-  meterFloor: 8, wrongBump: 34, rightRelief: 30, winDelay: () => 1600,
-  lifeLostText: (left) => (left > 0 ? 'A GUARD SPOTTED YOU!' : 'CAUGHT!'),
-  onLifeLost: () => {
-    const fx = UI.scene.querySelector('#fx');
-    if (fx) fx.innerHTML = `<g class="guard"><g transform="translate(720 440)"><rect x="-18" y="-60" width="36" height="60" rx="8" fill="#2f3a6b" ${O}/><circle cx="0" cy="-74" r="15" fill="#ffd3a8" ${O}/><rect x="-16" y="-92" width="32" height="10" fill="#2f3a6b" ${O}/><circle cx="20" cy="-40" r="9" fill="#ffd23f" ${O}/></g></g>`;
-  },
-  backupText: 'TRY A BACKUP LOCK (ENTER)', skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. Master safecracker!',
-  bossDefeated: () => true, onKey, testName: '__keyfitter',
+const HINTS = {
+  missed_open: 'Before a lock rolls away, put your key in for the letter and work out that side.<span class="mono">key 7 : n + 8 = 15 → 7 + 8 = 15 ✓</span>If both sides match, the key is a solution: tap it.',
+  near_miss: 'Close is not open. Both sides must be exactly equal.<span class="mono">key 7 : n + 8 = 16 → 15 ≠ 16</span>Work the side out all the way before you tap.',
+  wrong_op: 'Read the operation in the lock, not the one you expect.<span class="mono">key 4 : 3n = 7 → 3 × 4 = 12, not 7</span>',
+  answer_as_key: 'Seeing your number in the lock does not mean it fits. The key goes where the LETTER is.<span class="mono">key 7 : n + 3 = 7 → 7 + 3 = 10, not 7</span>',
+  used_the_number: 'Seeing your number in the lock does not mean it fits. The key goes where the LETTER is.<span class="mono">key 7 : n + 7 = 12 → 7 + 7 = 14, not 12</span>',
+  concatenation: 'A number next to a letter means MULTIPLY.<span class="mono">key 4 : 3n → 3 × 4 = 12, not 34</span>',
+  forgot_part: 'A two-step lock needs both steps. Multiply first, then add.<span class="mono">key 4 : 3n + 5 → 3 × 4 + 5 = 17</span>',
+  ring_miss: 'Use each test key as a clue. Did the side come out too big or too small? Move your key the other way.',
+  mystery_miss: 'Compare two test keys. If the key goes up by 1 and the result goes up by 1, the lock ADDS. If it goes up by more, the lock MULTIPLIES.<span class="mono">key 0 makes 6 → the lock adds 6</span>',
+  forge_wrong: 'Put the key into your own lock and work out the side. That result is what goes after the equals sign.<span class="mono">key 8 : x + 5 = ? → 8 + 5 = 13</span>',
+};
+const TIPS = {
+  missed_open: 'A value is a solution when it makes both sides equal. Substitute before deciding.',
+  near_miss: 'Both sides must be exactly equal, not close.',
+  wrong_op: 'Read the operation in the equation carefully before substituting.',
+  answer_as_key: 'The value replaces the variable, even when the same number appears elsewhere in the equation.',
+  used_the_number: 'The value replaces the variable, even when the same number appears elsewhere in the equation.',
+  concatenation: '3n means 3 × n, not the digits side by side.',
+  forgot_part: 'In a two-step expression, multiply first, then add.',
+  ring_miss: 'Guess, check, and use the result to choose a better guess.',
+  mystery_miss: 'Two test values are enough to see what an operation does.',
+  forge_wrong: 'To write an equation with a given solution, substitute it and work out the other side.',
+  jam_miss: 'A value that makes the two sides different is not a solution.',
+};
+
+const arcade = createArcade({
+  zones: ZONES, startZone, stopZone, onKey, hints: HINTS, skillTips: TIPS, testName: '__keyfitter',
+  perfectText: 'A clean break-in: no mistakes to sharpen!',
+  lifeLostText: (left) => (left > 0 ? `A GUARD! ${left} CHANCE${left === 1 ? '' : 'S'} LEFT` : 'CAUGHT!'),
 });
-const { G, UI, $, showFeedback } = shell;
-Object.assign(G, { tried: new Set(), marks: {}, forge: { op: '+', a: '', c: '', field: 'a' } });
-const K = '#1d1433';
-const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
-const KEY_X = [160, 320, 480, 640];
+const { G, hubAudio } = arcade;
+if (window.__keyfitter) window.__keyfitter.W = W;
 
 /* ================================================================== */
-/* Scene                                                               */
+/* Zones and rounds                                                    */
+/* ================================================================== */
+function startZone(z) {
+  W.rounds = genZone(Math.random, z);
+  startRound(0);
+}
+function stopZone() {
+  Object.assign(W, { phase: 'idle', frozen: false, items: [], fly: null, pickEl: null, afterResume: null, wrongEl: null });
+  $('callout').classList.add('hidden'); $('forge').classList.add('hidden');
+}
+function startRound(i) {
+  const round = W.rounds[i];
+  Object.assign(W, { ri: i, round, items: [], beltMiss: 0, fly: null, pickEl: null, tries: 0, marks: [], frozen: false, afterResume: null, wrongEl: null });
+  if (G.zone === BOSS) arcade.setBossProgress((i / W.rounds.length) * 100);
+  $('forge').classList.add('hidden');
+  if (round.type === 'belt') {
+    W.phase = 'belt';
+    drawBelt();
+    W.items = round.locks.map((lock, n) => ({ lock, n, x: 1366 + 170 + n * GAP, state: 'roll', el: null }));
+    for (const it of W.items) { it.el = beltLockEl(it); place(it); }
+  } else if (round.type === 'forge') {
+    W.phase = 'forge'; W.op = round.ops ? round.ops[0] : '+';
+    drawForge();
+    $('fa').value = ''; $('fc').value = ''; $('forgeNote').textContent = '';
+    $('forge').classList.remove('hidden');
+    $('fa').focus();
+  } else {
+    W.phase = 'pick';
+    drawPickScene(); newPick();
+  }
+  renderSign(true); renderCtl();
+}
+function endRound(bonus) {
+  if (bonus) { G.score += 20; arcade.renderHud(); arcade.flash(bonus); }
+  W.phase = 'gap'; W.gapLeft = 0.9;
+  renderCtl();
+}
+function nextRound() {
+  if (W.ri + 1 < W.rounds.length) return startRound(W.ri + 1);
+  W.phase = 'idle';
+  if (G.zone === BOSS) arcade.setBossProgress(100);
+  arcade.zoneCleared();
+}
+
+/* ================================================================== */
+/* The action                                                          */
+/* ================================================================== */
+function update(dt) {
+  if (W.phase === 'idle' || W.frozen || arcade.paused()) return;
+  if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
+  if (W.phase === 'belt') {
+    const speed = SPEED * (G.practice ? 0.6 : 1);
+    for (const it of W.items) {
+      if (it.state !== 'roll') continue;
+      it.x -= speed * dt;
+      place(it);
+      if (it.x <= EXIT_X) { judge(it, false); if (W.phase !== 'belt' || W.frozen || arcade.paused()) return; }
+    }
+    if (W.items.every((it) => it.state === 'done')) endRound(W.beltMiss === 0 ? 'CLEAN BELT! +20' : null);
+    return;
+  }
+  if (W.phase === 'pick' && W.fly) {
+    W.fly.y = Math.max(LOCK_Y + 70, W.fly.y - 700 * dt);
+    W.fly.el.setAttribute('transform', `translate(${W.fly.x} ${W.fly.y})`);
+    if (W.fly.y <= LOCK_Y + 70) resolveTry();
+  }
+}
+/** The student tried the key in a belt lock (tapped), or let the lock roll out. */
+function judge(it, tapped) {
+  const belt = W.round, res = checkTap(belt, it.lock, tapped), s = substitute(it.lock, belt.value);
+  it.state = 'done';
+  const eq = it.el.querySelector('.eq');
+  if (tapped || res) { eq.textContent = s.equal ? s.text.replace(/ = \S+$/, ' ✓') : s.text; eq.classList.toggle('long', eq.textContent.length > 16); }
+  if (!res) {
+    arcade.good(tapped ? 10 : 5);
+    if (tapped) hubAudio.playCoinClink();
+    it.el.classList.add(tapped ? 'open' : 'passed');
+    const el = it.el; setTimeout(() => el.remove(), 950);
+    return;
+  }
+  W.beltMiss += 1;
+  it.el.classList.add('jam');
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;                    // that was the last chance: the zone has stopped
+  stopFor(res.message, it.el, 'CONTINUE (ENTER)', null);
+}
+/** A mistake stops the action and says what went wrong. */
+function stopFor(message, el, button, then) {
+  W.frozen = true; W.wrongEl = el; W.afterResume = then;
+  $('calloutText').textContent = message;
+  $('resumeBtn').textContent = button;
+  $('callout').classList.remove('hidden');
+}
+function resume() {
+  if (!W.frozen || arcade.paused()) return;
+  W.frozen = false;
+  $('callout').classList.add('hidden');
+  if (W.wrongEl) W.wrongEl.remove();
+  W.wrongEl = null;
+  const then = W.afterResume;
+  W.afterResume = null;
+  if (then) then();
+}
+function tapLock(it) {
+  if (W.phase !== 'belt' || W.frozen || arcade.paused() || !it || it.state !== 'roll' || it.x > 1366 - 156) return;   // only once the whole lock is on screen
+  judge(it, true);
+}
+
+/* ---- ring and mystery: the student chooses the key ---- */
+const strip = () => W.round.strip;
+const X = (v) => L + ((v - strip().lo) / (strip().hi - strip().lo)) * WD;
+function snap(v) {
+  const { lo, hi, step } = strip();
+  return r2(lo + Math.round((Math.min(hi, Math.max(lo, v)) - lo) / step) * step);
+}
+const canPick = () => W.phase === 'pick' && W.pickEl && !W.fly && !W.frozen && !arcade.paused();
+function newPick() {
+  const { lo, hi, step } = strip(), sol = W.round.lock.solution;
+  if (!W.tries) {                                    // a fresh lock: never start on the answer (or, for a jam, start ON it)
+    const mid = snap((lo + hi) / 2);
+    W.pick = W.round.order === 'jam' ? sol : near(mid, sol) ? snap(mid + 3 * step) : mid;
+  }
+  W.fly = null;
+  const money = W.round.lock.money;
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'pick');
+  g.innerHTML = `<line class="guide" x1="0" y1="26" x2="0" y2="${LINE_Y - PICK_Y}" stroke="#ffd166" stroke-width="2" stroke-dasharray="4 7" opacity="0.7"/>
+    <circle cx="0" cy="-34" r="20" fill="#ffd166" stroke="#2b1b2e" stroke-width="4"/><circle cx="0" cy="-34" r="7" fill="#1c2230"/>
+    <rect x="${money ? -44 : -34}" y="-18" width="${money ? 88 : 68}" height="40" rx="10" fill="#ffd166" stroke="#2b1b2e" stroke-width="4"/><text y="10"></text>`;
+  $('gFront').appendChild(g);
+  W.pickEl = g;
+  drawPick();
+}
+function drawPick() {
+  W.pickEl.querySelector('text').textContent = fmt(W.pick, W.round.lock.money);
+  W.pickEl.setAttribute('transform', `translate(${X(W.pick)} ${PICK_Y})`);
+}
+function setPick(v) {
+  if (!canPick()) return;
+  v = snap(v);
+  if (near(v, W.pick)) return;
+  W.pick = v; hubAudio.playStep(); drawPick();
+}
+function tryPick() {
+  if (!canPick()) return;
+  W.pickEl.querySelector('.guide').remove();
+  W.fly = { v: W.pick, x: X(W.pick), y: PICK_Y, el: W.pickEl };
+  hubAudio.playCartridgeLaunch();
+  renderCtl();
+}
+/** The student's key reached the lock. */
+function resolveTry() {
+  const round = W.round, v = W.fly.v, el = W.fly.el, res = checkTry(round, v), lock = round.lock;
+  W.fly = null; W.pickEl = null;
+  const made = round.order === 'jam' ? null : { v, text: fmt(substitute(lock, v).left, lock.money), ok: res.ok };
+  if (made) { W.marks = W.marks.filter((m) => !near(m.v, v)).concat(made); drawMarks(); }
+  const line = $('tryLine');
+  line.textContent = res.text;
+  if (res.ok) {
+    arcade.good(15); hubAudio.playCoinClink();
+    $('bigLock').classList.add(round.order === 'jam' ? 'jam' : 'open');
+    el.remove();
+    if (round.type === 'mystery') $('bigEq').textContent = lockText(lock);   // show what the lock was doing
+    return endRound(null);
+  }
+  W.tries += 1;
+  if (W.tries < round.tries) {                       // a free test key: it leaves a clue, no damage
+    hubAudio.playSelect();
+    el.remove();
+    newPick(); renderSign(); renderCtl();
+    return;
+  }
+  const s = substitute(lock, lock.solution);
+  const key = round.type === 'mystery' ? 'mystery_miss' : round.order === 'jam' ? 'jam_miss' : 'ring_miss';
+  arcade.bad(key, 25);
+  if (W.phase === 'idle') return;
+  const tail = round.order === 'jam' ? '' : ` The key was ${fmt(lock.solution, lock.money)}: ${lockText(lock)} → ${s.text.replace(/ = \S+$/, ' ✓')}`;
+  stopFor(res.message + tail, el, 'NEXT LOCK (ENTER)', () => endRound(null));
+}
+
+/* ---- forge: build a lock the key opens ---- */
+function setOp(op) {
+  if (W.phase !== 'forge') return;
+  W.op = op;
+  for (const b of $('forgeOps').querySelectorAll('button')) b.classList.toggle('on', b.dataset.op === op);
+}
+function forge() {
+  if (W.phase !== 'forge' || W.frozen || arcade.paused()) return;
+  const res = checkForge(W.round, W.op, parseNumber($('fa').value), parseNumber($('fc').value));
+  if (res.key === 'incomplete' || res.key === 'zero' || res.key === 'forge_op') { $('forgeNote').textContent = res.message; return; }   // a nudge, not a mistake
+  if (res.correct) {
+    arcade.good(20); hubAudio.playCoinClink();
+    $('forgeNote').textContent = res.message;
+    $('bigLock').classList.add('open');
+    W.phase = 'gap'; W.gapLeft = 2.2; renderCtl();
+    return;
+  }
+  W.tries += 1;
+  $('forgeNote').textContent = '';
+  arcade.bad('forge_wrong', 25);
+  if (W.phase === 'idle') return;
+  const v = W.round.value, moveOn = W.tries >= 2;
+  stopFor(res.message + (moveOn ? ` One that works: x + 5 = ${v + 5}.` : ''), null, moveOn ? 'NEXT (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? () => endRound(null) : () => $('fc').focus());
+}
+
+/* ================================================================== */
+/* Controls                                                            */
+/* ================================================================== */
+function onKey(e) {
+  const k = e.key;
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else if (W.phase === 'pick') tryPick(); else if (W.phase === 'forge') forge(); return; }
+  if (W.frozen) return;
+  if (W.phase === 'belt' && /^[1-9]$/.test(k)) tapLock(W.items[Number(k) - 1]);
+  if (W.phase === 'pick' && (k === 'ArrowLeft' || k === 'ArrowRight')) { e.preventDefault(); setPick(W.pick + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 5 : 1) * strip().step); }
+  if (W.phase === 'forge') {
+    const op = { '+': '+', '-': '-', '*': '×', x: '×', X: '×', '/': '÷' }[k];
+    if (op) { e.preventDefault(); setOp(op); }
+  }
+}
+const press = (id, fn) => $(id).addEventListener('click', (e) => { e.currentTarget.blur(); fn(); });
+press('stepL', () => setPick(W.pick - strip().step));
+press('stepR', () => setPick(W.pick + strip().step));
+press('goBtn', () => (W.phase === 'forge' ? forge() : tryPick()));
+press('resumeBtn', resume);
+for (const b of $('forgeOps').querySelectorAll('button')) b.addEventListener('click', () => { setOp(b.dataset.op); $('fa').focus(); });
+for (const id of ['fa', 'fc']) $(id).addEventListener('input', (e) => { e.target.value = e.target.value.replace(/[^0-9.]/g, ''); });
+
+// Slide the key anywhere along the strip.
+let drag = false;
+function scenePoint(e) {
+  const r = scene.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) / r.width) * 1366, y: ((e.clientY - r.top) / r.height) * 698 };
+}
+const valueAt = (x) => strip().lo + ((x - L) / WD) * (strip().hi - strip().lo);
+scene.addEventListener('pointerdown', (e) => {
+  if (!canPick()) return;
+  const pt = scenePoint(e);
+  if (pt.y < PICK_Y - 70) return;
+  drag = true; scene.setPointerCapture(e.pointerId);
+  setPick(valueAt(pt.x));
+});
+scene.addEventListener('pointermove', (e) => { if (drag) setPick(valueAt(scenePoint(e).x)); });
+scene.addEventListener('pointerup', () => { drag = false; });
+scene.addEventListener('pointercancel', () => { drag = false; });
+
+/* ================================================================== */
+/* Drawing                                                             */
 /* ================================================================== */
 function wall() {
-  return `
-    <rect width="800" height="520" fill="#b85f35"/>
-    <path d="M0 70 Q200 60 400 76 T800 66 M0 150 Q220 140 420 156 T800 146 M0 380 Q220 370 420 386 T800 376" stroke="rgba(0,0,0,0.12)" stroke-width="9" fill="none"/>
-    <rect y="440" width="800" height="80" fill="#8f3f22"/>
-    <path d="M0 440 H800" stroke="${K}" stroke-width="3"/>`;
+  let bricks = '';
+  for (let y = 0; y < 640; y += 46) for (let x = (y / 46) % 2 ? -60 : 0; x < 1366; x += 120) bricks += `<rect x="${x}" y="${y}" width="118" height="44" fill="#252c3d" stroke="#1a202d" stroke-width="2"/>`;
+  return `<rect width="1366" height="698" fill="#1c2230"/>${bricks}`;
 }
-
-function vaultDoor(text, readout, readoutColor) {
-  return `
-    <circle cx="400" cy="185" r="172" fill="#6b6f80" ${O}/>
-    <g class="door" id="door">
-      <circle cx="400" cy="185" r="160" fill="#8b90a3" ${O}/>
-      ${[0, 60, 120, 180, 240, 300].map((a) => `<circle cx="${400 + 140 * Math.cos(a * Math.PI / 180)}" cy="${185 + 140 * Math.sin(a * Math.PI / 180)}" r="7" fill="#5a5e70" ${O}/>`).join('')}
-      <rect x="215" y="112" width="370" height="78" rx="12" fill="#fff4d6" ${O}/>
-      <text x="400" y="164" text-anchor="middle" font-size="${text.length > 18 ? 28 : 36}" font-weight="900" font-family="ui-monospace, 'Courier New', monospace" fill="${K}">${text}</text>
-      <rect x="240" y="204" width="320" height="44" rx="8" fill="#1d1433" ${O}/>
-      <text x="400" y="232" text-anchor="middle" font-size="${readout.length > 30 ? 13 : 16}" font-weight="900" font-family="ui-monospace, monospace" fill="${readoutColor}">${readout}</text>
-      <circle cx="400" cy="290" r="18" fill="#3b3f4f" ${O}/><rect x="395" y="290" width="10" height="22" fill="#1d1433"/>
-    </g>`;
+function keyArt(value, money) {
+  const text = fmt(value, money);
+  return `<g transform="translate(683 540)"><text class="keylabel" y="-58">YOUR KEY</text>
+    <rect x="-230" y="-12" width="150" height="24" fill="#e0a92e" stroke="#2b1b2e" stroke-width="4"/><path d="M-230 12 v22 h20 v-22 M-190 12 v16 h18 v-16" fill="#e0a92e" stroke="#2b1b2e" stroke-width="4"/>
+    <rect x="-90" y="-44" width="260" height="88" rx="44" fill="#ffd166" stroke="#2b1b2e" stroke-width="5"/>
+    <text class="keyval ${text.length > 5 ? 'long' : ''}" x="40" y="16">${text}</text></g>`;
 }
-
-function keySvg(i, value, money, tried, showNumber = true) {
-  const label = fmt(value, money);
-  return `<g class="key-g" data-key="${i}" id="key${i}" transform="translate(${KEY_X[i]} 425)" opacity="${tried ? 0.35 : 1}">
-    <path d="M0 -60 L0 -36" stroke="#8a6d3b" stroke-width="3"/>
-    <rect x="-6" y="-36" width="12" height="70" rx="3" fill="#ffd23f" ${O}/>
-    <path d="M6 18 h12 v8 h-12 M6 28 h8 v6 h-8" fill="#ffd23f" ${O}/>
-    <circle class="key-bow" cx="0" cy="-58" r="${label.length > 4 ? 34 : 28}" fill="#ffd23f" ${O}/>
-    <text x="0" y="-52" text-anchor="middle" font-size="${label.length > 5 ? 14 : 18}" font-weight="900" fill="${K}">${label}</text>
-    ${showNumber ? `<text x="0" y="56" text-anchor="middle" font-size="11" font-weight="900" fill="#fff4d6">${i + 1}</text>` : ''}
-  </g>`;
+function drawBelt() {
+  let rollers = '';
+  for (let x = 30; x < 1366; x += 70) rollers += `<circle cx="${x}" cy="${BELT_Y + 78}" r="12" fill="#5d6679" stroke="#1a202d" stroke-width="3"/>`;
+  scene.innerHTML = `${wall()}
+    <rect x="0" y="${BELT_Y + 56}" width="1366" height="44" fill="#39414f" stroke="#1a202d" stroke-width="4"/>${rollers}
+    <g id="gLocks"></g>
+    <rect x="0" y="${BELT_Y - 110}" width="${EXIT_X - 150 + 130}" height="220" fill="#12161f" stroke="#ffd166" stroke-width="4"/>
+    <text x="65" y="${BELT_Y - 122}" class="keylabel">OUT</text>
+    ${keyArt(W.round.value, W.round.money)}<g id="gFront"></g>`;
 }
-
-function locksmithSvg() {
-  return `<g transform="translate(72 430)">
-    <ellipse cx="0" cy="8" rx="30" ry="7" fill="rgba(0,0,0,0.25)"/>
-    <rect x="-20" y="-50" width="40" height="52" rx="10" fill="#4a2f6b" ${O}/>
-    <circle cx="0" cy="-66" r="17" fill="#ffd3a8" ${O}/>
-    <rect x="-18" y="-82" width="36" height="10" rx="4" fill="#1d1433"/>
-    <circle cx="-6" cy="-67" r="5" fill="none" stroke="${K}" stroke-width="2"/><circle cx="6" cy="-67" r="5" fill="none" stroke="${K}" stroke-width="2"/>
-    <path d="M18 -30 L34 -44" stroke="${K}" stroke-width="6" stroke-linecap="round"/><circle cx="36" cy="-48" r="7" fill="#ffd23f" ${O}/>
-  </g>`;
+function beltLockEl(it) {
+  const text = lockText(it.lock);
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'lock');
+  g.innerHTML = `<g class="lock-in"><path class="shackle" d="M-44 -50 v-24 a44 44 0 0 1 88 0 v24"/><rect class="body" x="-150" y="-50" width="300" height="100" rx="16"/>
+    <text class="eq ${text.length > 16 ? 'long' : ''}" y="10">${text}</text><circle cx="-150" cy="-50" r="15" fill="#2b1b2e" stroke="#fff" stroke-width="2"/><text class="num" x="-150" y="-45">${it.n + 1}</text></g>`;
+  g.addEventListener('pointerdown', (e) => { e.stopPropagation(); tapLock(it); });
+  $('gLocks').appendChild(g);
+  return g;
 }
+const place = (it) => it.el.setAttribute('transform', `translate(${it.x} ${BELT_Y})`);
 
-function drawLock(readout = 'Pick a key to test', color = '#ffd23f') {
-  const p = G.problem;
-  UI.scene.innerHTML = `${wall()}${vaultDoor(lockText(p), readout, color)}
-    <circle cx="400" cy="372" r="18" fill="none" stroke="#8a6d3b" stroke-width="6"/>
-    ${p.keys.map((k, i) => keySvg(i, k.value, p.money, G.tried.has(i))).join('')}
-    ${G.zone === 4 ? locksmithSvg() : ''}
-    <g id="fx"></g>`;
-  UI.scene.querySelectorAll('[data-key]').forEach((g) => g.addEventListener('click', () => tryKey(Number(g.dataset.key))));
+function bigLock(text) {
+  return `<g id="bigLock" class="lock big" transform="translate(683 ${LOCK_Y})"><path class="shackle" d="M-70 -70 v-34 a70 70 0 0 1 140 0 v34"/><rect class="body" x="-300" y="-70" width="600" height="150" rx="22"/>
+    <text id="bigEq" class="eq ${text.length > 16 ? 'long' : ''}" y="4">${text}</text><text id="tryLine" class="try" y="56"></text></g>`;
 }
-
-function padlock(x, y, l, state) {
-  const shackle = state === 'open' ? 'M-16 -10 V-30 a16 16 0 0 1 32 0 V-22' : 'M-16 -10 V-28 a16 16 0 0 1 32 0 V-10';
-  const ring = state === 'right' ? '#2fbf71' : state === 'wrong' ? '#e5484d' : null;
-  return `<g transform="translate(${x} ${y})">
-    ${ring ? `<rect x="-118" y="-48" width="236" height="104" rx="14" fill="none" stroke="${ring}" stroke-width="6"/>` : ''}
-    <path d="${shackle}" fill="none" stroke="${K}" stroke-width="9"/><path d="${shackle}" fill="none" stroke="#c9c3b6" stroke-width="5"/>
-    <rect x="-110" y="-10" width="220" height="56" rx="10" fill="${state === 'open' ? '#d9f7e3' : '#fff4d6'}" ${O}/>
-    <text x="0" y="26" text-anchor="middle" font-size="20" font-weight="900" font-family="ui-monospace, monospace" fill="${K}">${lockText(l)}</text>
-  </g>`;
-}
-
-function drawMaster(reveal = null) {
-  const p = G.problem;
-  const spots = [[220, 170], [580, 170], [220, 330], [580, 330]];
-  UI.scene.innerHTML = `${wall()}
-    <g transform="translate(400 455)"><circle cx="-70" cy="0" r="30" fill="#ffd23f" ${O}/><rect x="-40" y="-8" width="120" height="16" rx="4" fill="#ffd23f" ${O}/>
-      <text x="-70" y="7" text-anchor="middle" font-size="16" font-weight="900" fill="${K}">${p.x}=${p.value}</text></g>
-    ${p.locks.map((l, i) => padlock(spots[i][0], spots[i][1], l, reveal ? (reveal.includes(l.id) ? 'wrong' : 'right') : (G.marks[l.id] ? 'open' : 'shut'))).join('')}`;
-}
-
-function drawForge(result = null) {
-  const p = G.problem;
-  const f = G.forge;
-  const text = `x ${f.op === '-' ? '−' : f.op} ${f.a || '?'} = ${f.c || '?'}`;
-  UI.scene.innerHTML = `${wall()}${vaultDoor(text, result ? result.text : `Forge a lock that key ${p.value} opens`, result ? (result.ok ? '#2fbf71' : '#ff7a8a') : '#ffd23f')}
-    ${keySvg(0, p.value, false, false, false).replace('translate(160 425)', 'translate(400 410)').replace('data-key="0"', '')}
-    ${G.zone === 4 ? locksmithSvg() : ''}`;
-}
-
-/* ================================================================== */
-/* Problems                                                            */
-/* ================================================================== */
-/** The shell has set G.problem, G.attempts and G.isBackup; reset this game's own state and draw. */
-function showProblem() {
-  Object.assign(G, { tried: new Set(), marks: {}, forge: { op: '+', a: '', c: '', field: 'a' } });
-  render();
-}
-
-function render() {
-  const p = G.problem;
-  const tag = p.type === 'master' ? 'MASTER KEY' : p.type === 'forge' ? 'FORGE A LOCK' : p.story ? 'WORD LOCK' : 'WHICH KEY FITS?';
-  UI.taskTag.textContent = `${tag}${G.isBackup ? ' · BACKUP' : ''}`;
-  if (p.type === 'lock') {
-    UI.prompt.innerHTML = `${p.story ? `${p.story} ` : ''}Which key makes this equation true?<span class="eq">${lockText(p)}</span>`;
-    UI.controls.innerHTML = `
-      <div class="key-grid">${p.keys.map((k, i) => `<button type="button" class="key-btn ${G.tried.has(i) ? 'tried' : ''}" data-kb="${i}" ${G.tried.has(i) ? 'disabled' : ''}><small>${i + 1}</small>🔑 ${fmt(k.value, p.money)}</button>`).join('')}</div>
-      <button type="button" id="noneBtn" class="none-btn px" ${G.tried.has('none') ? 'disabled' : ''}>🚫 NO KEY FITS (N)</button>`;
-    UI.controls.querySelectorAll('[data-kb]').forEach((b) => b.addEventListener('click', () => tryKey(Number(b.dataset.kb))));
-    $('noneBtn').addEventListener('click', () => tryKey('none'));
-    drawLock();
-  } else if (p.type === 'master') {
-    UI.prompt.innerHTML = `The master key is <b>${p.x} = ${p.value}</b>. Which locks does it open? Mark each one, then press CHECK.`;
-    UI.controls.innerHTML = `<div class="lock-rows">${p.locks.map((l, i) => `<div class="lock-row" data-row="${l.id}"><span class="eqt">${i + 1}. ${lockText(l)}</span>
-      <button type="button" class="tog px ${G.marks[l.id] ? 'on' : ''}" data-tog="${l.id}">${G.marks[l.id] ? '🔓 OPENS' : '🔒 STAYS SHUT'}</button></div>`).join('')}</div>
-      <button type="button" id="checkBtn" class="apply px">CHECK (ENTER)</button>`;
-    UI.controls.querySelectorAll('[data-tog]').forEach((b) => b.addEventListener('click', () => toggleMark(b.dataset.tog)));
-    $('checkBtn').addEventListener('click', submitMaster);
-    drawMaster();
-  } else {
-    UI.prompt.innerHTML = `Forge a lock that the key <b>x = ${p.value}</b> opens. Build an equation that is true when x is ${p.value}.`;
-    const f = G.forge;
-    UI.controls.innerHTML = `
-      <div class="label px">1. PICK AN OPERATION</div>
-      <div class="op-row">${['+', '-', '×', '÷'].map((op) => `<button type="button" class="op-btn ${f.op === op ? 'on' : ''}" data-fop="${op}">${op === '-' ? '−' : op}</button>`).join('')}</div>
-      <div class="label px">2. FILL IN THE NUMBERS</div>
-      <div class="forge-row">x <span class="forge-op">${f.op === '-' ? '−' : f.op}</span>
-        <input id="fa" class="${f.field === 'a' ? 'focus' : ''}" value="${f.a}" inputmode="decimal" maxlength="6" placeholder="?" autocomplete="off"> =
-        <input id="fc" class="${f.field === 'c' ? 'focus' : ''}" value="${f.c}" inputmode="decimal" maxlength="7" placeholder="?" autocomplete="off"></div>
-      <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((d) => `<button type="button" data-fd="${d}">${d}</button>`).join('')}</div>
-      <button type="button" id="forgeBtn" class="apply px">FORGE AND TEST (ENTER)</button>`;
-    UI.controls.querySelectorAll('[data-fop]').forEach((b) => b.addEventListener('click', () => { G.forge.op = b.dataset.fop; hubAudio.playSelect(); render(); }));
-    UI.controls.querySelectorAll('[data-fd]').forEach((b) => b.addEventListener('click', () => forgeType(String(b.dataset.fd))));
-    for (const fld of ['a', 'c']) {
-      const el = $(`f${fld}`);
-      el.addEventListener('focus', () => { G.forge.field = fld; ['fa', 'fc'].forEach((i) => $(i).classList.toggle('focus', i === `f${fld}`)); });
-      el.addEventListener('input', () => { G.forge[fld] = el.value.replace(/[^\d.]/g, '').slice(0, 6); el.value = G.forge[fld]; drawForge(); });
-    }
-    $('forgeBtn').addEventListener('click', submitForge);
-    drawForge();
+function drawPickScene() {
+  const { lo, hi, step } = strip(), lock = W.round.lock, money = lock.money;
+  let ticks = '';
+  for (let i = 0; i <= Math.round((hi - lo) / step); i++) {
+    const v = r2(lo + i * step), x = X(v), whole = near(v, Math.round(v));
+    ticks += `<line x1="${x}" y1="${LINE_Y - (whole ? 13 : 8)}" x2="${x}" y2="${LINE_Y + (whole ? 13 : 8)}" stroke="#fff" stroke-width="${whole ? 3 : 2}"/>`;
+    if (whole) ticks += `<text class="tick-label" x="${x}" y="${LINE_Y + 34}">${money ? '$' : ''}${v}</text>`;
   }
+  const shown = W.round.type === 'mystery' ? `? ? ? = ${fmt(lock.c)}` : lockText(lock);
+  scene.innerHTML = `${wall()}${bigLock(shown)}
+    <line x1="${L - 40}" y1="${LINE_Y}" x2="${L + WD + 40}" y2="${LINE_Y}" stroke="#fff" stroke-width="4"/>${ticks}
+    <text class="made" x="${L - 66}" y="${LINE_Y + 62}" style="fill:#c9d1e0">${W.round.order === 'jam' ? '' : 'makes'}</text>
+    <g id="gMarks"></g><g id="gFront"></g>`;
+}
+/** Under the strip: what each test key made ("17" under the 9). */
+function drawMarks() {
+  $('gMarks').innerHTML = W.marks.map((m) => `<circle cx="${X(m.v)}" cy="${LINE_Y}" r="6" fill="${m.ok ? '#7dffa0' : '#ff9a9a'}"/><text class="made ${m.ok ? 'ok' : ''}" x="${X(m.v)}" y="${LINE_Y + 62}">${m.text}${m.ok ? '✓' : ''}</text>`).join('');
+}
+function drawForge() {
+  scene.innerHTML = `${wall()}${bigLock('')}${keyArt(W.round.value, false)}<g id="gFront"></g>`;
+  setOp(W.op);
 }
 
-/* ================================================================== */
-/* Answers                                                             */
-/* ================================================================== */
-function tryKey(i) {
-  const p = G.problem;
-  if (G.locked || p.type !== 'lock' || G.tried.has(i)) return;
-  const res = checkKey(p, i === 'none' ? 'none' : p.keys[i].value);
-  hubAudio.playSelect();
-  if (i !== 'none') {                                          // slide the key into the keyhole
-    const g = $(`key${i}`);
-    if (g) { g.classList.add('inserted'); g.setAttribute('transform', 'translate(400 335) rotate(0)'); }
+function renderSign(isNew = false) {
+  const r = W.round, n = W.rounds.length;
+  let small = '', text = '', story = false;
+  if (r.type === 'belt') { small = `BELT ${W.ri + 1}/${n} · LET THE OTHERS ROLL OUT`; text = 'TAP EVERY LOCK YOUR KEY OPENS'; }
+  if (r.type === 'ring' || r.type === 'mystery') {
+    const left = r.tries - W.tries, tests = left - 1;
+    small = r.story || (r.type === 'mystery' ? 'MYSTERY LOCK: EACH TEST KEY SHOWS WHAT THE LOCK MAKES OF IT' : 'YOUR TURN: SLIDE A KEY ALONG THE STRIP AND TRY IT');
+    story = Boolean(r.story);
+    text = r.order === 'jam' ? 'CUT A KEY THAT DOES NOT OPEN IT' : tests > 0 ? `FIND THE KEY · ${tests} TEST KEY${tests === 1 ? '' : 'S'} LEFT` : 'FIND THE KEY · LAST TRY';
   }
-  G.locked = true;
-  setTimeout(() => {
-    const sub = res.sub ? res.sub.text : res.correct ? 'NO KEY FITS ✓' : 'One key DOES fit';
-    const readout = UI.scene.querySelector('#door text:last-of-type');
-    if (readout) { readout.textContent = sub; readout.setAttribute('fill', res.correct ? '#2fbf71' : '#ff7a8a'); }
-    if (res.correct) {
-      $('door')?.classList.add('open');
-    } else {
-      $('door')?.classList.add('rattle');
-      G.tried.add(i);
-    }
-    G.locked = false;
-    settle(res, () => drawLock(sub, '#ff7a8a'));
-  }, 480);
+  if (r.type === 'forge') { small = 'YOUR TURN: FORGE A LOCK'; text = `BUILD A LOCK THE KEY ${r.value} OPENS${r.ops ? `, USING ${r.ops.join(' OR ')}` : ''}`; }
+  $('signSmall').classList.toggle('story', story);
+  $('signSmall').textContent = small;
+  $('signText').textContent = text;
+  if (isNew) { const s = $('sign'); s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); }
 }
-
-function toggleMark(lockId) {
-  if (G.locked) return;
-  hubAudio.playSelect();
-  G.marks[lockId] = !G.marks[lockId];
-  render();
-}
-function submitMaster() {
-  if (G.locked) return;
-  const res = checkMaster(G.problem, G.marks);
-  drawMaster(res.wrong.length ? res.wrong : []);
-  if (!res.correct) res.wrong.forEach((id) => UI.controls.querySelector(`[data-row="${id}"]`)?.classList.add('wrong'));
-  settle(res, () => drawMaster());
-}
-
-function forgeType(d) {
-  if (G.locked) return;
-  const f = G.forge;
-  f[f.field] = (f[f.field] + d).slice(0, 6);
-  $(`f${f.field}`).value = f[f.field];
-  drawForge();
-}
-function submitForge() {
-  if (G.locked) return;
-  const f = G.forge;
-  const res = checkForge(G.problem, f.op, parseNumber(f.a), parseNumber(f.c));
-  if (res.key === 'incomplete') { showFeedback(false, res.message); return; }
-  const shown = res.lock ? substitute(res.lock, G.problem.value).text : 'Try another number';
-  drawForge({ text: res.correct ? `${shown} ✓ Lock forged!` : shown, ok: res.correct });
-  settle(res, () => drawForge());
-}
-
-/** Right or wrong: the shell scores it. After a first miss, the lock (or the game's own redraw) is shown again. */
-function settle(res, redraw) {
-  const p = G.problem;
-  shell.settle(res, { delay: 1300, retry: () => { if (p.type === 'lock') render(); else redraw(); } });
+function renderCtl() {
+  const p = W.phase, pick = p === 'pick', forgeOn = p === 'forge';
+  $('stepL').classList.toggle('hidden', !pick); $('stepR').classList.toggle('hidden', !pick);
+  $('goBtn').classList.toggle('hidden', !(pick || forgeOn));
+  $('goBtn').textContent = forgeOn ? 'FORGE IT (ENTER)' : W.fly ? 'TRYING...' : 'TRY THIS KEY (ENTER)';
+  $('goBtn').disabled = pick && Boolean(W.fly);
+  $('tip').textContent = p === 'belt' ? 'Tap a lock, or press its number, to try your key in it.' : forgeOn ? 'Pick + − × ÷ and type two numbers.' : '';
+  $('waveTag').textContent = W.rounds.length ? `${W.round.type === 'belt' ? 'BELT' : 'LOCK'} ${W.ri + 1}/${W.rounds.length}` : '';
 }
 
 /* ================================================================== */
-/* Keys and start-up                                                   */
+/* The clock                                                           */
 /* ================================================================== */
-/** Keys while a problem is in play (the shell handles Enter on buttons, help, sound and the briefing). */
-function onKey(e) {
-  const key = e.key;
-  const inInput = e.target && (e.target.id === 'fa' || e.target.id === 'fc');
-  const p = G.problem;
-  const n = Number(key);
-  if (p.type === 'lock') {
-    if (n >= 1 && n <= 4) return tryKey(n - 1);
-    if (key === 'n' || key === 'N' || key === '0') return tryKey('none');
-  } else if (p.type === 'master') {
-    if (n >= 1 && n <= 4) return toggleMark(p.locks[n - 1].id);
-    if (key === 'Enter') { e.preventDefault(); return submitMaster(); }
-  } else if (p.type === 'forge') {
-    if (key === 'Enter') { e.preventDefault(); return submitForge(); }
-    if (inInput) return;
-    if (key === '+') { G.forge.op = '+'; return render(); }
-    if (key === '-') { G.forge.op = '-'; return render(); }
-    if (key === '*' || key === 'x') { G.forge.op = '×'; return render(); }
-    if (key === '/') { e.preventDefault(); G.forge.op = '÷'; return render(); }
-    if (/^[0-9.]$/.test(key)) return forgeType(key);
-    if (key === 'Tab') { e.preventDefault(); G.forge.field = G.forge.field === 'a' ? 'c' : 'a'; return render(); }
-    if (key === 'Backspace') { const f = G.forge; f[f.field] = f[f.field].slice(0, -1); return render(); }
-  }
+let last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  update(dt * W.speed);
+  requestAnimationFrame(frame);
 }
-
-function init() {
-  // A sample lock behind the briefing.
-  G.problem = { type: 'lock', kind: 'add', x: 'd', a: 9, c: 35, money: false, keys: [16, 22, 26, 36].map((value) => ({ value })) };
-  drawLock('d + 9 = 35: which key?');
-  G.problem = null;
-}
-
-init();
+// Something to look at behind the briefing.
+W.round = { type: 'belt', value: 7, money: false, locks: [] };
+W.rounds = [];
+drawBelt(); renderSign(); renderCtl();
+requestAnimationFrame(frame);

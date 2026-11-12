@@ -4,6 +4,10 @@
 // No screen code here: lock generators, substituting a key into an equation, answer checking and
 // misconception feedback. Every generator takes `rnd` (returns 0 to 1) so tests can repeat a run.
 //
+// The game is an action game: the student HOLDS a key (a number) and locks (equations) roll past on a belt.
+// They tap every lock the key opens. Later they choose keys themselves (a "ring"), forge a lock for a key,
+// and work out a mystery lock from what their test keys make.
+//
 // A lock is an equation with one variable. Kinds:
 //   add      x + a = c          sub      x − a = c          subFrom  a − x = c
 //   mul      k·x = c            divBy    a ÷ x = c          divOf    x ÷ k = c
@@ -197,45 +201,17 @@ export function genWordLock(rnd) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Master Key rounds (zone 4): one key value, four locks: which open? */
-/* ------------------------------------------------------------------ */
-export function genMasterKey(rnd) {
-  const b = ri(rnd, 2, 9);
-  const x = pick(rnd, VARS);
-  const builders = [
-    () => { const a = ri(rnd, 2, 30); return { kind: 'add', a, c: b + a }; },
-    () => { const a = ri(rnd, 2, b - 1 > 1 ? b - 1 : 1); return b > 2 ? { kind: 'sub', a, c: b - a } : { kind: 'add', a: 5, c: b + 5 }; },
-    () => { const k = ri(rnd, 2, 9); return { kind: 'mul', k, c: k * b }; },
-    () => { const cc = ri(rnd, 2, 9); return { kind: 'divBy', a: b * cc, c: cc }; },
-  ];
-  const traps = [
-    () => { const k = ri(rnd, 2, 9); return { kind: 'mul', k, c: Number(`${k}${b}`), trap: 'concatenation' }; },
-    () => { const a = ri(rnd, 2, 20); return { kind: 'add', a, c: b + a + pick(rnd, [1, -1, 2]), trap: 'near_miss' }; },
-    () => { const a = ri(rnd, 2, 9); return { kind: 'sub', a, c: b + a, trap: 'forward_op' }; },
-    () => { const k = ri(rnd, 2, 9); return { kind: 'mul', k, c: k + b, trap: 'add_sub_instead' }; },
-  ];
-  const nTrue = ri(rnd, 1, 3);
-  const locks = [];
-  for (let i = 0; i < 4; i++) {
-    const spec = i < nTrue ? pick(rnd, builders)() : pick(rnd, traps)();
-    const lock = { ...spec, x, money: false, decimal: false, flip: rnd() < 0.2, id: id() };
-    lock.opens = same(leftValue(lock, b), lock.c);
-    if (spec.c <= 0 || (i < nTrue && !lock.opens) || (i >= nTrue && lock.opens)) { i--; continue; }
-    locks.push(lock);
-  }
-  return { id: id(), type: 'master', value: b, x, locks: shuffle(rnd, locks) };
-}
-
-/* ------------------------------------------------------------------ */
 /* Forge a lock (boss): build an equation that the given key opens    */
 /* ------------------------------------------------------------------ */
-export function genForge(rnd) {
-  return { id: id(), type: 'forge', value: pick(rnd, [6, 8, 9, 10, 12, 15, 18, 20]), x: 'x' };
+/** ops: the operations allowed (the second forge must use × or ÷). */
+export function genForge(rnd, ops = null) {
+  return { id: id(), type: 'forge', value: pick(rnd, [6, 8, 9, 10, 12, 15, 18, 20]), x: 'x', ops };
 }
 /** op is '+', '-', '×' or '÷'; a and c are numbers. The lock is  x op a = c. */
 export function checkForge(problem, op, a, c) {
   const v = problem.value;
   if (a === null || c === null) return { correct: false, key: 'incomplete', message: 'Fill in both numbers to forge your lock.' };
+  if (problem.ops && !problem.ops.includes(op)) return { correct: false, key: 'forge_op', message: `This lock has to use ${problem.ops.join(' or ')}.` };
   if ((op === '×' || op === '÷') && a === 0) return { correct: false, key: 'zero', message: 'Multiplying or dividing by 0 does not make a good lock. Pick another number.' };
   if ((op === '+' || op === '-') && a === 0) return { correct: false, key: 'zero', message: `x ${op === '+' ? '+' : '−'} 0 = x is too easy. Use a number other than 0.` };
   const kind = { '+': 'add', '-': 'sub', '×': 'mul', '÷': 'divOf' }[op];
@@ -247,107 +223,168 @@ export function checkForge(problem, op, a, c) {
 }
 
 /* ------------------------------------------------------------------ */
-/* A full run                                                          */
+/* Belts: one key, a line of locks. Which ones does the key open?      */
+/* ------------------------------------------------------------------ */
+/** A lock that the key b opens. Returns null when that kind cannot be made for this key. */
+function openLock(rnd, b, kind, style) {
+  const amount = () => (style === 'money' ? ri(rnd, 2, 30) * 0.25 : style === 'decimal' ? r2(ri(rnd, 11, 95) / 10) : ri(rnd, 2, 20));
+  switch (kind) {
+    case 'add': { const a = amount(); return { kind, a, c: r2(b + a) }; }
+    case 'sub': { if (style !== 'whole') { const a = r2(b / 2 + (style === 'money' ? 0.25 : 0.1)); return a < b ? { kind, a, c: r2(b - a) } : null; } return b > 2 ? ((a) => ({ kind, a, c: b - a }))(ri(rnd, 1, b - 1)) : null; }
+    case 'subFrom': { const a = r2(b + amount()); return { kind, a, c: r2(a - b) }; }
+    case 'mul': { const k = style === 'whole' ? ri(rnd, 2, 9) : pick(rnd, [2, 4, 6, 10]); return { kind, k, c: r2(k * b) }; }
+    case 'divBy': { const cc = ri(rnd, 2, 9); return Number.isInteger(b) ? { kind, a: b * cc, c: cc } : null; }
+    case 'divOf': { const ks = [2, 3, 4, 5, 6].filter((k) => Number.isInteger(b) && b % k === 0 && b / k >= 2); return ks.length ? ((k) => ({ kind, k, c: b / k }))(pick(rnd, ks)) : null; }
+    case 'two': { const k = ri(rnd, 2, 6), a = ri(rnd, 2, 15); return Number.isInteger(b) ? { kind, k, a, c: k * b + a } : null; }
+    default: throw new Error(`unknown kind ${kind}`);
+  }
+}
+/**
+ * A lock the key b does NOT open, built from a real mistake:
+ *   near_miss (one or two off)        wrong_op (the answer you get by doing the wrong operation)
+ *   answer_as_key (b is the number on the other side)   used_the_number (b is the number already in the lock)
+ *   concatenation (3x read as the digits 3 and b)       forgot_part (two-step: skipped the + or the ×)
+ */
+function trapLock(rnd, b, kind, style, trap) {
+  const base = openLock(rnd, b, kind, style);
+  if (!base) return null;
+  const off = (style === 'money' ? 0.25 : style === 'decimal' ? 0.1 : 1) * pick(rnd, [1, -1, 2, -2]);
+  const whole = style === 'whole', other = whole ? b + pick(rnd, [1, 2, 3, -1]) : r2(b + pick(rnd, [0.5, 1, 1.5]));
+  let lock = null;
+  if (trap === 'near_miss') lock = { ...base, c: r2(base.c + off) };
+  if (trap === 'wrong_op') {
+    if (kind === 'add') lock = { ...base, c: r2(b - base.a) };
+    if (kind === 'sub') lock = { ...base, c: r2(b + base.a) };
+    if (kind === 'subFrom') lock = { ...base, c: r2(base.a + b) };
+    if (kind === 'mul') lock = { ...base, c: r2(base.k + b) };
+    if (kind === 'divBy') lock = { ...base, c: base.a - b };
+    if (kind === 'divOf') lock = { ...base, c: b * base.k };
+  }
+  if (trap === 'answer_as_key') {
+    if (kind === 'add' || kind === 'sub') lock = { ...base, c: b };
+    if (kind === 'subFrom') lock = { kind, a: r2(b + other), c: b };
+    if (kind === 'mul') lock = { ...base, c: b };
+    if (kind === 'divBy' && whole) lock = { kind, a: b * (other > 1 ? other : b + 1), c: b };
+    if (kind === 'divOf') lock = { ...base, c: b };
+  }
+  if (trap === 'used_the_number') {
+    if (kind === 'add') lock = { kind, a: b, c: r2(other + b) };
+    if (kind === 'sub') lock = { kind, a: b, c: r2(other) };
+    if (kind === 'subFrom' && b > 1) lock = { kind, a: b, c: whole ? ri(rnd, 1, b - 1) : r2(b / 2 - 0.5) };
+    if (kind === 'mul' && whole) lock = { kind, k: b, c: b * other };
+    if (kind === 'divOf' && whole) lock = { kind, k: b, c: ri(rnd, 2, 9) };
+  }
+  if (trap === 'concatenation' && kind === 'mul' && whole) lock = { ...base, c: Number(`${base.k}${b}`) };
+  if (trap === 'forgot_part' && kind === 'two') lock = { ...base, c: pick(rnd, [base.k * b, base.k * (b + base.a), b + base.a]) };
+  if (!lock || !(lock.c > 0) || !Number.isFinite(lock.c)) return null;
+  if (lock.a !== undefined && !(lock.a > 0)) return null;
+  const left = leftValue({ ...lock }, b);
+  return same(left, lock.c) ? null : { ...lock, trap };
+}
+const TRAPS = {
+  add: ['near_miss', 'wrong_op', 'answer_as_key', 'used_the_number'], sub: ['near_miss', 'wrong_op', 'answer_as_key', 'used_the_number'],
+  subFrom: ['near_miss', 'wrong_op', 'answer_as_key', 'used_the_number'], mul: ['concatenation', 'wrong_op', 'near_miss', 'used_the_number', 'answer_as_key'],
+  divBy: ['near_miss', 'wrong_op', 'answer_as_key'], divOf: ['wrong_op', 'near_miss', 'answer_as_key', 'used_the_number'], two: ['forgot_part', 'near_miss'],
+};
+/**
+ * A belt: { value (the key), money, decimal, locks: [{ ...lock, opens, trap }] }.
+ *   kinds   the lock kinds to use      opens   how many of the locks the key opens (0 is allowed: no lock opens)
+ *   style   'whole', 'decimal' (4.5) or 'money' ($2.75)
+ */
+export function genBelt(rnd, { kinds, count = 6, opens = 2, style = 'whole' } = {}) {
+  const value = style === 'money' ? ri(rnd, 6, 36) * 0.25 : style === 'decimal' ? ri(rnd, 2, 9) + 0.5 : ri(rnd, 3, 12);
+  const flags = shuffle(rnd, Array.from({ length: count }, (_, i) => i < opens));
+  const locks = [], texts = new Set();
+  let trapAt = Math.floor(rnd() * 5);
+  for (let i = 0, guard = 0; i < count && guard < 400; guard++) {
+    const kind = pick(rnd, kinds);
+    const spec = flags[i] ? openLock(rnd, value, kind, style) : trapLock(rnd, value, kind, style, TRAPS[kind][trapAt++ % TRAPS[kind].length]);
+    if (!spec) continue;
+    const lock = { ...spec, x: pick(rnd, VARS), money: style === 'money', decimal: style !== 'whole', flip: rnd() < 0.2, id: id() };
+    lock.opens = same(leftValue(lock, value), lock.c);
+    const text = lockText(lock);
+    if (lock.opens !== flags[i] || texts.has(text) || text.length > 19) continue;
+    texts.add(text); locks.push(lock); i++;
+  }
+  return { id: id(), type: 'belt', value, money: style === 'money', decimal: style !== 'whole', locks };
+}
+/**
+ * What went wrong on the belt, or null when the student was right.
+ *   tapped: they tried the key in this lock; otherwise they let it roll past.
+ */
+export function checkTap(belt, lock, tapped) {
+  if (tapped === lock.opens) return null;
+  const v = fmt(belt.value, belt.money), s = substitute(lock, belt.value);
+  if (!tapped) return { key: 'missed_open', message: `Your key opened that one: ${s.text}. Put the key in for ${lock.x} and work out the side.` };
+  const message = {
+    near_miss: `Close, but ${s.text}. Both sides must be exactly equal.`,
+    wrong_op: `Check the operation in the lock: ${s.text}.`,
+    answer_as_key: `${v} is already on the other side of the lock. The key goes in for ${lock.x}: ${s.text}.`,
+    used_the_number: `${v} is a number already in the lock, but the key replaces ${lock.x}: ${s.text}.`,
+    concatenation: `${lock.k}${lock.x} means ${lock.k} × ${lock.x}, not the digits ${lock.k} and ${v} side by side: ${s.text}.`,
+    forgot_part: `Do every step: ${s.text}.`,
+  }[lock.trap] || `${s.text}. Both sides must be equal.`;
+  return { key: lock.trap || 'near_miss', message };
+}
+
+/* ------------------------------------------------------------------ */
+/* Key ring: the student chooses a key for one lock                    */
+/* ------------------------------------------------------------------ */
+/**
+ * A ring round: { lock, strip: { lo, hi, step }, tries, order, story? }.
+ *   order 'open' = find the key that opens it     'jam' = cut a key that does NOT open it
+ *   Test keys are free; the last try has to be right.
+ */
+export function genRing(rnd, kind, { order = 'open', tries = 3 } = {}) {
+  const lock = genLock(rnd, kind);
+  if (lock.solution > 150) return genRing(rnd, kind, { order, tries });
+  const lo = Math.max(0, lock.solution - ri(rnd, 4, 15));
+  return { id: id(), type: 'ring', lock, strip: { lo, hi: lo + 20, step: 1 }, tries, order };
+}
+/** A gift card story: spent + p = card. The strip is in half dollars. */
+export function genStoryRing(rnd) {
+  const card = pick(rnd, [10, 15, 20, 25]), spent = ri(rnd, 3, card * 2 - 4) / 2, s = card - spent;
+  const lock = { kind: 'add', x: 'p', a: spent, c: card, solution: s, money: true, decimal: true, flip: false, id: id() };
+  const lo = Math.max(0.5, s - ri(rnd, 2, 7) / 2 - 1);
+  return { id: id(), type: 'ring', lock, strip: { lo, hi: lo + 10, step: 0.5 }, tries: 3, order: 'open', story: `A ${fmt(card, true)} gift card has ${fmt(spent, true)} used. Which price p uses up the rest?` };
+}
+/** A mystery lock: the student only sees what the lock needs. Each test key shows what that key makes. */
+export function genMystery(rnd) {
+  const kind = pick(rnd, ['add', 'mul']);
+  const lock = kind === 'add'
+    ? ((a, s) => ({ kind, a, c: s + a, solution: s }))(ri(rnd, 3, 15), ri(rnd, 3, 17))
+    : ((k, s) => ({ kind, k, c: k * s, solution: s }))(ri(rnd, 2, 5), ri(rnd, 3, 12));
+  return { id: id(), type: 'mystery', lock: { ...lock, x: 'x', money: false, decimal: false, flip: false, id: id() }, strip: { lo: 0, hi: 20, step: 1 }, tries: 4, order: 'open' };
+}
+/**
+ * Try a key in a ring or mystery lock. Returns { ok, text, message }.
+ *   text: what the key makes ("9 + 8 = 17 ≠ 15", or "key 5 makes 17" for a mystery lock).
+ */
+export function checkTry(round, v) {
+  const { lock } = round, s = substitute(lock, v), val = fmt(v, lock.money), need = fmt(lock.c, lock.money);
+  if (round.type === 'mystery') {
+    const text = `Key ${val} makes ${fmt(s.left)}`;
+    return { ok: s.equal, text, message: s.equal ? `${text}. That is what the lock needs!` : `${text}. The lock needs ${need}. What is the machine doing to your key?` };
+  }
+  if (round.order === 'jam') return { ok: !s.equal, text: s.text, message: s.equal ? `That key opens it: ${s.text}. Cut one that makes the two sides different.` : `${s.text}. It jams: ${val} is not a solution.` };
+  return { ok: s.equal, text: s.text, message: s.equal ? `${s.text}. ${val} is the solution.` : `${s.text}. The ${lock.flip ? 'right' : 'left'} side came out too ${s.left > lock.c ? 'big' : 'small'}.` };
+}
+
+/* ------------------------------------------------------------------ */
+/* Zones                                                               */
 /* ------------------------------------------------------------------ */
 export const ZONES = [
   { name: 'Front Door', blurb: 'Adding and subtracting locks' },
   { name: 'Gear Locks', blurb: 'Multiplying and dividing locks' },
-  { name: 'Cash Vault', blurb: 'Decimals and money' },
-  { name: 'Master Key', blurb: 'One key, four locks: which ones open?' },
-  { name: 'The Locksmith', blurb: 'Boss: two-step locks, word problems, forge a lock' },
+  { name: 'Cash Vault', blurb: 'Decimal and money keys' },
+  { name: 'Key Ring', blurb: 'Your turn: find the key yourself' },
+  { name: 'The Locksmith', blurb: 'Boss: two steps, forge a lock, a mystery lock' },
 ];
-
-/** About 1 lock in 6 has no fitting key: 2 of the 12 key locks in zones 1-3, placed at random. */
-export function genRun(rnd) {
-  const noKeyAt = new Set(shuffle(rnd, [...Array(12).keys()]).slice(0, 2));
-  let n = 0;
-  const nk = () => noKeyAt.has(n++);
-  const zone1 = ['add', 'sub', 'add', 'sub'].map((k) => genLock(rnd, k, { noKey: nk() }));
-  const zone2 = shuffle(rnd, ['mul', 'divBy', 'divOf', 'mul']).map((k, i) => genLock(rnd, k, { decimal: k === 'mul' && i === 3, noKey: nk() }));
-  const zone3 = ['add', 'subFrom', 'sub', 'subFrom'].map((k, i) => genLock(rnd, k, { money: i % 2 === 1, decimal: i % 2 === 0, noKey: nk() }));
-  const zone4 = [genMasterKey(rnd), genMasterKey(rnd)];
-  const zone5 = [genLock(rnd, 'two'), genWordLock(rnd), genForge(rnd), genLock(rnd, 'two'), genForge(rnd)];
-  return [zone1, zone2, zone3, zone4, zone5].map((z) => z.map((p) => ({ type: p.type || 'lock', ...p })));
-}
-
-export function genZone(rnd, zone) { return genRun(rnd)[zone]; }
-
-export function genBackup(rnd, problem) {
-  if (problem.type === 'master') return { type: 'master', ...genMasterKey(rnd) };
-  if (problem.type === 'forge') return { type: 'forge', ...genForge(rnd) };
-  if (problem.story) return { type: 'lock', ...genWordLock(rnd) };
-  return { type: 'lock', ...genLock(rnd, problem.kind, { money: problem.money, decimal: problem.decimal && !problem.money }) };
-}
-
-/* ------------------------------------------------------------------ */
-/* Checking and feedback (wording for the teacher to review)          */
-/* ------------------------------------------------------------------ */
-function undoHint(lock) {
-  const A = fmt(lock.a, lock.money);
-  switch (lock.kind) {
-    case 'add': return `${lock.x} + ${A} means ${A} was added, so ${lock.x} is ${A} less than ${fmt(lock.c, lock.money)}`;
-    case 'sub': return `${lock.x} − ${A} means ${A} was taken away, so ${lock.x} is ${A} more than ${fmt(lock.c, lock.money)}`;
-    case 'subFrom': return `${A} − ${lock.x} = ${fmt(lock.c, lock.money)} means ${lock.x} is how far ${fmt(lock.c, lock.money)} is from ${A}`;
-    case 'mul': return `${lock.k}${lock.x} means ${lock.k} × ${lock.x}, so ${lock.x} is ${fmt(lock.c)} split into ${lock.k} equal groups`;
-    case 'divBy': return `${A} ÷ ${lock.x} = ${fmt(lock.c)} means ${A} split into groups of ${lock.x} makes ${fmt(lock.c)} groups`;
-    case 'divOf': return `${lock.x} ÷ ${lock.k} = ${fmt(lock.c)} means ${lock.x} split into ${lock.k} groups gives ${fmt(lock.c)} in each`;
-    case 'two': return `work out ${lock.k} × ${lock.x} first, then add ${A}`;
-    default: return '';
-  }
-}
-
-/** The student picked a key value, or 'none' for NO KEY FITS. */
-export function checkKey(lock, choice) {
-  const x = lock.x;
-  if (choice === 'none') {
-    if (lock.noKey) return { correct: true, key: 'correct', message: `Right: none of these keys open ${lockText(lock)}. Every one fails when you substitute it.` };
-    const s = substitute(lock, lock.solution);
-    return { correct: false, key: 'missed_key', message: `One key does fit. Try ${fmt(lock.solution, lock.money)}: ${s.text}.` };
-  }
-  const v = r2(choice);
-  const s = substitute(lock, v);
-  if (s.equal) return { correct: true, key: 'correct', message: `Click! ${s.text}. ${fmt(v, lock.money)} is a solution.`, sub: s };
-  const tag = (lock.keys.find((k) => same(k.value, v)) || {}).tag || 'near_miss';
-  const tail = lock.noKey ? ' None of these keys fit. Look for NO KEY FITS.' : '';
-  const msg = {
-    forward_op: `Put ${fmt(v, lock.money)} in for ${x}: ${s.text}. That key did the operation forward. Think: ${undoHint(lock)}.`,
-    answer_as_key: `${fmt(v, lock.money)} is already on the other side of the lock. The key replaces ${x}: ${s.text}.`,
-    used_the_number: `${fmt(v, lock.money)} is the number already in the lock, not ${x}: ${s.text}.`,
-    add_sub_instead: `Check the operation: ${s.text}. ${undoHint(lock)}.`,
-    place_value: `Line up the decimal points and check: ${s.text}.`,
-    near_miss: `Close, but ${s.text}. Both sides must be exactly equal.`,
-    forgot_divide: `${s.text}. Remember ${lock.k}${x} means ${lock.k} × ${x}: ${undoHint(lock)}.`,
-    wrong_order: `${s.text}. Multiply first, then add: ${undoHint(lock)}.`,
-    ignored_part: `${s.text}. Don't forget the + ${fmt(lock.a, lock.money)}: ${undoHint(lock)}.`,
-  }[tag] || `${s.text}. Both sides must be equal.`;
-  return { correct: false, key: tag, message: msg + tail, sub: s };
-}
-
-/** Master Key: `marks` maps lock id -> true (opens) / false (stays shut). */
-export function checkMaster(problem, marks) {
-  const wrong = problem.locks.filter((l) => Boolean(marks[l.id]) !== l.opens);
-  if (!wrong.length) return { correct: true, key: 'correct', message: `All right! The key ${problem.x} = ${problem.value} opens exactly the locks where both sides match.`, wrong: [] };
-  const first = wrong[0];
-  const s = substitute(first, problem.value);
-  const key = first.trap === 'concatenation' && marks[first.id] ? 'concatenation' : marks[first.id] ? 'said_open' : 'said_shut';
-  const message = key === 'concatenation'
-    ? `${first.k}${first.x} means ${first.k} × ${first.x}, not the digits ${first.k} and ${problem.value} side by side: ${s.text}.`
-    : key === 'said_open'
-      ? `Check ${lockText(first)} with ${first.x} = ${problem.value}: ${s.text}. That lock stays shut.`
-      : `Check ${lockText(first)} with ${first.x} = ${problem.value}: ${s.text}. That lock opens!`;
-  return { correct: false, key, message: wrong.length > 1 ? `${message} (${wrong.length} locks need another look.)` : message, wrong: wrong.map((l) => l.id) };
-}
-
-/** Worked solution after two misses: substitute every key (or every lock). */
-export function workedSolution(problem) {
-  if (problem.type === 'master') {
-    return problem.locks.map((l) => `${lockText(l)}: ${substitute(l, problem.value).text} → ${l.opens ? 'OPENS' : 'stays shut'}`);
-  }
-  if (problem.type === 'forge') {
-    const v = problem.value;
-    return [`One way: x + 5 = ${v + 5}. Check: ${v} + 5 = ${v + 5} ✓`, `Another way: 3x = ${3 * v}. Check: 3 × ${v} = ${3 * v} ✓`, 'Any lock works if both sides are equal when x is the key.'];
-  }
-  const lines = problem.keys.map((k) => `Key ${fmt(k.value, problem.money)}: ${substitute(problem, k.value).text}${same(leftValue(problem, k.value), problem.c) ? ' ✓' : ''}`);
-  lines.push(problem.noKey ? 'No key makes both sides equal, so NO KEY FITS.' : `Only ${fmt(problem.solution, problem.money)} makes both sides equal.`);
-  return lines;
+/** The rounds of a zone, in order. Each is a belt, a ring, a forge or a mystery. */
+export function genZone(rnd, zone) {
+  if (zone === 0) return shuffle(rnd, [2, 3, 1]).map((opens) => genBelt(rnd, { kinds: ['add', 'sub', 'subFrom'], opens }));
+  if (zone === 1) return shuffle(rnd, [3, 0, 2]).map((opens) => genBelt(rnd, { kinds: ['mul', 'divBy', 'divOf', 'mul'], opens }));
+  if (zone === 2) return [genBelt(rnd, { kinds: ['add', 'sub', 'subFrom', 'mul'], opens: 2, style: 'decimal' }), ...shuffle(rnd, [0, 2]).map((opens) => genBelt(rnd, { kinds: ['add', 'sub', 'subFrom'], opens, style: 'money', count: 5 }))];
+  if (zone === 3) return [genRing(rnd, 'add'), genRing(rnd, pick(rnd, ['sub', 'subFrom'])), genRing(rnd, 'mul'), genRing(rnd, 'divOf'), genRing(rnd, pick(rnd, ['add', 'mul']), { order: 'jam', tries: 1 })];
+  return [genBelt(rnd, { kinds: ['two', 'two', 'mul', 'add'], opens: 2 }), genStoryRing(rnd), genForge(rnd), genForge(rnd, ['×', '÷']), genMystery(rnd), genMystery(rnd)];
 }
