@@ -1,30 +1,91 @@
-/* Food Truck (Lesson 4-5): the truck scene, the keypad and the predict buttons. Shared looks are in shared/game/game.css. */
-.pop-in { animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: center; }
-@keyframes popIn { from { transform: scale(0.3); opacity: 0; } }
-.slip-drop { animation: slipDrop 0.5s ease-in; }
-@keyframes slipDrop { from { transform: translateY(-90px) rotate(-8deg); opacity: 0; } }
-.stamp-in { animation: stampIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: center; }
-@keyframes stampIn { from { transform: scale(2.2) rotate(-12deg); opacity: 0; } }
-.steam { animation: steam 3.5s ease-out infinite; transform-box: fill-box; transform-origin: center; }
-@keyframes steam { 0% { transform: translateY(0) scale(0.7); opacity: 0.5; } 100% { transform: translateY(-24px) scale(1.2); opacity: 0; } }
-#ticket.drop-target .ticket-card { filter: drop-shadow(0 0 10px #ffd23f) drop-shadow(0 0 4px #ffd23f); }
+/* Food Truck (Lesson 4-5): the truck, the ticket rail, the counter tools and the register. Shared looks are in shared/game/game.css. */
+#app.arcade { grid-template-columns: 1fr; background: #2a3a4a; }
+#app.arcade .hud { grid-column: 1; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; font-weight: 900; }
+.stage { background: linear-gradient(#7fd3e6 0%, #b9ecf5 100%); }
+.awning { position: absolute; left: 0; right: 0; top: 0; height: 26px; background: repeating-linear-gradient(90deg, #e5484d 0 60px, #fff 60px 120px); border-bottom: 4px solid var(--ink); }
+.counter { position: absolute; left: 0; right: 0; bottom: 66px; height: 34px; background: #c98a4b; border-top: 4px solid var(--ink); }
+.play { position: absolute; inset: 0 0 66px 0; overflow: hidden; }
 
-/* ---- the equation strip under the gearbox ---- */
-.eq-strip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; min-width: 440px; width: max-content; max-width: 94%;
-  background: #fff4d6; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 6px 16px; text-align: center; }
-.eq-line { font-family: ui-monospace, 'Courier New', monospace; font-size: 23px; font-weight: 900; color: var(--ink); white-space: nowrap; line-height: 1.35; }
-.eq-line.small { font-size: 17px; color: #5e5640; white-space: normal; }
-.eq-strip .you { color: #1f63c9; background: #dbe9ff; border-radius: 6px; padding: 0 2px; }
-.eq-strip .good { color: #1f8a4c; } .eq-strip .bad { color: #d6283a; }
-.prompt .story { display: block; font-size: 15px; font-weight: 800; background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 7px 10px; margin-top: 6px; }
+/* ---- the sign ---- */
+.sign { position: absolute; z-index: 2; top: 34px; left: 50%; transform: translateX(-50%); min-width: 420px; max-width: 1000px; text-align: center; white-space: nowrap;
+  background: #fff8e1; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 8px 22px 10px; pointer-events: none; }
+.sign small { display: block; font-size: 8px; color: #8a6d3b; margin-bottom: 6px; }
+#signText { font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900; color: var(--ink); }
+.sign.new { animation: signPop 0.4s ease-out; }
+@keyframes signPop { from { transform: translateX(-50%) scale(1.1); background: var(--gold); } to { transform: translateX(-50%) scale(1); } }
+#app.arcade .boss-bar { left: auto; right: 12px; top: 36px; transform: none; width: 170px; }
+#app.arcade .practice-tag { top: 36px; }
 
-/* ---- blocks and typed answers ---- */
-.op-row .op-btn { height: 46px; }
-.pad.keys { grid-template-columns: repeat(7, 1fr); }
-.pad.keys button { height: 40px; }
-.block.slip { background: #2fbf71; border-radius: 8px; }
-.block.slip.empty { background: #b9b2a0; }
-.typed { height: 54px; display: flex; align-items: center; justify-content: center; font-family: ui-monospace, monospace; font-size: 28px; font-weight: 900;
-  border: 3px solid var(--ink); border-radius: 12px; background: var(--night); color: var(--gold); }
-.sum { font-family: ui-monospace, monospace; font-size: 22px; font-weight: 900; text-align: center; }
-.choice:disabled { opacity: 0.45; }
+/* ---- what went wrong (or, in green, what was found). It sits low, so the ticket it talks about stays in view ---- */
+.callout { position: absolute; z-index: 6; bottom: 112px; left: 50%; transform: translateX(-50%); width: 800px; background: #ffe3cc; border: 4px solid var(--ink); border-radius: 14px;
+  box-shadow: 0 5px 0 var(--ink); padding: 10px 14px; font-size: 17px; font-weight: 800; line-height: 1.35; text-align: center; }
+.callout.good { background: #d9f7e3; }
+.callout button { margin-top: 8px; height: 40px; padding: 0 16px; border: 3px solid var(--ink); border-radius: 10px; background: var(--gold); font-size: 10px; }
+
+/* ---- the bar along the bottom ---- */
+.ctl { position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 14px;
+  background: var(--night); border-top: 4px solid var(--ink); }
+.cbtn { height: 46px; padding: 0 14px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 #000; font-size: 15px; font-weight: 900; color: var(--ink); }
+.cbtn.go { background: var(--red); color: #fff; font-size: 10px; min-width: 240px; }
+.tip { color: #fff; font-size: 16px; font-weight: 800; }
+.wave-tag { color: var(--gold); font-size: 9px; min-width: 100px; text-align: right; }
+
+/* ---- zone 1: tickets on the rail ---- */
+.rail { position: absolute; left: 0; right: 0; top: 190px; height: 10px; background: #5d6679; border: 3px solid var(--ink); }
+.out { position: absolute; left: 0; top: 150px; width: 26px; height: 330px; background: #2a3a4a; border: 4px solid var(--ink); border-left: 0; }
+.tk { position: absolute; left: 0; top: 204px; width: 280px; background: #fffdf4; border: 4px solid var(--ink); border-radius: 6px 6px 16px 16px; box-shadow: 0 6px 0 rgba(0,0,0,0.25); padding: 12px 12px 14px; text-align: center; will-change: transform; }
+.tk::before { content: ''; position: absolute; left: 50%; top: -18px; width: 18px; height: 22px; margin-left: -9px; background: #e5484d; border: 3px solid var(--ink); border-radius: 4px; }
+.tk.front { border-color: #d98a00; box-shadow: 0 0 0 5px var(--gold), 0 6px 0 rgba(0,0,0,0.25); }
+.tk-eq { font: 900 29px ui-monospace, 'Courier New', monospace; color: var(--ink); white-space: nowrap; }
+.tk-q { margin: 6px 0 10px; font-size: 15px; font-weight: 800; color: #6b5a3a; }
+.tk-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tk-btns button { height: 46px; border: 3px solid var(--ink); border-radius: 10px; font-size: 15px; font-weight: 900; box-shadow: 0 4px 0 var(--ink); }
+.tk-btns [data-say="more"] { background: #ffd9a8; } .tk-btns [data-say="less"] { background: #cfe6ff; }
+.tk.ok { background: #d9f7e3; } .tk.bad { background: #ffd9dc; border-color: #e5484d; }
+.tk.ok { animation: tkOut 0.9s ease-in forwards; }
+@keyframes tkOut { 60% { opacity: 1; } to { opacity: 0; margin-top: -30px; } }
+.tk-ans { font: 900 17px ui-monospace, 'Courier New', monospace; color: var(--ink); min-height: 46px; display: flex; align-items: center; justify-content: center; }
+
+/* ---- the ticket on the counter (tools, register, build, the cook's slip) ---- */
+.big { position: absolute; left: 50%; top: 124px; transform: translateX(-50%); width: 720px; min-height: 214px; background: #fffdf4; border: 4px solid var(--ink); border-radius: 8px 8px 20px 20px;
+  box-shadow: 0 7px 0 rgba(0,0,0,0.25); padding: 14px 18px; text-align: center; }
+.big.done { background: #d9f7e3; }
+.b-story { font-size: 16px; font-weight: 800; color: #4a3d28; line-height: 1.35; margin-bottom: 8px; }
+.b-eq { font: 900 42px ui-monospace, 'Courier New', monospace; color: var(--ink); white-space: nowrap; }
+.b-lines { margin-top: 8px; font: 900 21px ui-monospace, 'Courier New', monospace; color: #2f6b44; line-height: 1.5; min-height: 64px; }
+.b-lines.off { color: #b3261e; }
+.tools { position: absolute; left: 0; right: 0; top: 420px; display: flex; justify-content: center; gap: 16px; }
+.chip { position: relative; min-width: 170px; height: 70px; padding: 0 18px; border: 4px solid var(--ink); border-radius: 16px; background: var(--gold); box-shadow: 0 6px 0 var(--ink);
+  font: 900 28px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.chip b, .tile b { position: absolute; left: -10px; top: -12px; width: 26px; height: 26px; line-height: 22px; border: 2px solid #fff; border-radius: 50%; background: var(--ink); color: #fff; font: 900 13px ui-monospace, monospace; }
+.chip:disabled { background: #cfc7b5; color: #8a8271; box-shadow: none; }
+
+/* ---- the register ---- */
+.register { position: absolute; left: 50%; top: 372px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; background: #3c4656; border: 4px solid var(--ink); border-radius: 16px; padding: 12px 16px; box-shadow: 0 6px 0 rgba(0,0,0,0.3); }
+.reg-row { display: flex; align-items: center; gap: 8px; font: 900 30px ui-monospace, 'Courier New', monospace; color: #fff; }
+#reg { width: 190px; height: 58px; text-align: center; font: 900 30px ui-monospace, 'Courier New', monospace; border: 4px solid var(--ink); border-radius: 10px; background: #d9f7e3; color: var(--ink); }
+#reg:focus { outline: 4px solid var(--gold); outline-offset: 1px; }
+.pad { display: grid; grid-template-columns: repeat(6, 46px); gap: 5px; }
+.pad button { height: 40px; border: 3px solid var(--ink); border-radius: 8px; background: #fff; font: 900 18px ui-monospace, monospace; color: var(--ink); }
+.pad .wide { grid-column: span 3; font-size: 12px; }
+.note { position: absolute; left: 0; right: 0; top: 520px; text-align: center; font-size: 17px; font-weight: 800; color: #2b1b2e; min-height: 24px; }
+
+/* ---- build the ticket ---- */
+.slots { display: flex; align-items: center; justify-content: center; gap: 10px; font: 900 40px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.slot { min-width: 120px; height: 64px; padding: 0 10px; border: 4px dashed #8f3f22; border-radius: 12px; background: #fff3c4; font: 900 30px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.slot.full { border-style: solid; background: var(--gold); }
+.slot.op { min-width: 64px; }
+.tiles { position: absolute; left: 0; right: 0; top: 404px; display: flex; justify-content: center; align-items: center; gap: 16px; }
+.tile { position: relative; min-width: 120px; height: 62px; padding: 0 16px; border: 4px solid var(--ink); border-radius: 14px; background: var(--gold); box-shadow: 0 6px 0 var(--ink); font: 900 28px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.tile.used { visibility: hidden; }
+.ops { display: flex; gap: 6px; margin-left: 26px; }
+.ops button { width: 56px; height: 56px; border: 4px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 5px 0 var(--ink); font: 900 28px ui-monospace, monospace; }
+
+/* ---- the new cook's slip ---- */
+.cook-line { display: block; width: 100%; margin: 6px 0 0; height: 54px; border: 4px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink); font: 900 25px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.cook-line b { float: left; margin-left: 10px; width: 28px; height: 28px; line-height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 14px; }
+.cook-line.wrong { background: #ffd9dc; border-color: #e5484d; }
+.hint-card { width: 640px; }
+.hint-text { font-size: 17px; font-weight: 800; line-height: 1.45; margin: 12px 0 14px; }
+.hint-text .mono { display: block; margin-top: 8px; font-size: 20px; }

@@ -8,6 +8,13 @@
 //   times  a·x = c                    x = c ÷ a  (or c × the reciprocal of a)
 //   div    x ÷ a = c                  x = c × a
 // eq.flipped puts c on the left. eq.style says how numbers are shown: 'money' | 'decimal' | 'fraction'.
+//
+// The game is an action game. Tickets are worked with five moves, one per zone:
+//   sort      call each ticket as it rolls by: is the letter MORE or LESS than the number it equals?
+//   tool      pick the tool that gets the letter alone (− 2.75, × 3/2 ...), and the ticket unwinds
+//   ring      punch the exact answer into the register
+//   build     write the ticket from a customer's words, with tiles
+//   critique  the new cook's ticket has one wrong line: tap it
 
 /* ================================================================== */
 /* Exact fractions                                                     */
@@ -75,6 +82,7 @@ export function makeEq({ kind, letter = 'x', a, c, flipped = false, letterFirst 
 }
 /** a shown as a coefficient: 3t, 1.8x, (2/3)y */
 function coef(eq) {
+  if (eq.style === 'fraction' && eq.a.d > 1) return `(${imp(eq.a)})`;   // (5/4)k, so its reciprocal 4/5 is easy to see
   const s = show(eq.a, eq.style === 'money' ? 'decimal' : eq.style);
   return eq.a.d === 1 || (eq.style !== 'fraction' && terminates(eq.a)) ? s : `(${s})`;
 }
@@ -83,12 +91,14 @@ export function exprText(eq) {
   if (eq.kind === 'plus') return eq.letterFirst ? `${L} + ${a}` : `${a} + ${L}`;
   if (eq.kind === 'minus') return `${L} − ${a}`;
   if (eq.kind === 'times') return `${coef(eq)}${L}`;
-  return `${L} ÷ ${a}`;
+  return `${L} ÷ ${eq.style === 'fraction' && eq.a.d > 1 ? imp(eq.a) : a}`;
 }
 export const eqText = (eq) => (eq.flipped ? `${show(eq.c, eq.style)} = ${exprText(eq)}` : `${exprText(eq)} = ${show(eq.c, eq.style)}`);
 export function runForward(eq, v) {
   return eq.kind === 'plus' ? add(v, eq.a) : eq.kind === 'minus' ? sub(v, eq.a) : eq.kind === 'times' ? mul(eq.a, v) : div(v, eq.a);
 }
+/** 3/2 stays 3/2 (a reciprocal is easier to see than 1 1/2). */
+export const imp = (a) => (a.d === 1 ? String(a.n) : `${a.n}/${a.d}`);
 export function undoStep(eq) {
   return { plus: { op: '-', n: eq.a }, minus: { op: '+', n: eq.a }, times: { op: '÷', n: eq.a }, div: { op: '×', n: eq.a } }[eq.kind];
 }
@@ -134,7 +144,7 @@ function fraction(rnd, maxWhole, dens = [2, 3, 4, 5, 6, 8, 10, 12]) {
 const family = (rnd) => pick(rnd, FAMILIES);
 const prob = (type, eq, extra = {}) => ({ id: nextId++, type, eq, ...extra });
 
-/** Zone 1: money and decimals, + and −. Two are story tickets. */
+/** Money and decimals, + and −. */
 export function genRegister(rnd, { kind = rnd() < 0.5 ? 'plus' : 'minus', flipped = false } = {}) {
   const a = cents(rnd, 1, 30), x = cents(rnd, 1, 30);
   const c = kind === 'plus' ? add(x, a) : sub(x, a);
@@ -166,24 +176,7 @@ const RECIPE_STORIES = [
     story: (e) => `The cook used ${show(e.a)} cups of flour and has ${show(e.c)} cups left. How much flour, f, was in the bag?` }; } },
 ];
 
-/** Story ticket: the student first picks the equation that fits, then solves it. */
-function storyProblem(rnd, tpl) {
-  const { eq, story } = tpl.make(rnd);
-  const L = eq.letter, a = show(eq.a, eq.style), c = show(eq.c, eq.style);
-  const right = eqText(eq);
-  const wrongs = {
-    plus: [`${L} − ${a} = ${c}`, `${a} + ${c} = ${L}`],
-    minus: [`${L} + ${a} = ${c}`, `${a} − ${L} = ${c}`],
-    times: [`${L} ÷ ${a} = ${c}`, `${c} × ${a} = ${L}`],
-  }[eq.kind];
-  const options = shuffle(rnd, [{ text: right, ok: true }, ...wrongs.map((text) => ({ text, ok: false }))]);
-  return prob('story', eq, { story: story(eq), options });
-}
-export const genMoneyStory = (rnd) => storyProblem(rnd, pick(rnd, MONEY_STORIES));
-export const genPriceStory = (rnd) => storyProblem(rnd, pick(rnd, PRICE_STORIES));
-export const genRecipeStory = (rnd) => storyProblem(rnd, pick(rnd, RECIPE_STORIES));
-
-/** Zone 2: × and ÷ with decimals. 1.8x = 40.14, r ÷ 5.5 = 18.2 */
+/** × and ÷ with decimals. 1.8x = 40.14, r ÷ 5.5 = 18.2 */
 export function genPrice(rnd, { kind = rnd() < 0.6 ? 'times' : 'div', flipped = false } = {}) {
   const a = dec(int(rnd, 12, 48) / 10, 1);
   const x = rnd() < 0.5 ? dec(int(rnd, 11, 99) / 10, 1) : fr(int(rnd, 3, 40));
@@ -191,7 +184,7 @@ export function genPrice(rnd, { kind = rnd() < 0.6 ? 'times' : 'div', flipped = 
   if (!terminates(c) || c.d > 1000) return genPrice(rnd, { kind, flipped });
   return prob('solve', makeEq({ kind, letter: pick(rnd, LETTERS), a, c, flipped, style: 'decimal' }));
 }
-/** Zone 3: + and − with fractions and mixed numbers (borrowing on purpose some of the time). */
+/** + and − with fractions and mixed numbers (borrowing on purpose some of the time). */
 export function genRecipe(rnd, { kind = rnd() < 0.5 ? 'plus' : 'minus', flipped = false } = {}) {
   const f = family(rnd);
   const a = fraction(rnd, 4, f), x = fraction(rnd, 6, f);
@@ -199,7 +192,7 @@ export function genRecipe(rnd, { kind = rnd() < 0.5 ? 'plus' : 'minus', flipped 
   if (value(c) <= 0) return genRecipe(rnd, { kind, flipped });
   return prob('solve', makeEq({ kind, letter: pick(rnd, LETTERS), a, c, flipped, letterFirst: rnd() < 0.7, style: 'fraction' }));
 }
-/** Zone 4: × and ÷ by a fraction. Predict bigger or smaller first, then use the reciprocal. */
+/** × and ÷ by a fraction: the reciprocal. */
 export function genBatch(rnd, { kind = rnd() < 0.7 ? 'times' : 'div', story = false } = {}) {
   if (story) {                                         // Helen's pool: 1 5/8 gallons a trip
     const per = pick(rnd, [fr(13, 8), fr(3, 2), fr(5, 4), fr(7, 4)]), trips = fr(int(rnd, 4, 12));
@@ -213,56 +206,6 @@ export function genBatch(rnd, { kind = rnd() < 0.7 ? 'times' : 'div', story = fa
     : fr(int(rnd, 2, 12));
   return prob('predict', makeEq({ kind, letter: pick(rnd, LETTERS), a, c, style: 'fraction' }));
 }
-/** Boss: which value makes it true? (0.26y = 0.676, 0.435 + x = 0.92) */
-export function genChoose(rnd, kind = rnd() < 0.5 ? 'times' : 'plus') {
-  if (kind === 'times') {
-    const a = dec(int(rnd, 11, 89) / 100), x = dec(int(rnd, 12, 49) / 10, 1);
-    const eq = makeEq({ kind, letter: 'y', a, c: mul(a, x), style: 'decimal' });
-    const opts = [{ v: x, ok: true }, { v: mul(eq.c, a), trap: 'multiplied_by_coef' }, { v: a, trap: 'copied_number' }, { v: mul(x, fr(10)), trap: 'place_value' }];
-    return prob('choose', eq, { options: shuffle(rnd, opts).map((o) => ({ ...o, text: `y = ${show(o.v, 'decimal')}` })) });
-  }
-  const a = dec(int(rnd, 101, 499) / 1000, 3), x = dec(int(rnd, 101, 499) / 1000, 3);
-  const eq = makeEq({ kind, letter: 'x', a, c: add(a, x), style: 'decimal' });
-  const opts = [{ v: x, ok: true }, { v: add(eq.c, a), trap: 'did_not_undo' }, { v: add(x, fr(1, 100)), trap: 'off_a_bit' }, { v: sub(x, fr(1, 100)), trap: 'off_a_bit' }];
-  return prob('choose', eq, { options: shuffle(rnd, opts).map((o) => ({ ...o, text: `x = ${show(o.v, 'decimal')}` })) });
-}
-/** Boss: Johnny added 3.5 to only one side. Find the mistake, then solve it properly. */
-export function genCritique(rnd) {
-  const a = dec(int(rnd, 11, 89) / 10, 1), c = dec(int(rnd, 11, 99) / 10, 1);
-  const eq = makeEq({ kind: 'minus', letter: 'x', a, c, style: 'decimal' });
-  const options = shuffle(rnd, [
-    { text: `He must add ${show(a, 'decimal')} to BOTH sides`, ok: true },
-    { text: `He should subtract ${show(a, 'decimal')} instead`, trap: 'critique_subtract' },
-    { text: 'Nothing: he is right', trap: 'critique_fine' },
-    { text: `He should multiply by ${show(a, 'decimal')}`, trap: 'critique_multiply' },
-  ]);
-  return prob('critique', eq, { story: `Johnny solved ${eqText(eq)} by adding ${show(a, 'decimal')} to the LEFT side only. What went wrong?`, options });
-}
-
-export const ZONES = [
-  { name: 'Cash Register', blurb: 'Money and decimals: + and −' },
-  { name: 'Price Per Item', blurb: 'Decimals: × and ÷' },
-  { name: 'Recipe Card', blurb: 'Fractions and mixed numbers: + and −' },
-  { name: 'Batch Math', blurb: 'Predict, then multiply by the reciprocal' },
-  { name: 'Lunch Rush', blurb: 'Boss: a mixed line, plus find the mistake' },
-];
-export function genZone(rnd, zone) {
-  if (zone === 0) return shuffle(rnd, [genRegister(rnd, { kind: 'plus' }), genRegister(rnd, { kind: 'minus' }), genRegister(rnd, { flipped: true }), genRegister(rnd), genMoneyStory(rnd), genMoneyStory(rnd)]);
-  if (zone === 1) return shuffle(rnd, [genPrice(rnd, { kind: 'times' }), genPrice(rnd, { kind: 'div' }), genPrice(rnd, { flipped: true }), genPriceStory(rnd), genPriceStory(rnd)]);
-  if (zone === 2) return shuffle(rnd, [genRecipe(rnd, { kind: 'plus' }), genRecipe(rnd, { kind: 'minus' }), genRecipe(rnd, { flipped: true }), genRecipeStory(rnd), genRecipeStory(rnd)]);
-  if (zone === 3) return shuffle(rnd, [genBatch(rnd, { kind: 'times' }), genBatch(rnd, { kind: 'times' }), genBatch(rnd, { kind: 'div' }), genBatch(rnd), genBatch(rnd, { story: true })]);
-  return [genChoose(rnd, 'times'), genCritique(rnd), genPriceStory(rnd), genRecipeStory(rnd), genChoose(rnd, 'plus')];
-}
-export function genBackup(rnd, p) {
-  if (p.type === 'choose') return genChoose(rnd, p.eq.kind);
-  if (p.type === 'critique') return genCritique(rnd);
-  if (p.type === 'predict') return genBatch(rnd, { kind: p.eq.kind, story: Boolean(p.story) });
-  if (p.type === 'story') return p.eq.style === 'money' && (p.eq.kind === 'plus' || p.eq.kind === 'minus') ? genMoneyStory(rnd) : p.eq.style === 'fraction' ? genRecipeStory(rnd) : genPriceStory(rnd);
-  if (p.eq.style === 'fraction') return genRecipe(rnd, { kind: p.eq.kind, flipped: p.eq.flipped });
-  if (p.eq.kind === 'times' || p.eq.kind === 'div') return genPrice(rnd, { kind: p.eq.kind, flipped: p.eq.flipped });
-  return genRegister(rnd, { kind: p.eq.kind, flipped: p.eq.flipped });
-}
-
 /* ================================================================== */
 /* Checking                                                            */
 /* ================================================================== */
@@ -271,13 +214,13 @@ export function checkBlock(eq, op, n) {
   const step = undoStep(eq);
   const recipOp = { '×': '÷', '÷': '×' }[step.op];
   const correct = (op === step.op && same(n, step.n)) || (recipOp && op === recipOp && same(n, recip(step.n)));
-  const s = (q) => show(q, eq.style);
-  const fix = `${SIGN[step.op]} ${s(step.n)}${eq.kind === 'times' && eq.a.d > 1 && eq.style === 'fraction' ? ` (or × ${show(recip(eq.a))}, the reciprocal)` : ''}`;
+  const s = (q) => amount(eq, q);
+  const fix = `${SIGN[step.op]} ${s(step.n)}${eq.kind === 'times' && eq.a.d > 1 && eq.style === 'fraction' ? ` (or × ${imp(recip(eq.a))}, the reciprocal)` : ''}`;
   if (correct) return { correct, key: 'correct', message: `Right block: ${SIGN[op]} ${s(n)}.` };
   const doing = { plus: `ADDS ${s(eq.a)}`, minus: `TAKES AWAY ${s(eq.a)}`, times: `MULTIPLIES BY ${s(eq.a)}`, div: `DIVIDES BY ${s(eq.a)}` }[eq.kind];
   const sameOp = { plus: '+', minus: '-', times: '×', div: '÷' }[eq.kind];
   if (op === sameOp && same(n, eq.a)) {
-    if (eq.kind === 'times' && eq.style === 'fraction') return { correct: false, key: 'not_reciprocal', message: `Multiplying by ${s(eq.a)} again won't undo it. Multiply by the RECIPROCAL, ${show(recip(eq.a))} (flip it), or divide by ${s(eq.a)}.` };
+    if (eq.kind === 'times' && eq.style === 'fraction') return { correct: false, key: 'not_reciprocal', message: `Multiplying by ${s(eq.a)} again won't undo it. Multiply by the RECIPROCAL, ${imp(recip(eq.a))} (flip it), or divide by ${s(eq.a)}.` };
     return { correct: false, key: 'did_not_undo', message: `The ticket ${doing}. Doing that again won't undo it. Use the opposite: ${fix}.` };
   }
   if (same(n, eq.c)) return { correct: false, key: 'used_total', message: `That used the total, ${s(eq.c)}. Undo the step done to ${eq.letter}: ${fix}.` };
@@ -332,41 +275,172 @@ export function checkPredict(eq, saysBigger) {
   if (saysBigger === bigger) return { correct: true, key: 'correct', message: `Good prediction! ${why}` };
   return { correct: false, key: 'mult_makes_bigger', message: `Not always! ${why}` };
 }
-/** Story and critique tickets: pick an option. */
-export function checkOption(p, i) {
-  const o = p.options[i], right = p.options.find((x) => x.ok);
-  if (o.ok) {
-    if (p.type === 'critique') return { correct: true, key: 'correct', message: `Yes! Whatever you do to one side, do to the other. Now solve it properly.` };
-    if (p.type === 'choose') return { correct: true, key: 'correct', message: `Yes! Check: ${checkLine(p.eq, o.v)} ✓` };
-    return { correct: true, key: 'correct', message: `Yes! ${o.text} fits the story.` };
+
+/* ================================================================== */
+/* More or less? (the estimate)                                        */
+/* ================================================================== */
+/** Is the letter MORE or LESS than the number it equals? */
+export const moreOrLess = (eq) => (value(eq.x) > value(eq.c) ? 'more' : 'less');
+function whyMoreLess(eq) {
+  const L = eq.letter, s = (q) => show(q, eq.style), small = value(eq.a) < 1;
+  if (eq.kind === 'plus') return `Something was added to ${L} to reach ${s(eq.c)}, so ${L} started out smaller.`;
+  if (eq.kind === 'minus') return `Something was taken away from ${L} to leave ${s(eq.c)}, so ${L} started out bigger.`;
+  if (eq.kind === 'times') return `Multiplying by ${small ? 'less' : 'more'} than 1 makes a number ${small ? 'smaller' : 'bigger'}, so ${L} was ${small ? 'bigger' : 'smaller'} before.`;
+  return `Dividing by ${small ? 'less' : 'more'} than 1 makes a number ${small ? 'bigger' : 'smaller'}, so ${L} was ${small ? 'smaller' : 'bigger'} before.`;
+}
+/** says: 'more', 'less', or null when the ticket rolled away uncalled. Returns null when the call was right. */
+export function checkEstimate(eq, says) {
+  const right = moreOrLess(eq);
+  if (says === right) return null;
+  const s = (q) => show(q, eq.style);
+  const fact = `${eq.letter} = ${s(eq.x)}, which is ${right.toUpperCase()} than ${s(eq.c)}.`;
+  if (!says) return { key: 'too_slow', message: `That ticket got away. ${fact} ${whyMoreLess(eq)}` };
+  return { key: eq.kind === 'times' || eq.kind === 'div' ? 'mult_makes_bigger' : 'add_sub_direction', message: `${fact} ${whyMoreLess(eq)}` };
+}
+const SMALL = [dec(0.5, 1), dec(0.25), dec(0.2, 1), fr(1, 2), fr(2, 3), fr(3, 4), fr(3, 5)];
+const BIG = [dec(1.5, 1), dec(2.5, 1), fr(4), fr(3, 2), fr(5, 4), fr(5, 2)];
+/** A ticket to call. what: 'times<1' 'times>1' 'div<1' 'div>1' 'plus' 'minus' */
+export function genEstimate(rnd, what) {
+  const letter = pick(rnd, LETTERS);
+  if (what === 'plus' || what === 'minus') {
+    const a = dec(int(rnd, 5, 60) / 10, 1), x = dec(int(rnd, 5, 90) / 10, 1), c = what === 'plus' ? add(x, a) : sub(x, a);
+    if (value(c) <= 0) return genEstimate(rnd, what);
+    return prob('sort', makeEq({ kind: what, letter, a, c, letterFirst: rnd() < 0.7, style: 'decimal' }));
   }
-  if (p.type === 'choose') {
-    const tip = { multiplied_by_coef: 'That multiplied instead of dividing.', copied_number: 'That is a number from the equation, not the solution.', place_value: 'Estimate first: the decimal point is in the wrong place.', did_not_undo: 'That added instead of subtracting.', off_a_bit: 'Close, but line up the decimal points carefully.' }[o.trap];
-    return { correct: false, key: o.trap, message: `${tip} Check: ${checkLine(p.eq, o.v)}. The answer is ${right.text}.` };
-  }
-  if (p.type === 'critique') {
-    return { correct: false, key: o.trap, message: `An equation is a balance: adding ${show(p.eq.a, 'decimal')} to only one side breaks it. He must add ${show(p.eq.a, 'decimal')} to BOTH sides.` };
-  }
-  return { correct: false, key: 'story_equation', message: `Read it again: ${right.text} says what the story says.` };
+  const kind = what.startsWith('times') ? 'times' : 'div', a = pick(rnd, what.endsWith('<1') ? SMALL : BIG);
+  const style = terminates(a) && rnd() < 0.6 ? 'decimal' : 'fraction';
+  return prob('sort', makeEq({ kind, letter, a, c: fr(int(rnd, 2, 24)), flipped: rnd() < 0.15, style }));
 }
 
 /* ================================================================== */
-/* Worked solutions (after two misses)                                 */
+/* Which undo? (the tools)                                             */
 /* ================================================================== */
-export function workedSolution(p) {
-  const eq = p.eq, L = eq.letter, s = (q) => show(q, eq.style);
-  if (p.type === 'choose') {
-    const right = p.options.find((o) => o.ok);
-    return [`Undo the ${eq.kind === 'times' ? `× ${s(eq.a)}: ${s(eq.c)} ÷ ${s(eq.a)}` : `+ ${s(eq.a)}: ${s(eq.c)} − ${s(eq.a)}`} = ${s(eq.x)}`, `So ${right.text}.`, `Check: ${checkLine(eq, eq.x)} ✓`];
+const byFraction = (eq) => (eq.kind === 'times' || eq.kind === 'div') && eq.style === 'fraction' && eq.a.d > 1;
+const amount = (eq, n) => (byFraction(eq) ? imp(n) : show(n, eq.style));
+/** Four tools for a ticket: the undo, and the moves students really try instead. Each is { op, n, text }. */
+export function toolsFor(rnd, eq) {
+  const step = undoStep(eq), sameOp = { plus: '+', minus: '-', times: '×', div: '÷' }[eq.kind], additive = eq.kind === 'plus' || eq.kind === 'minus';
+  const list = [{ op: step.op, n: step.n }, { op: sameOp, n: eq.a }];
+  if (byFraction(eq)) list.push({ op: step.op === '÷' ? '×' : '÷', n: recip(eq.a) }, { op: '-', n: eq.a });   // × 3/2 is the same move as ÷ 2/3
+  else list.push({ op: step.op, n: eq.c }, { op: additive ? '÷' : '-', n: eq.a }, { op: additive ? '×' : '+', n: eq.a });
+  const out = [];
+  for (const tool of list) { const text = `${SIGN[tool.op]} ${amount(eq, tool.n)}`; if (out.length < 4 && !out.some((o) => o.text === text)) out.push({ ...tool, text }); }
+  return shuffle(rnd, out);
+}
+/** One line of work: the tool applied to both sides. */
+function bothSides(eq, op, n) {
+  const left = `${exprText(eq)} ${SIGN[op]} ${amount(eq, n)}`, right = `${show(eq.c, eq.style)} ${SIGN[op]} ${amount(eq, n)}`;
+  return eq.flipped ? `${right} = ${left}` : `${left} = ${right}`;
+}
+/**
+ * Use a tool on the ticket. Returns { correct, key, message, lines }: lines is what the ticket shows as it unwinds
+ * (or fails to).
+ */
+export function unwind(eq, op, n) {
+  const res = checkBlock(eq, op, n), s = (q) => show(q, eq.style), L = eq.letter;
+  const lines = [bothSides(eq, op, n)];
+  if (res.correct) {
+    if (byFraction(eq)) lines.push(eq.kind === 'times' ? `${imp(eq.a)} × ${imp(recip(eq.a))} = 1, so ${L} is alone` : `÷ ${imp(eq.a)} then × ${imp(eq.a)} leaves ${L} alone`);
+    lines.push(`${L} = ${s(eq.x)}`, `Check: ${checkLine(eq, eq.x)} ✓`);
+    return { correct: true, key: 'correct', message: res.message, lines };
   }
-  const lines = [];
-  if (p.type === 'story') lines.push(`The equation: ${eqText(eq)}`);
-  if (p.type === 'critique') lines.push(`Add ${s(eq.a)} to BOTH sides, not just one.`);
-  if (p.type === 'predict') lines.push(`Predict: ${checkPredict(eq, true).message.replace(/^(Good prediction! |Not always! )/, '')}`);
-  const st = undoStep(eq);
-  const recipNote = eq.kind === 'times' && eq.style === 'fraction' && eq.a.d > 1 ? ` (same as × ${show(recip(eq.a))})` : '';
-  lines.push(`Undo with ${SIGN[st.op]} ${s(st.n)}${recipNote} on both sides: ${s(eq.c)} ${SIGN[st.op]} ${s(st.n)} = ${s(eq.x)}`);
-  lines.push(`${L} = ${s(eq.x)}`);
-  lines.push(`Check: ${checkLine(eq, eq.x)} ✓`);
-  return lines;
+  const additive = eq.kind === 'plus' || eq.kind === 'minus';
+  if (additive && (op === '+' || op === '-')) {                 // x + 2.75 + 2.75 = ...  ->  x + 5.5 = 8.75
+    const off = add(eq.kind === 'plus' ? eq.a : sub(fr(0), eq.a), op === '+' ? n : sub(fr(0), n)), c = apply(eq.c, op, n);
+    if (off.n !== 0 && value(c) > 0) lines.push(`${L} ${off.n > 0 ? '+' : '−'} ${s(fr(Math.abs(off.n), off.d))} = ${s(c)}   (${L} is still not alone)`);
+  }
+  if (!additive && (op === '×' || op === '÷')) {                // (2/3)x × 2/3  ->  (4/9)x
+    const k = apply(eq.kind === 'times' ? eq.a : recip(eq.a), op, n);
+    if (!same(k, fr(1))) lines.push(`${byFraction(eq) ? `(${imp(k)})` : s(k)}${L} = ${s(apply(eq.c, op, n))}   (${L} is still not alone)`);
+  }
+  return { correct: false, key: res.key, message: res.message, lines };
+}
+
+/* ================================================================== */
+/* Ring it up (the exact answer)                                       */
+/* ================================================================== */
+/** The student typed the value of the letter. Any equal form counts: 2.25, 2 1/4, 9/4. */
+export function checkRing(eq, raw) {
+  const v = parseAnswer(raw);
+  if (!v) return { correct: false, nudge: true, key: 'not_a_number', message: 'Punch in a number, like 2.25, 2 1/4 or 9/4.' };
+  if (same(v, eq.x)) return { correct: true, key: 'correct', message: `Check: ${checkLine(eq, v)} ✓` };
+  const step = undoStep(eq), diag = checkCalc(eq, step.op, step.n, raw);
+  return { correct: false, key: diag.key, message: `The register checked it: ${checkLine(eq, v)}. ${diag.message}` };
+}
+
+/* ================================================================== */
+/* Build the ticket from the order                                     */
+/* ================================================================== */
+/** family: 'money' (+ and −), 'price' (×), 'recipe' (fractions). Tiles: the letter and the two numbers. */
+export function genBuild(rnd, family) {
+  const tpl = pick(rnd, { money: MONEY_STORIES, price: PRICE_STORIES, recipe: RECIPE_STORIES }[family]);
+  const { eq, story } = tpl.make(rnd);
+  if (same(eq.a, eq.c) || same(eq.x, eq.a) || same(eq.x, eq.c)) return genBuild(rnd, family);   // three different numbers, so no two tiles look alike
+  const tiles = shuffle(rnd, [{ id: 'L', text: eq.letter }, { id: 'a', text: show(eq.a, eq.style) }, { id: 'c', text: show(eq.c, eq.style) }]);
+  return prob('build', eq, { story: story(eq), tiles });
+}
+/** The student built  first (op) second = third  from the tiles 'L', 'a', 'c'. Any true way of writing it counts. */
+export function checkBuild(p, first, op, second, third) {
+  const eq = p.eq;
+  if (!first || !op || !second || !third) return { correct: false, nudge: true, key: 'incomplete', message: 'Fill every space on the ticket, and pick + − × or ÷.' };
+  const val = (id) => ({ L: eq.x, a: eq.a, c: eq.c }[id]);
+  const additive = eq.kind === 'plus' || eq.kind === 'minus', usesAdd = op === '+' || op === '-';
+  if (additive !== usesAdd) {
+    return { correct: false, key: 'story_op', message: additive ? 'This order is about parts and a total (or an amount taken away): it needs + or −.' : 'This order is about equal groups: it needs × or ÷.' };
+  }
+  if ((op === '÷' && val(second).n === 0) || !same(apply(val(first), op, val(second)), val(third))) {
+    const hint = eq.kind === 'plus' ? 'Two parts make a total. Which number is the total?' : eq.kind === 'minus' ? 'An amount was taken away from the start, and something was left. Which number is what was left?' : 'Equal groups: which number is how many groups, and which is the total?';
+    return { correct: false, key: 'story_order', message: `That ticket does not say what the customer said. ${hint}` };
+  }
+  return { correct: true, key: 'correct', message: 'That ticket matches the order.' };
+}
+
+/* ================================================================== */
+/* The new cook's slip                                                 */
+/* ================================================================== */
+/** A worked ticket with one wrong line. lines[0] is the ticket; wrong is 1 or 2. */
+export function genSlip(rnd, slip = pick(rnd, ['one_side', 'wrong_op', 'arithmetic'])) {
+  const base = rnd() < 0.5 ? genRegister(rnd) : genPrice(rnd, { kind: 'times' });
+  const eq = { ...base.eq, flipped: false }, s = (q) => show(q, eq.style), L = eq.letter, step = undoStep(eq);
+  const good = bothSides(eq, step.op, step.n), sameOp = { plus: '+', minus: '-', times: '×', div: '÷' }[eq.kind];
+  let lines, wrong, explain;
+  if (slip === 'one_side') {
+    lines = [eqText(eq), `${exprText(eq)} ${SIGN[step.op]} ${s(step.n)} = ${s(eq.c)}`, `${L} = ${s(eq.c)}`]; wrong = 1;
+    explain = `The cook did ${SIGN[step.op]} ${s(step.n)} to one side only. Do it to BOTH sides: ${good}, so ${L} = ${s(eq.x)}.`;
+  } else if (slip === 'wrong_op') {
+    lines = [eqText(eq), bothSides(eq, sameOp, eq.a), `${L} = ${s(apply(eq.c, sameOp, eq.a))}`]; wrong = 1;
+    explain = `${SIGN[sameOp]} ${s(eq.a)} does not undo ${SIGN[sameOp]} ${s(eq.a)}. Use the opposite: ${good}, so ${L} = ${s(eq.x)}.`;
+  } else {
+    const off = add(eq.x, pick(rnd, [fr(1), fr(1, 10), fr(-1, 10)]));
+    lines = [eqText(eq), good, `${L} = ${s(value(off) > 0 ? off : add(eq.x, fr(1)))}`]; wrong = 2;
+    explain = `The step was right, but the arithmetic slipped: ${s(eq.c)} ${SIGN[step.op]} ${s(step.n)} = ${s(eq.x)}.`;
+  }
+  return prob('critique', eq, { slip, lines, wrong, explain });
+}
+export function checkSlip(p, i) {
+  if (i === p.wrong) return { correct: true, key: 'correct', message: `You found it. ${p.explain}` };
+  return { correct: false, key: 'critique', message: `${i === 1 ? 'That line is fine: the same thing was done to both sides.' : 'That line follows from the one above it. The mistake came earlier.'} ${p.explain}` };
+}
+
+/* ================================================================== */
+/* Zones                                                               */
+/* ================================================================== */
+export const ZONES = [
+  { name: 'More or Less?', blurb: 'Call each ticket before it rolls away' },
+  { name: 'Which Undo?', blurb: 'Decimals and money: pick the tool' },
+  { name: 'Flip It', blurb: 'Fractions: undo with the reciprocal' },
+  { name: 'Ring It Up', blurb: 'Punch in the exact answer' },
+  { name: 'Lunch Rush', blurb: 'Boss: write the ticket, call it, ring it up' },
+];
+const rail = (rnd, kinds) => ({ id: nextId++, type: 'sort', tickets: kinds.map((k) => genEstimate(rnd, k)) });
+const tool = (rnd, p) => ({ id: nextId++, type: 'tool', eq: p.eq, tools: toolsFor(rnd, p.eq) });
+const ring = (p) => ({ id: nextId++, type: 'ring', eq: p.eq, story: p.story || null });
+/** The rounds of a zone, in order. */
+export function genZone(rnd, zone) {
+  if (zone === 0) return [rail(rnd, ['plus', 'times<1', 'minus', 'times>1', 'times<1', 'div>1']), rail(rnd, shuffle(rnd, ['times<1', 'div<1', 'times>1', 'div>1', 'div<1', 'plus', 'times<1']))];
+  if (zone === 1) return shuffle(rnd, [genRegister(rnd, { kind: 'plus' }), genRegister(rnd, { kind: 'minus' }), genRegister(rnd, { flipped: true }), genPrice(rnd, { kind: 'times' }), genPrice(rnd, { kind: 'div' }), genPrice(rnd, { flipped: true })]).map((p) => tool(rnd, p));
+  if (zone === 2) return [genRecipe(rnd, { kind: 'plus' }), genBatch(rnd, { kind: 'times' }), genRecipe(rnd, { kind: 'minus' }), genBatch(rnd, { kind: 'times' }), genBatch(rnd, { kind: 'div' }), genBatch(rnd, { kind: 'times' })].map((p) => tool(rnd, p));
+  if (zone === 3) return [genRegister(rnd, { kind: 'plus' }), genRegister(rnd, { kind: 'minus' }), genPrice(rnd, { kind: 'times' }), genRecipe(rnd), genBatch(rnd, { kind: 'times' }), genBatch(rnd, { kind: 'div' })].map(ring);
+  const first = genBuild(rnd, 'money'), second = genBuild(rnd, pick(rnd, ['price', 'recipe']));
+  return [first, ring(first), rail(rnd, shuffle(rnd, ['times<1', 'div<1', 'times>1', 'minus', 'div>1', 'times<1'])), genSlip(rnd, pick(rnd, ['one_side', 'wrong_op'])), second, ring(second), genSlip(rnd, 'arithmetic')];
 }

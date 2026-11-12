@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Food Truck · Lesson 4-5 Equations with Rational Numbers</title>
+  <title>Food Truck · Lesson 4-5 Write and Solve Equations with Rational Numbers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@700;800;900&display=swap">
   <link rel="stylesheet" href="../../../../shared/game/game.css">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -23,7 +23,7 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, a customer walks out">
+    <div class="hud-meter" id="meterBox" title="Every mistake makes the line longer. When it fills, a customer walks out">
       <div class="px hud-label">LINE</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
@@ -42,21 +42,26 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The food truck"></svg>
+    <div class="awning"></div>
+    <div class="counter"></div>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play"></div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">LUNCH RUSH</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <div id="tip" class="tip"></div>
+      <button type="button" id="goBtn" class="cbtn go px hidden"></button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -70,29 +75,36 @@
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. THE TICKETS</div>
-          <p>Every customer's order is an equation with <b>decimals or fractions</b>. Find the missing price or amount.</p>
-          <p class="mono">m + 5.43 = 9.28<br>(2/3)y = 5</p></div>
-        <div class="brief-col"><div class="px col-h">2. UNDO IT</div>
-          <p>Drag the <b>opposite</b> block onto the ticket, then work out the answer. To undo × 2/3, multiply by the <b>reciprocal</b>, 3/2.</p>
-          <p class="mono">9.28 <b>− 5.43</b> = 3.85<br>5 <b>× 3/2</b> = 7 1/2</p></div>
+        <div class="brief-col"><div class="px col-h">1. EVERY ORDER IS A TICKET</div>
+          <p>A ticket is an <b>equation</b> with decimals or fractions. The letter is the price or amount you need.</p>
+          <p class="mono">p + 2.75 = 6</p></div>
+        <div class="brief-col"><div class="px col-h">2. WORK THE TICKETS</div>
+          <p><b>Call it</b>: is the letter more or less than the number? <b>Pick the tool</b> that gets the letter alone. <b>Ring up</b> the exact answer. In the rush, <b>write the ticket</b> yourself.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>The <b>LINE</b> grows while you work, and wrong answers make it grow faster. When it fills, a customer walks out. Three walkouts and the truck closes. Survive the Lunch Rush to win!</p></div>
+          <p>Every mistake makes the <b>LINE</b> longer. When it fills, a customer walks out. Three walkouts and the truck closes. Survive the Lunch Rush to win!</p></div>
       </div>
-      <div class="brief-keys">Type answers as 2.25, 2 1/4 or 9/4 · <kbd>+</kbd> <kbd>−</kbd> <kbd>*</kbd> <kbd>/</kbd> pick a block · <kbd>0</kbd>–<kbd>9</kbd> <kbd>.</kbd> <kbd>/</kbd> <kbd>space</kbd> amounts · <kbd>Enter</kbd> drop / check · <kbd>1</kbd>–<kbd>4</kbd> pick · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>↑</kbd> more · <kbd>↓</kbd> less · <kbd>1</kbd>–<kbd>4</kbd> pick a tool or tile · type answers as 2.25, 2 1/4 or 9/4 · <kbd>Enter</kbd> check · <kbd>H</kbd> help</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
-        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🌮 OPEN THE TRUCK (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no walkouts</small></button>
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🌮 OPEN THE WINDOW (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>slower rail · no line</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">KITCHEN TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">

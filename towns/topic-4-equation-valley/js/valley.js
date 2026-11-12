@@ -26,7 +26,7 @@ export const STAGES = [
   }),
   stage(5, 'Food Truck', 'Write and Solve Equations with Rational Numbers', { x: 990, y: 555 }, {
     built: true, building: 'food_truck', url: './games/4-5-food-truck/index.html',
-    description: 'Run the order window at the canyon taco truck. Every order is an equation with decimals or fractions. Drop the opposite block on the ticket, work out the answer, and keep the line moving through the Lunch Rush.',
+    description: 'Run the order window at the canyon taco truck. Every ticket is an equation with decimals or fractions. Call each one more or less as it rolls by, pick the tool that undoes it, ring up the exact answer, and write the tickets yourself in the Lunch Rush.',
   }),
   stage(6, 'Ride Gate', 'Understand and Write Inequalities', { x: 1200, y: 585 }, {
     built: true, building: 'ride_gate', url: './games/4-6-ride-gate/index.html',

@@ -45,8 +45,11 @@ docs/lessons.md                    lesson lists from the textbook database
   where the student picks numbers of their own (`makeOrder` / `checkOrder` in `field.js`); in the boss the student chooses
   which numbers to test to find a hidden rule. 4-1 Key Fitter is rebuilt the same way (`keys.js`): the student holds a key
   and taps every lock it opens as locks roll past (`genBelt` / `checkTap`), then slides a key of their own with free test
-  keys (`genRing`, `genMystery`, `checkTry`) and forges a lock (`checkForge`). Proposed order for reworking the remaining games
-  (most quiz-like first): 4-5, 4-9, 4-4, 4-3, 4-8, 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
+  keys (`genRing`, `genMystery`, `checkTry`) and forges a lock (`checkForge`). 4-5 Food Truck is rebuilt too (`truck.js`, drawn
+  in HTML, not SVG): call tickets MORE or LESS on a rail (`checkEstimate`), pick the undo tool and watch the ticket unwind
+  (`toolsFor` / `unwind`, with the reciprocal shown as `2/3 × 3/2 = 1`), ring up exact answers (`checkRing`), write a ticket
+  from a story with tiles (`checkBuild`) and find the new cook's wrong line (`genSlip`). Proposed order for reworking the
+  remaining games (most quiz-like first): 4-9, 4-4, 4-3, 4-8, 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
   Rework one game at a time, each with a plan the owner approves.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the
