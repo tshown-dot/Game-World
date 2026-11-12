@@ -1,0 +1,37 @@
+/* Log Flume (Grade 7, Lesson 4-3): the flume, the channels, the log and the total boxes. Shared looks are in shared/game/game.css. */
+.front { animation: frontBob 1.8s ease-in-out infinite; }
+@keyframes frontBob { 50% { transform: translateY(-3px); } }
+.channel.drop-target .ch-box { fill: #fff3c4; }
+.channel.jammed .ch-box { fill: #ffd9dc; stroke: #e5484d; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; }
+.prompt .mono { white-space: nowrap; }
+
+/* ---- the log to sort, and the channel buttons ---- */
+.log-btn { width: 100%; height: 60px; border: 4px solid var(--ink); border-radius: 30px; background: #c98a4b; color: #fff; box-shadow: 0 5px 0 var(--ink); touch-action: none; cursor: grab;
+  font-family: ui-monospace, 'Courier New', monospace; font-size: 28px; font-weight: 900; }
+.log-btn.neg { background: #7a4a2a; }
+.chan-btns { display: grid; gap: 8px; }
+.chan-btns button { height: 48px; border: 4px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink); font-size: 15px; font-weight: 900; text-align: left; padding-left: 12px; }
+.chan-btns b { display: inline-block; width: 24px; height: 24px; line-height: 20px; text-align: center; margin-right: 10px; border: 2px solid var(--ink); border-radius: 6px; background: var(--gold); font-size: 12px; }
+
+/* ---- totals and typed answers ---- */
+.total-row { box-sizing: border-box; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 54px; padding: 4px 10px; border: 4px solid var(--ink); border-radius: 12px;
+  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 17px; font-weight: 900; color: var(--ink); margin-bottom: 6px; }
+.total-row .work { flex: 1; min-width: 0; font-size: 15px; }
+.rule-row { box-sizing: border-box; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 60px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
+  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900; color: var(--ink); }
+.rbox { width: 84px; height: 42px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 20px; font-weight: 900;
+  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
+.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }
+
+/* ---- equivalent or not, twin cards ---- */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pair button { height: 54px; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 4px 0 var(--ink); font-size: 13px; font-weight: 900; }
+.pair .yes { background: #d9f7e3; } .pair .nope { background: #ffd9dc; }
+.pair button b { display: inline-block; width: 22px; height: 22px; line-height: 18px; margin-right: 8px; border: 2px solid var(--ink); border-radius: 6px; background: #fff; font-size: 11px; }
+.cards { display: grid; gap: 7px; }
+.tcard { min-height: 42px; padding: 4px 8px 4px 34px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 3px 0 var(--ink); position: relative; text-align: left;
+  font-family: ui-monospace, 'Courier New', monospace; font-size: 15px; font-weight: 900; color: var(--ink); }
+.tcard b { position: absolute; left: 6px; top: 8px; width: 20px; height: 20px; line-height: 16px; text-align: center; border: 2px solid var(--ink); border-radius: 5px; background: var(--gold); font-size: 11px; font-family: Nunito, sans-serif; }
+.tcard.on { background: #dbe9ff; outline: 4px solid #3a8ef0; outline-offset: 1px; }
+.tcard.wrong { background: #ffd9dc; }

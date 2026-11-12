@@ -17,7 +17,10 @@ export const STAGES = [
     built: true, building: 'twin_bridges', url: './games/4-2-twin-bridges/index.html',
     description: 'Two bridges, two expressions. They only hold if the expressions are equivalent. Send test values across, name the property, build a twin with the right signs, and find every twin before the river floods.',
   }),
-  stage(3, 'Log Flume', 'Simplify Expressions', { x: 520, y: 600 }),
+  stage(3, 'Log Flume', 'Simplify Expressions', { x: 520, y: 600 }, {
+    built: true, building: 'log_flume', url: './games/4-3-log-flume/index.html',
+    description: 'Every log carries one term, sign and all. Sort the logs into channels of like terms, add up each channel, and read off the simplified expression before the flume backs up.',
+  }),
   stage(4, 'Spray Deck', 'Expand Expressions', { x: 720, y: 520 }),
   stage(5, 'Factor Mill', 'Factor Expressions', { x: 920, y: 600 }),
   stage(6, 'The Confluence', 'Add Expressions', { x: 1130, y: 520 }),

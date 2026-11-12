@@ -51,9 +51,17 @@ const twinBridges = `
   <path d="M-46 -46 Q0 -86 46 -46" fill="none" stroke="${K}" stroke-width="11"/><path d="M-46 -46 Q0 -86 46 -46" fill="none" stroke="#c98a4b" stroke-width="6"/>
   <rect x="-52" y="-56" width="10" height="42" fill="#8a5a2b" ${O}/><rect x="42" y="-56" width="10" height="42" fill="#8a5a2b" ${O}/>`;
 
+const logFlume = `
+  <ellipse cx="0" cy="-14" rx="50" ry="8" fill="rgba(0,0,0,0.2)"/>
+  <path d="M-48 -70 L44 -30 L44 -16 L-48 -56 Z" fill="#3a8ef0" ${O}/>
+  <path d="M-48 -76 L44 -36 M-48 -52 L44 -12" stroke="${K}" stroke-width="6"/><path d="M-48 -76 L44 -36 M-48 -52 L44 -12" stroke="#8a5a2b" stroke-width="3"/>
+  <rect x="-40" y="-52" width="8" height="38" fill="#8a5a2b" ${O}/><rect x="28" y="-22" width="8" height="10" fill="#8a5a2b" ${O}/>
+  <g class="sway"><rect x="-14" y="-58" width="30" height="12" rx="6" fill="#c98a4b" ${O} transform="rotate(23 0 -52)"/></g>`;
+
 export function buildingSvg(stage, state) {
   if (stage.isBoss) return thunderFalls + (state === 'wip' ? constructionSvg() : '');
   if (stage.building === 'ranger_station') return rangerStation;
   if (stage.building === 'twin_bridges') return twinBridges;
+  if (stage.building === 'log_flume') return logFlume;
   return constructionSvg();
 }
