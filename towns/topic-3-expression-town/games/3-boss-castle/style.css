@@ -1,0 +1,19 @@
+/* Boss Castle (Topic 3 boss): the castle, the Colossus, the stone tablet and the boxes. Shared looks are in shared/game/game.css. */
+#castle { transform-box: fill-box; transform-origin: 200px 430px; }
+#castle.hit { animation: castleHit 0.5s ease-out; }
+@keyframes castleHit { 20% { transform: translateX(-10px); } 50% { transform: translateX(8px); } 80% { transform: translateX(-4px); } }
+#castle.slam .hammer { animation: slam 0.6s ease-in-out; transform-box: fill-box; transform-origin: bottom center; }
+@keyframes slam { 40% { transform: rotate(60deg); } }
+.target { animation: glow 1.4s ease-in-out infinite; }
+@keyframes glow { 50% { filter: drop-shadow(0 0 8px #ffd23f); } }
+.mono { font-family: ui-monospace, 'Courier New', monospace; }
+.prompt .mono { white-space: nowrap; }
+
+/* ---- typed answers and number boxes ---- */
+.rule-row { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 60px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
+  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 26px; font-weight: 900; color: var(--ink); }
+.rbox { width: 72px; height: 46px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900;
+  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
+.rbox.wide { width: 140px; }
+.rbox.sup { width: 52px; height: 36px; font-size: 18px; align-self: flex-start; margin-top: 2px; }
+.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }

@@ -45,8 +45,8 @@ docs/lessons.md                    lesson lists from the textbook database
   `js/expressionTown.js` builds the stages from `js/nodes.js` (the building list) and draws with `js/worldArt.js`
   (art made for a 1366 x 658 map, moved down 55 px). Its roads turn square corners using each stage's `via` points.
   Older Expression Town saves carry `unlockedNodes` and the old stage id `node_3_4` (`js/legacy.js`); the shared
-  engine keeps every stage those saves had open. The Boss Castle (`node_apex`) still opens the 3-3 crane game; a real
-  Topic 3 review boss (like the Golem Fort) is a possible follow-up.
+  engine keeps every stage those saves had open. The Boss Castle (`node_apex`) opens `games/3-boss-castle/`, the
+  Topic 3 review boss (the Expression Colossus, lessons 3-1 to 3-7), built on the shared game shell like the Golem Fort.
 - `npm test` runs every test in the repo (the sheet script, the progress store, the Topic 3 hub and all its games).
 - Towns 1 and 2 are not built yet. Town order is by textbook topic: 1 Decimal Docks, 2 Integer Highlands,
   3 Expression Town, 4 Equation Valley, 5-8 to be decided.

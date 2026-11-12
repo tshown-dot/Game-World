@@ -36,7 +36,9 @@ const ORDER = ['node_3_1', 'node_3_2', 'node_3_2_lcm', 'node_3_3', 'node_3_4_exp
 await test('stage order, lessons and games', () => {
   assert.deepEqual(STAGES.map((s) => s.id), ORDER);
   assert.deepEqual(STAGES.map((s) => s.lessonCode), ['3-1', '3-2', '3-2', '3-3', '3-4', '3-5', '3-6', '3-7', 'BOSS']);
-  assert.ok(STAGES.every((s) => s.built && s.url && s.url.startsWith('./cartridges/') && s.coords && s.building));
+  assert.ok(STAGES.every((s) => s.built && s.url && s.coords && s.building));
+  assert.ok(STAGES.slice(0, 8).every((s) => s.url.startsWith('./cartridges/')), 'the 8 lesson games are the original cartridges');
+  assert.equal(STAGES.at(-1).url, './games/3-boss-castle/index.html', 'the Boss Castle opens the Topic 3 review boss');
   assert.equal(STAGES.find((s) => s.id === 'node_3_2_lcm').url, './cartridges/lcm/index.html');
   assert.equal(STAGES.find((s) => s.id === 'node_3_4_expr').url, './cartridges/algebraic/index.html');
   assert.equal(STAGES.find((s) => s.id === 'node_3_6').url, './cartridges/distributive/index.html');
