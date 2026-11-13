@@ -1,130 +1,158 @@
-// Tests for Twin Bridges (bridges.js). Run with:
-//   node towns/g7-topic-4-factor-falls/games/4-2-twin-bridges/test_twin_bridges_math.js
+// Tests for Twin Bridges' math (bridges.js). Run with:  node towns/g7-topic-4-factor-falls/games/4-2-twin-bridges/test_twin_bridges_math.js
 import assert from 'node:assert/strict';
 import {
-  seeded, fmt, parseNumber, near, sum, paren, same, valueOf, ZONES, genZone, genBackup,
-  genTest, genLucky, genProperty, genBuild, genSelect, genMaria, genProve,
-  checkTest, checkChoice, checkBoxes, checkSelect, checkNum, workedSolution,
+  seeded, near, fmt, parseNumber, sum, paren, same, valueOf, POSTS, DIALS, PROPS, plain, agreeAt,
+  genTest, checkTest, genRaft, checkRaft, genBuild, checkBuild, buildAnswer, genChain, walkChain, checkSpan, chainAnswer, ZONES, genZone,
 } from './bridges.js';
 
 let passed = 0;
 function test(name, fn) { fn(); passed++; console.log('PASS', name); }
 const RUNS = 2000;
-const rnd = seeded(20261114);
+const rnd = seeded(20261113);
 const noJunk = (s) => typeof s === 'string' && s.length > 0 && !/undefined|NaN|null|Infinity|\[object/.test(s);
-const typed = (v) => String(v);
-const fill = (p, over = {}) => Object.fromEntries(Object.entries({ ...p.want, ...over }).map(([k, v]) => [k, String(v)]));
-/** Works out what an expression's TEXT equals for a value, so the stored m and k can be checked against the text. */
-function evalText(text, v, x, y = 7) {
-  let js = text.replace(/−/g, '-').replace(/·/g, '*').replace(/(\d)\s*\(/g, '$1*(').replace(/\)\s*\(/g, ')*(').replace(/^-\(/, '-1*(')
-    .replace(new RegExp(`(\\d)${v}`, 'g'), `$1*${v}`).replace(/(\d)y/g, '$1*y').replace(/(\d+)\/(\d+)/g, '($1/$2)');
-  return Function(v, 'y', `return ${js};`)(x, y);     // eslint-disable-line no-new-func
+const E = (m, k) => ({ text: plain(m, k), m, k });
+/** Work an expression's text out with plain arithmetic, to check the stored m and k against what is printed. */
+function evalText(text, v, x) {
+  const js = text.replace(/−/g, '-').replace(/·/g, '*').replace(/(\d+)\/(\d+)\(/g, '($1/$2)*(').replace(/(\d)\(/g, '$1*(').replace(/-\(/g, '-1*(')
+    .replace(new RegExp(`(\\d)${v}`, 'g'), '$1*X').replace(new RegExp(`\\b${v}\\b`, 'g'), 'X').replace(/X/g, `(${x})`);
+  return Function(`"use strict"; return (${js});`)();
 }
+const textMatches = (ex, v) => POSTS.every((x) => near(evalText(ex.text, v, x), valueOf(ex, x)));
 
-test('writing expressions and typed numbers', () => {
-  assert.equal(sum([3, 'x'], [-15, '']), '3x − 15'); assert.equal(sum([-1, 'x'], [7, '']), '−x + 7'); assert.equal(sum([-16, ''], [-2, 'x']), '−16 − 2x');
-  assert.equal(paren(-2, 'x', 8), '−2(x + 8)'); assert.equal(paren(3, 'x', -5), '3(x − 5)');
-  for (const [raw, want] of [['-16', -16], ['−16', -16], ['2.5', 2.5], ['5/2', 2.5], ['2 1/2', 2.5], ['-2', -2]]) assert.ok(near(parseNumber(raw), want), raw);
-  for (const raw of ['', 'x', '2x', '1/0']) assert.equal(parseNumber(raw), null);
+test('writing numbers and expressions', () => {
+  assert.equal(fmt(-3), '−3'); assert.equal(fmt(2.5), '2.5'); assert.equal(fmt(4), '4');
+  assert.equal(plain(-3, 12), '−3x + 12'); assert.equal(plain(1, -4, 'g'), 'g − 4'); assert.equal(plain(5, 0, 't'), '5t'); assert.equal(plain(0, 7), '7'); assert.equal(plain(-1, 2), '−x + 2');
+  assert.equal(paren(-3, 'x', -4), '−3(x − 4)'); assert.equal(sum([2, 'x'], [-5, '']), '2x − 5');
+  assert.deepEqual(['15', '15.00', '−3', '-3', '5/2', '2 1/2', 'abc'].map(parseNumber), [15, 15, -3, -3, 2.5, 2.5, null]);
+  assert.deepEqual(POSTS, [-3, -2, -1, 0, 1, 2, 3, 4], 'the posts include negatives and zero');
 });
 
-test(`every zone: ${RUNS} runs make clean problems`, () => {
-  assert.equal(ZONES.length, 5);
-  for (let i = 0; i < RUNS / 5; i++) {
-    for (let z = 0; z < 5; z++) {
-      const list = genZone(rnd, z);
-      assert.equal(list.length, 5);
-      for (const p of list) {
-        assert.ok(noJunk(p.prompt.replace(/<[^>]+>/g, '')), p.prompt);
-        for (const line of workedSolution(p)) assert.ok(noJunk(line), `${p.type}: ${line}`);
-        if (p.options) { assert.equal(p.options.filter((o) => o.ok).length, 1); assert.equal(new Set(p.options.map((o) => o.text)).size, p.options.length); p.options.forEach((o, k) => { const r = checkChoice(p, k); assert.equal(r.correct, o.ok); assert.ok(noJunk(r.message)); }); }
-      }
-      const back = genBackup(rnd, list[0]);
-      assert.equal(back.type, list[0].type); assert.notEqual(back.id, list[0].id);
-    }
-  }
+test('twins agree at every post; other bridges agree at one post at most', () => {
+  assert.equal(valueOf(E(-3, 12), 4), 0); assert.equal(valueOf(E(2, 1), -3), -5);
+  assert.ok(same(E(2, 6), E(2, 6)) && !same(E(2, 6), E(2, 5)));
+  assert.deepEqual(agreeAt(E(2, 6), E(2, 6)), POSTS);
+  assert.deepEqual(agreeAt(E(2, 4), E(3, 3)), [1], '2(x + 2) and 3x + 3 cross at x = 1');
+  assert.deepEqual(agreeAt(E(2, 4), E(2, 2)), [], 'side by side: never');
 });
 
-test('test the bridges: the stored values match the text, and the decision is checked', () => {
+test('test rounds: twins, plain non-twins and the lucky post', () => {
   for (let i = 0; i < RUNS; i++) {
-    const p = genTest(rnd, { eq: i % 2 === 0 });
-    for (const x of [-3, 2, 5]) { assert.ok(near(evalText(p.A.text, p.v, x), valueOf(p.A, x)), p.A.text); assert.ok(near(evalText(p.B.text, p.v, x), valueOf(p.B, x)), p.B.text); }
-    assert.equal(same(p.A, p.B), p.eq);
-    assert.equal(near(p.va, p.vb), p.eq, 'the test value shows the difference when there is one');
-    assert.ok(checkTest(p, typed(p.va), typed(p.vb), p.eq).correct);
-    assert.ok(checkTest(p, '', typed(p.vb), p.eq).nudge);
-    assert.equal(checkTest(p, typed(p.va + 1), typed(p.vb), p.eq).key, 'evaluation_slip');
-    const wrong = checkTest(p, typed(p.va), typed(p.vb), !p.eq);
-    assert.ok(!wrong.correct && noJunk(wrong.message));
-    if (!p.eq) assert.ok(['first_term_only', 'combine_unlike', 'commute_subtraction'].includes(wrong.key));
+    const eq = genTest(rnd, { eq: true }), no = genTest(rnd, { eq: false }), lucky = genTest(rnd, { lucky: true });
+    for (const p of [eq, no, lucky]) { assert.ok(textMatches(p.A, p.v) && textMatches(p.B, p.v), `${p.A.text} | ${p.B.text}`); assert.ok(noJunk(p.why) && p.tests === 3 && p.A.text !== p.B.text); }
+    assert.ok(eq.eq && same(eq.A, eq.B) && agreeAt(eq.A, eq.B).length === POSTS.length);
+    assert.ok(!no.eq && !same(no.A, no.B) && agreeAt(no.A, no.B).length <= 1);
+    assert.ok(!lucky.eq && POSTS.includes(lucky.lucky) && agreeAt(lucky.A, lucky.B).length === 1 && agreeAt(lucky.A, lucky.B)[0] === lucky.lucky, 'exactly one post agrees');
   }
+});
+
+test('calling a test: the lucky post, an ignored test, doubting real twins', () => {
   for (let i = 0; i < 300; i++) {
-    const l = genLucky(rnd);
-    assert.equal(valueOf(l.A, 0), valueOf(l.B, 0)); assert.notEqual(valueOf(l.A, 1), valueOf(l.B, 1));
-    assert.equal(checkChoice(l, l.options.findIndex((o) => o.key === 'one_test_value')).key, 'one_test_value');
+    const lucky = genTest(rnd, { lucky: true }), other = POSTS.find((x) => x !== lucky.lucky);
+    assert.equal(checkTest(lucky, [], true).nudge, true, 'no test yet: only a nudge');
+    let r = checkTest(lucky, [lucky.lucky], true);
+    assert.ok(!r.ok && r.key === 'one_test_value' && /not proof/.test(r.message) && noJunk(r.message));
+    r = checkTest(lucky, [lucky.lucky, other], true);
+    assert.ok(!r.ok && r.key === 'ignored_test' && /one post that splits is enough/.test(r.message));
+    assert.ok(checkTest(lucky, [other], false).ok && checkTest(lucky, [lucky.lucky], false).ok);
+    const eq = genTest(rnd, { eq: true });
+    assert.ok(checkTest(eq, [0, 2], true).ok && /Twins at every post/.test(checkTest(eq, [0], true).message));
+    r = checkTest(eq, [0, 1, 2], false);
+    assert.ok(!r.ok && r.key === 'doubted_twins' && noJunk(r.message));
   }
 });
 
-test('properties: the two sides really are equivalent', () => {
+test('rafts: every card is a twin with a property, or a trap with a reason', () => {
+  const forms = ['dist', 'collect', 'assoc'], seen = new Set();
   for (let i = 0; i < RUNS; i++) {
-    const p = genProperty(rnd, 'CAD'[i % 3]);
-    const v = (p.from.match(/[xntgdw]/) || ['x'])[0];
-    const a = evalText(p.from.replace(/z/g, '3'), v, 4), b = evalText(p.to.replace(/z/g, '3'), v, 4);
-    assert.ok(near(a, b), `${p.from} = ${p.to}`);
-    assert.notEqual(p.from, p.to);
+    const p = genRaft(rnd, forms[i % 3]);
+    assert.ok(textMatches(p.target, p.v), p.target.text);
+    assert.ok(p.cards.length >= 4 && p.cards.length <= 6 && p.seconds > 0);
+    assert.equal(new Set(p.cards.map((c) => c.text)).size, p.cards.length, 'no raft twice');
+    assert.ok(p.cards.some((c) => c.twin) && p.cards.some((c) => !c.twin), 'some of each');
+    p.cards.forEach((c, k) => {
+      assert.ok(textMatches(c, p.v), `${c.text} in ${p.target.text}`);
+      assert.equal(c.twin, same(c, p.target)); assert.notEqual(c.text, p.target.text);
+      const hook = checkRaft(p, k, true), pass = checkRaft(p, k, false);
+      if (c.twin) {
+        assert.ok(hook.ok && Object.values(PROPS).includes(hook.property) && !hook.quiet);
+        assert.ok(!pass.ok && pass.key === 'missed_twin' && noJunk(pass.message));
+      } else {
+        assert.ok(pass.ok && pass.quiet, 'letting a trap go is right, and quiet');
+        assert.ok(!hook.ok && noJunk(hook.key) && noJunk(hook.message) && POSTS.includes(hook.at) && !near(valueOf(c, hook.at), valueOf(p.target, hook.at)), 'a hooked trap names a post where it splits');
+        seen.add(hook.key);
+      }
+    });
   }
+  for (const k of ['first_term_only', 'sign_error', 'combine_unlike', 'lost_negative', 'times_not_plus']) assert.ok(seen.has(k), k);
 });
 
-test('build the twin: right boxes pass, sign slips are named', () => {
+test('build: the dials can reach every twin, and each slip is recognised', () => {
+  const forms = ['assoc', 'distNeg', 'dist', 'combine', 'sub', 'dec', 'frac', 'hidden'], keys = new Set();
   for (let i = 0; i < RUNS; i++) {
-    for (const form of ['distNeg', 'factor', 'combine', 'assoc', 'frac']) {
-      const p = genBuild(rnd, form);
-      assert.ok(checkBoxes(p, fill(p)).correct, `${form}: ${p.show} = ${p.answerText}`);
-      assert.ok(checkBoxes(p, { ...fill(p), [Object.keys(p.want)[0]]: '' }).nudge);
-      for (const x of [-2, 3]) assert.ok(near(evalText(p.show, p.v, x), evalText(p.answerText, p.v, x)), `${p.show} = ${p.answerText}`);
+    const p = genBuild(rnd, forms[i % forms.length]), { m, k } = p.A;
+    assert.ok(Number.isInteger(m) && Number.isInteger(k) && m >= DIALS.m.lo && m <= DIALS.m.hi && k >= DIALS.k.lo && k <= DIALS.k.hi, `${p.A.text} -> ${m}, ${k}`);
+    assert.ok(m !== 0 || p.form === 'combine', 'the letter stays in the answer');
+    if (p.hidden) assert.ok(p.tests === 3 && !/[a-z]/.test(p.A.text), 'a hidden bridge shows no expression'); else assert.ok(textMatches(p.A, p.v), p.A.text);
+    const right = checkBuild(p, m, k);
+    assert.ok(right.ok && right.agree.length === POSTS.length && noJunk(right.message) && (p.hidden ? right.property === null : Object.values(PROPS).includes(right.property)));
+    for (const t of p.traps) {
+      assert.ok(Number.isInteger(t.m) && Number.isInteger(t.k) && !(t.m === m && t.k === k), 'a trap is a wrong answer the dials can show');
+      const r = checkBuild(p, t.m, t.k);
+      assert.ok(!r.ok && r.key === t.key && noJunk(r.message) && r.agree.length <= 1); keys.add(r.key);
     }
-    const d = genBuild(rnd, 'distNeg');
-    assert.equal(checkBoxes(d, fill(d, { m: d.c })).key, 'first_term_only');
-    assert.equal(checkBoxes(d, fill(d, { k: -d.want.k })).key, 'sign_error');
-    const c = genBuild(rnd, 'combine');
-    assert.equal(checkBoxes(c, { m: String(Math.abs(c.a) + c.c) }).key, 'lost_negative');
-    const f = genBuild(rnd, 'frac');
-    assert.ok(checkBoxes(f, { m: String(f.want.m), c: `${f.want.c}` }).correct);
-    assert.equal(checkBoxes(f, { m: String(f.want.m), c: String(f.d + f.h[0] / f.h[1]) }).key, 'sign_error');
+    let r = checkBuild(p, m, k + 3);
+    if (!p.traps.some((t) => t.m === m && t.k === k + 3)) { assert.ok(r.key === 'number_part' && /3 too high/.test(r.message) && r.agree.length === 0); }
+    r = checkBuild(p, m + 7, k);
+    if (!p.traps.some((t) => t.m === m + 7 && t.k === k)) assert.ok(r.key === 'x_part' && r.agree.length === 1 && r.agree[0] === 0, 'a wrong letter part meets only at 0');
+    r = checkBuild(p, m + 7, k + 11);
+    if (!p.traps.some((t) => t.m === m + 7 && t.k === k + 11)) assert.equal(r.key, 'off');
+    assert.ok(noJunk(buildAnswer(p)) && buildAnswer(p).includes(plain(m, k, p.v)));
+    assert.equal(r.mine.text, plain(m + 7, k + 11, p.v));
   }
-  const f = { ...genBuild(seeded(3), 'frac') };
-  if (near(f.want.c, 2.5)) for (const raw of ['2.5', '5/2', '2 1/2']) assert.ok(checkBoxes(f, { m: String(f.want.m), c: raw }).correct, raw);
+  for (const k of ['first_term_only', 'sign_error', 'times_not_plus', 'lost_negative', 'combine_unlike', 'subtract_group']) assert.ok(keys.has(k), k);
 });
 
-test('find every twin: cards are labelled by what they equal, all-or-nothing', () => {
-  for (let i = 0; i < RUNS; i++) {
-    const p = genSelect(rnd, i % 2 ? 'dist' : 'collect');
-    const good = p.cards.map((c, k) => (c.ok ? k : -1)).filter((k) => k >= 0);
-    assert.ok(good.length >= 2 && good.length < p.cards.length, 'some twins and some decoys');
-    assert.equal(new Set(p.cards.map((c) => c.text)).size, p.cards.length, 'no repeated cards');
-    for (const c of p.cards) {
-      for (const x of [-2, 3]) assert.ok(near(evalText(c.text, p.v, x), valueOf(c, x)), `${c.text} is what it says`);
-      assert.equal(c.ok, [-2, 3, 5].every((x) => near(valueOf(c, x), valueOf(p.target, x))), `${c.text} vs ${p.target.text}`);
-      if (!c.ok) assert.ok(c.key && noJunk(c.message));
-    }
-    assert.ok(checkSelect(p, good).correct);
-    assert.ok(checkSelect(p, []).nudge);
-    assert.equal(checkSelect(p, good.slice(1)).key, 'missed_twin');
-    const bad = p.cards.findIndex((c) => !c.ok);
-    const res = checkSelect(p, [...good, bad]);
-    assert.ok(!res.correct && res.key === p.cards[bad].key && res.wrong.includes(bad));
-  }
+test('build: worked examples', () => {
+  const p = { v: 'x', A: { text: '−3(x − 4)', m: -3, k: 12 }, prop: 'D', traps: [{ m: -3, k: -4, key: 'first_term_only', message: 'both' }, { m: -3, k: -12, key: 'sign_error', message: 'sign' }] };
+  assert.ok(checkBuild(p, -3, 12).ok); assert.equal(checkBuild(p, -3, 12).property, 'DISTRIBUTIVE PROPERTY');
+  assert.equal(checkBuild(p, -3, -4).key, 'first_term_only'); assert.equal(checkBuild(p, -3, -12).key, 'sign_error');
+  assert.equal(checkBuild(p, 3, 12).key, 'x_part'); assert.equal(checkBuild(p, -3, 10).key, 'number_part');
+  assert.match(checkBuild(p, -3, 10).message, /2 too low/);
 });
 
-test('the boss: Maria and the proof', () => {
+test('chains: exactly one wrong step, found by walking a post', () => {
+  const slips = ['distribute', 'reorder', 'combine'], bads = new Set();
   for (let i = 0; i < RUNS; i++) {
-    const m = genMaria(rnd);
-    assert.ok(near(evalText(m.show, 'n', 3), evalText(m.answerText, 'n', 3)));
-    const p = genProve(rnd);
-    assert.equal(valueOf(p.A, p.x0), valueOf(p.B, p.x0));
-    assert.ok(checkNum(p, typed(p.answer)).correct && checkNum(p, '').nudge);
-    assert.ok(checkNum(p, `−${Math.abs(p.answer)}`).correct === (p.answer < 0) || p.answer === 0);
-    for (const t of p.traps) assert.equal(checkNum(p, typed(t.v)).key, t.key);
+    const p = genChain(rnd, slips[i % 3]);
+    assert.equal(p.lines.length, 4); assert.ok(p.walks === 3 && noJunk(p.why) && noJunk(p.key));
+    p.lines.forEach((l) => assert.ok(textMatches(l, p.v) && l.text.length <= 22, l.text));
+    const breaks = p.lines.map((l, k) => k > 0 && !same(l, p.lines[k - 1])).filter(Boolean).length;
+    assert.equal(breaks, 1, 'one step breaks the chain'); assert.equal(p.bad, { distribute: 1, reorder: 2, combine: 3 }[p.slip]); bads.add(p.bad);
+    assert.ok(same(p.A, p.lines[0]) && !same(p.lines[3], p.A), 'the last line is not a twin of the first');
+    assert.ok(Number.isInteger(p.A.m) && Math.abs(p.A.m) <= DIALS.m.hi && Math.abs(p.A.k) <= DIALS.k.hi && p.A.m !== 0);
+    const falls = POSTS.map((x) => walkChain(p, x).falls);
+    assert.ok(falls.every((f) => f === p.bad || f === -1) && falls.filter((f) => f === p.bad).length >= POSTS.length - 1, 'at most one lucky post');
+    for (let k = 1; k < 4; k++) { const r = checkSpan(p, k); assert.equal(r.ok, k === p.bad); if (!r.ok) assert.equal(r.key, 'wrong_span'); assert.ok(noJunk(r.message)); }
+    assert.ok(chainAnswer(p).includes(`line ${p.bad + 1}`));
+    // the repair: the right last line is a twin of the first; the wrong last line is caught by name
+    assert.ok(checkBuild(p, p.A.m, p.A.k).ok);
+    const again = checkBuild(p, p.lines[3].m, p.lines[3].k);
+    assert.ok(!again.ok && again.key === p.key && /same as the wrong last line/.test(again.message));
+  }
+  assert.deepEqual([...bads].sort(), [1, 2, 3]);
+});
+
+test('zones', () => {
+  assert.equal(ZONES.length, 5); ZONES.forEach((z) => assert.ok(noJunk(z.name) && noJunk(z.blurb)));
+  for (let i = 0; i < 200; i++) {
+    const z = [0, 1, 2, 3, 4].map((n) => genZone(rnd, n));
+    assert.deepEqual(z.map((r) => r.length), [6, 3, 6, 3, 5]);
+    assert.ok(z[0].every((p) => p.type === 'test') && z[0].filter((p) => p.lucky !== null).length === 2 && z[0].filter((p) => p.eq).length === 2, 'two twins, two lucky posts, two plain non-twins');
+    assert.deepEqual(z[1].map((p) => p.form).sort(), ['assoc', 'collect', 'dist']);
+    assert.ok(z[2].every((p) => p.type === 'build' && !p.hidden));
+    assert.deepEqual(z[3].map((p) => p.slip).sort(), ['combine', 'distribute', 'reorder']);
+    assert.ok(z[4].some((p) => p.hidden) && z[4].some((p) => p.type === 'chain') && z[4].filter((p) => p.form === 'sub').length === 2 && z[4].some((p) => ['dec', 'frac'].includes(p.form)));
+    assert.equal(new Set(z.flat().map((p) => p.id)).size, 23, 'every round has its own id');
   }
 });
 

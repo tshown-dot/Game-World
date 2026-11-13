@@ -1,31 +1,89 @@
-/* Twin Bridges (Grade 7, Lesson 4-2): the river, the bridges, the twin cards and the answer boxes. Shared looks are in shared/game/game.css. */
-.cracked { animation: crack 0.5s ease-out; }
-@keyframes crack { 20% { transform: translateY(5px); } 50% { transform: translateY(-3px); } 80% { transform: translateY(2px); } }
-.solid rect { transition: stroke 0.3s; }
-.hiker { animation: hikerBob 1.6s ease-in-out infinite; }
-@keyframes hikerBob { 50% { transform: translateY(-4px); } }
-.mono { font-family: ui-monospace, 'Courier New', monospace; }
-.prompt .mono { white-space: nowrap; }
+/* Twin Bridges (Grade 7, Lesson 4-2): the river with its posts and bridges, the expressions and the dials. Shared looks are in shared/game/game.css. */
+#app.arcade { grid-template-columns: 1fr; background: #16302b; }
+#app.arcade .hud { grid-column: 1; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; font-weight: 900; }
+.stage { background: linear-gradient(#2f6b5e 0%, #4f9a84 100%); }
+.play { position: absolute; inset: 0 0 66px 0; overflow: hidden; }
 
-/* ---- typed answers ---- */
-.rule-row { box-sizing: border-box; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 60px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
-  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 24px; font-weight: 900; color: var(--ink); }
-.rule-row.small { min-height: 52px; font-size: 18px; justify-content: space-between; padding: 4px 14px; }
-.rbox { width: 84px; height: 44px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900;
-  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
-.rule-row.small .rbox { width: 130px; }
-.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }
+/* ---- the instruction sign ---- */
+.sign { position: absolute; z-index: 2; top: 8px; left: 50%; transform: translateX(-50%); min-width: 420px; max-width: 1080px; text-align: center; white-space: nowrap;
+  background: #fff8e1; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 7px 22px 9px; pointer-events: none; }
+.sign small { display: block; font-size: 8px; color: #8a6d3b; margin-bottom: 6px; }
+#signText { font-family: ui-monospace, 'Courier New', monospace; font-size: 19px; font-weight: 900; color: var(--ink); }
+.sign.new { animation: signPop 0.4s ease-out; }
+@keyframes signPop { from { transform: translateX(-50%) scale(1.1); background: var(--gold); } to { transform: translateX(-50%) scale(1); } }
+#app.arcade .boss-bar { left: auto; right: 12px; top: 10px; transform: none; width: 130px; }
 
-/* ---- equivalent or not ---- */
-.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.pair button { height: 56px; border: 3px solid var(--ink); border-radius: 12px; box-shadow: 0 4px 0 var(--ink); font-size: 13px; font-weight: 900; }
-.pair .yes { background: #d9f7e3; } .pair .nope { background: #ffd9dc; }
-.pair button b { display: inline-block; width: 22px; height: 22px; line-height: 18px; margin-right: 8px; border: 2px solid var(--ink); border-radius: 6px; background: #fff; font-size: 11px; }
+/* ---- what went wrong. It sits at the bottom, so the river stays in view ---- */
+.callout { position: absolute; z-index: 6; bottom: 72px; left: 50%; transform: translateX(-50%); width: 960px; background: #ffe3cc; border: 4px solid var(--ink); border-radius: 14px;
+  box-shadow: 0 5px 0 var(--ink); padding: 8px 14px; font-size: 16px; font-weight: 800; line-height: 1.3; text-align: center; }
+.callout button { margin-top: 6px; height: 36px; padding: 0 16px; border: 3px solid var(--ink); border-radius: 10px; background: var(--gold); font-size: 10px; }
 
-/* ---- twin cards (select all) ---- */
-.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.tcard { min-height: 50px; padding: 4px 8px 4px 32px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink); position: relative;
-  font-family: ui-monospace, 'Courier New', monospace; font-size: 16px; font-weight: 900; color: var(--ink); }
-.tcard b { position: absolute; left: 6px; top: 6px; width: 20px; height: 20px; line-height: 16px; border: 2px solid var(--ink); border-radius: 5px; background: var(--gold); font-size: 11px; font-family: Nunito, sans-serif; }
-.tcard.on { background: #dbe9ff; outline: 4px solid #3a8ef0; outline-offset: 1px; }
-.tcard.wrong { background: #ffd9dc; }
+/* ---- the bar along the bottom ---- */
+.ctl { position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 14px;
+  background: var(--night); border-top: 4px solid var(--ink); }
+.cbtn { height: 46px; padding: 0 14px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 #000; font-size: 10px; font-weight: 900; color: var(--ink); }
+.cbtn.go { background: var(--red); color: #fff; min-width: 260px; }
+.tip { color: #fff; font-size: 14px; font-weight: 800; }
+.wave-tag { color: var(--gold); font-size: 9px; min-width: 100px; text-align: right; }
+
+/* ---- the expressions ---- */
+.exprs { position: absolute; left: 0; right: 0; top: 76px; display: flex; justify-content: center; align-items: stretch; gap: 14px; padding: 0 20px; }
+.ex { min-width: 330px; padding: 6px 18px 8px; border: 4px solid var(--ink); border-radius: 14px; background: #fffdf4; box-shadow: 0 5px 0 rgba(0,0,0,0.3); text-align: center; color: var(--ink); }
+.ex small { display: block; font-size: 8px; margin-bottom: 3px; }
+.ex .mono { font-size: 30px; line-height: 36px; white-space: nowrap; }
+.ex.a { border-color: #1d4ed8; } .ex.a small { color: #1d4ed8; }
+.ex.b { border-color: #c2570c; } .ex.b small { color: #c2570c; }
+.ex.wide { min-width: 520px; }
+.ex.line { min-width: 0; padding: 8px 12px; }
+.ex.line .mono { font-size: 19px; line-height: 26px; }
+.ex.line em { display: block; min-height: 24px; font: 900 20px ui-monospace, 'Courier New', monospace; font-style: normal; color: #1d6b3a; }
+.ex.line.wrong { background: #ffd6d6; } .ex.line.wrong em { color: #b3261e; }
+.ex.fix { min-width: 0; } .ex.fix .mono { font-size: 22px; line-height: 28px; }
+.step { align-self: center; position: relative; width: 44px; height: 44px; border: 4px solid var(--ink); border-radius: 12px; background: var(--gold); box-shadow: 0 4px 0 var(--ink); font: 900 22px ui-monospace, monospace; color: var(--ink); }
+.step b { position: absolute; left: -9px; top: -11px; width: 22px; height: 22px; border: 2px solid #fff; border-radius: 50%; background: var(--ink); color: #fff; font: 900 11px ui-monospace, monospace; line-height: 18px; }
+.step.broken { background: #ff5d5d; color: #fff; }
+
+/* ---- the river ---- */
+.river { position: absolute; left: 50%; top: 162px; width: 1060px; height: 318px; margin-left: -530px; border: 5px solid var(--ink); border-radius: 14px; background: #d9f0ea; box-shadow: 0 6px 0 rgba(0,0,0,0.3); touch-action: none; user-select: none; }
+.river .water { fill: #9fd4e8; }
+.river .zero { stroke: #1d1433; stroke-width: 2; stroke-dasharray: 8 6; }
+.river .zl { font: 900 13px ui-monospace, monospace; fill: #1d1433; }
+.river .post { cursor: pointer; }
+.river .post line { stroke: #7b6a52; stroke-width: 5; stroke-linecap: round; }
+.river .post.seen line { stroke: #3b2f1e; }
+.river .post:hover line { stroke: #c2570c; }
+.river .pk { font: 900 11px ui-monospace, monospace; fill: #7b6a52; }
+.river .px2 { font: 900 14px ui-monospace, 'Courier New', monospace; fill: #1d1433; }
+.river .deck { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.river .deck.a { stroke: #1d4ed8; stroke-width: 7; }
+.river .deck.b { stroke: #f59e0b; stroke-width: 4; stroke-dasharray: 10 7; }
+.river .plank { stroke-width: 9; stroke-linecap: round; }
+.river .plank.a { stroke: #1d4ed8; } .river .plank.b { stroke: #f59e0b; } .river .plank.both { stroke: #16a34a; }
+.river .pv { font: 900 15px ui-monospace, 'Courier New', monospace; paint-order: stroke; stroke: #d9f0ea; stroke-width: 4px; }
+.river .pv.a { fill: #1d4ed8; } .river .pv.b { fill: #b45309; } .river .pv.both { fill: #15803d; }
+.river .hiker { fill: #e5484d; stroke: #fff; stroke-width: 3; }
+.river .hiker.fell { fill: #7a1c1c; }
+
+.stamp-eq { position: absolute; left: 0; right: 0; top: 174px; text-align: center; font-size: 11px; color: #14532d; opacity: 0; pointer-events: none; z-index: 3; }
+.stamp-eq.show { animation: stampIn 2.2s ease-out forwards; }
+@keyframes stampIn { 0% { opacity: 0; transform: scale(1.5); } 12% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---- under the river: the call buttons, the stream of rafts, the dials ---- */
+.work { position: absolute; left: 0; right: 0; top: 494px; display: flex; justify-content: center; align-items: center; gap: 22px; padding: 0 60px; }
+.kbtn { width: 300px; height: 58px; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 6px 0 var(--ink); font-size: 19px; font-weight: 900; color: var(--ink); }
+.kbtn.yes { background: #9df0b4; } .kbtn.no { background: #ffb3b3; }
+.stream { position: relative; width: 100%; height: 66px; border-top: 5px solid var(--ink); border-bottom: 5px solid var(--ink); border-radius: 8px; background: repeating-linear-gradient(90deg, #7fc4dc 0 40px, #6db7d1 40px 80px); overflow: hidden; }
+.raft { position: absolute; top: 5px; transform: translateX(-50%); height: 46px; padding: 0 18px; border: 4px solid var(--ink); border-radius: 10px; background: #c9a35a; box-shadow: 0 4px 0 var(--ink); font: 900 22px ui-monospace, 'Courier New', monospace; color: var(--ink); white-space: nowrap; will-change: left; }
+.raft.hooked { background: #ffd23f; top: -60px; transition: top 0.3s ease-in; }
+.raft.gone { opacity: 0.25; transition: opacity 0.25s; }
+.dial { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 4px solid var(--ink); border-radius: 14px; background: #8d99ae; color: var(--ink); }
+.dial .px { font-size: 8px; min-width: 62px; }
+.dial button { width: 48px; height: 46px; border: 3px solid var(--ink); border-radius: 10px; background: #fff; font-size: 17px; font-weight: 900; }
+.dial .val { min-width: 110px; height: 46px; border: 3px solid var(--ink); border-radius: 10px; background: #fff3c4; font: 900 26px ui-monospace, 'Courier New', monospace; line-height: 40px; text-align: center; }
+.bline { position: absolute; left: 0; right: 0; top: 566px; text-align: center; font-size: 17px; font-weight: 900; line-height: 24px; min-height: 24px; color: #eafff4; }
+.bline.off { color: #ffe0d6; }
+
+.hint-card { width: 640px; }
+.hint-text { font-size: 17px; font-weight: 800; line-height: 1.45; margin: 12px 0 14px; }
+.hint-text .mono { display: block; margin: 8px 0; font-size: 19px; }

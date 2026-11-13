@@ -1,9 +1,16 @@
 // Twin Bridges (Grade 7, Lesson 4-2: Generate Equivalent Expressions): the math.
 // No screen code here, so it can be tested with plain node (see test_twin_bridges_math.js).
 //
-// Every expression here is linear, so it is stored as its text plus what it equals:  m·x + k
-// (and n·y for the few with a second variable). Two expressions are equivalent exactly when m, k and n all match.
-// Answer kinds:  test (evaluate both, then decide),  choice,  boxes (fill number boxes),  select (tap ALL the twins),  num.
+// Every expression here is linear in one letter, so it is stored as its text plus what it equals:  m·x + k.
+// Two expressions are equivalent (twins) exactly when m and k both match.
+// The picture: a row of POSTS, one for each x value. Each expression is a bridge whose plank at a post sits at the
+// height the expression gives there. Twins lie on top of each other at every post.
+// Round types:
+//   test    two bridges: test posts of your choice, then call TWINS or NOT TWINS (some pairs agree at one lucky post)
+//   raft    one bridge on the sign; expressions float past: hook every twin, let the rest go by
+//   build   one bridge is given: build its twin on two dials (the x-part and the number part)
+//           hidden: the bridge has no text, only its planks at the posts the student chooses to look at
+//   chain   a worked simplification, line by line: one step is wrong. Find it, then build the right last line.
 
 let nextId = 1;
 export function seeded(seed = 1) {
@@ -59,12 +66,8 @@ export const valueOf = (E, x, y = 0) => r2(E.m * x + E.k + (E.n || 0) * y);
 const nz = (rnd, lo, hi) => { let v = 0; while (v === 0) v = int(rnd, lo, hi); return v; };
 const VARS = ['x', 'n', 't', 'g', 'd', 'w'];
 
-const ok = (text) => ({ text, ok: true, key: 'correct' });
-const no = (text, key, message) => ({ text, ok: false, key, message });
-const choice = (rnd, extra, options) => ({ id: nextId++, kind: 'choice', ...extra, options: shuffle(rnd, options) });
-
 /* ================================================================== */
-/* Zone 1: test the bridges (evaluate both, then decide)               */
+/* Pairs of bridges                                                    */
 /* ================================================================== */
 /** A pair of expressions and whether they are twins. `why` explains it either way. */
 function pair(rnd, wantEq) {
@@ -86,255 +89,208 @@ function pair(rnd, wantEq) {
   if (wantEq) return { v, A: ex(sum([a, ''], [b, v]), b, a), B: ex(sum([b, v], [a, '']), b, a), why: 'Commutative Property: you can add in either order.', key: 'commute_subtraction' };
   return { v, A: ex(sum([1, v], [-a, '']), 1, -a), B: ex(sum([a, ''], [-1, v]), -1, a), why: `Subtraction is NOT commutative: ${v} − ${a} and ${a} − ${v} are opposites.`, key: 'commute_subtraction' };
 }
-/** A test value where the two expressions differ (or any small value when they are twins). */
-function testValue(rnd, A, B) {
-  for (;;) { const x = pick(rnd, [-3, -2, 2, 3, 4, 5]); if (same(A, B) || !near(valueOf(A, x), valueOf(B, x))) return x; }
+/** The x values with a post. */
+export const POSTS = [-3, -2, -1, 0, 1, 2, 3, 4];
+/** The dials for building a twin:  (x-part) x + (number part). */
+export const DIALS = { m: { lo: -15, hi: 15 }, k: { lo: -60, hi: 60 } };
+export const PROPS = { C: 'COMMUTATIVE PROPERTY', A: 'ASSOCIATIVE PROPERTY', D: 'DISTRIBUTIVE PROPERTY', L: 'COMBINING LIKE TERMS' };
+/** m·x + k written simply: "−3x + 12". */
+export const plain = (m, k, v = 'x') => (near(m, 0) ? fmt(k) : near(k, 0) ? sum([m, v]) : sum([m, v], [k, '']));
+/** The posts where two expressions give the same height. */
+export const agreeAt = (A, B) => POSTS.filter((x) => near(valueOf(A, x), valueOf(B, x)));
+
+/* ================================================================== */
+/* Test: are these two bridges twins?                                  */
+/* ================================================================== */
+/** A pair that agrees at exactly one post (x = lucky) and nowhere else. */
+function luckyPair(rnd) {
+  const v = pick(rnd, VARS), a = pick(rnd, [2, 3, 4, 5]), b = nz(rnd, -5, 6), lucky = pick(rnd, [0, 0, 1, 2, -1]);
+  const A = ex(paren(a, v, b), a, a * b);
+  for (const m2 of shuffle(rnd, [a * b, a + 1, a - 1, 1, -a, 2 * a]).filter((m) => m !== a && m !== 0)) {
+    const k2 = a * lucky + a * b - m2 * lucky, B = ex(plain(m2, k2, v), m2, k2);
+    if (Math.abs(k2) <= 40 && agreeAt(A, B).length === 1) return { v, A, B, lucky, key: 'one_test_value', why: `They agree only at ${v} = ${fmt(lucky)}. ${paren(a, v, b)} is ${plain(a, a * b, v)}.` };
+  }
+  return luckyPair(rnd);
 }
-export function genTest(rnd, { eq = rnd() < 0.5 } = {}) {
-  const q = pair(rnd, eq), x0 = testValue(rnd, q.A, q.B);
-  return { id: nextId++, kind: 'test', type: 'test', v: q.v, A: q.A, B: q.B, eq, x0, why: q.why, slipKey: q.key, va: valueOf(q.A, x0), vb: valueOf(q.B, x0),
-    answerText: eq ? 'Equivalent' : 'Not equivalent',
-    prompt: `Send <b class="mono">${q.v} = ${fmt(x0)}</b> across both bridges. What does each expression equal? Then decide: are they equivalent?` };
+/** eq: twins. lucky: not twins, but they agree at one post. */
+export function genTest(rnd, { eq = rnd() < 0.5, lucky = false } = {}) {
+  const q = lucky ? luckyPair(rnd) : pair(rnd, eq);
+  return { id: nextId++, type: 'test', v: q.v, A: q.A, B: q.B, eq: lucky ? false : eq, lucky: lucky ? q.lucky : null, why: q.why, slipKey: q.key, tests: 3 };
 }
-/** One matching test value is not proof: a pair that agrees at one value only. */
-export function genLucky(rnd) {
-  const v = pick(rnd, VARS), a = int(rnd, 2, 5), b = int(rnd, 2, 7);
-  const A = ex(paren(a, v, b), a, a * b), B = ex(sum([a * b, v], [a * b, '']), a * b, a * b);     // equal only at 0
-  const other = pick(rnd, [1, 2, 3]);
-  return choice(rnd, { type: 'lucky', v, A, B, x0: 0, va: a * b, vb: a * b, answerText: 'Not proven',
-    prompt: `Sam sent <b class="mono">${v} = 0</b> across. Both bridges gave <b>${a * b}</b>, so Sam says the expressions are equivalent. Is Sam right?` }, [
-    ok(`No. Try ${v} = ${other}: you get ${valueOf(A, other)} and ${valueOf(B, other)}`),
-    no('Yes. The same value means they are equivalent', 'one_test_value', `One matching value is not proof. Try ${v} = ${other}: ${A.text} = ${valueOf(A, other)} but ${B.text} = ${valueOf(B, other)}.`),
-    no(`Yes. Both have ${a * b} in them`, 'one_test_value', `Sharing a number does not make expressions equivalent. Try ${v} = ${other}: ${valueOf(A, other)} and ${valueOf(B, other)}.`),
-    no(`No. You can never test with 0`, 'zero_is_fine', `0 is a fine test value. The problem is that ONE value is not enough: ${v} = ${other} gives ${valueOf(A, other)} and ${valueOf(B, other)}.`),
-  ]);
+/** tested: the posts the student looked at. saysTwins: their call. */
+export function checkTest(p, tested, saysTwins) {
+  if (!tested.length) return { ok: false, nudge: true, key: 'incomplete', message: 'Test at least one post before you decide.' };
+  if (saysTwins === p.eq) return { ok: true, key: 'correct', message: p.eq ? `Twins at every post. ${p.why}` : `Not twins. ${p.why}` };
+  if (!saysTwins) return { ok: false, key: 'doubted_twins', message: `They ARE twins: the planks match at every post. ${p.why}` };
+  const sawSplit = tested.some((x) => !near(valueOf(p.A, x), valueOf(p.B, x)));
+  if (sawSplit) return { ok: false, key: 'ignored_test', message: `Not twins. One of your own tests showed two different heights, and one post that splits is enough. ${p.why}` };
+  return { ok: false, key: 'one_test_value', message: `Not twins. They matched where you looked (${p.v} = ${tested.map(fmt).join(', ')}) but split everywhere else. Matching at one post is not proof: test a second, different post.` };
 }
 
 /* ================================================================== */
-/* Zone 2: name the property                                           */
+/* Rafts: hook every twin of the bridge on the sign                    */
 /* ================================================================== */
-const PROPS = {
-  C: 'Commutative Property (change the order)',
-  A: 'Associative Property (change the grouping)',
-  D: 'Distributive Property (multiply each term)',
-};
-const PROP_TIP = {
-  C: 'The ORDER of the terms changed and nothing else: that is the Commutative Property.',
-  A: 'The terms stayed in order; only the GROUPING (parentheses) moved: that is the Associative Property.',
-  D: 'The number outside multiplied EACH term inside the parentheses: that is the Distributive Property.',
-};
-export function genProperty(rnd, which = pick(rnd, ['C', 'A', 'D'])) {
-  const v = pick(rnd, VARS);
-  let from, to;
-  if (which === 'C') {
-    if (rnd() < 0.5) { const a = int(rnd, 8, 20), b = int(rnd, 8, 20); from = `${a} + y + ${b} + z`; to = `${a} + ${b} + y + z`; }
-    else { const a = nz(rnd, -6, 6), b = int(rnd, 2, 9); from = sum([a, v], [b, '']); to = sum([b, ''], [a, v]); }
-  } else if (which === 'A') {
-    const a = int(rnd, 2, 9), b = int(rnd, 2, 9);
-    if (rnd() < 0.5) { from = `(${v} + ${a}) + ${b}`; to = `${v} + (${a} + ${b})`; } else { from = `${a}${v} + (${b}${v} + y)`; to = `(${a}${v} + ${b}${v}) + y`; }
-  } else {
-    const a = pick(rnd, [-2, -3, -5, 2, 4, 6]), b = nz(rnd, -8, 8);
-    from = paren(a, v, b); to = sum([a, v], [a * b, '']);
-  }
-  return choice(rnd, { type: 'property', which, from, to, answerText: PROPS[which],
-    prompt: `Bridge 1 says <b class="mono">${from}</b>. Bridge 2 says <b class="mono">${to}</b>. Which property makes them equivalent?` },
-  ['C', 'A', 'D'].map((p) => (p === which ? ok(PROPS[p]) : no(PROPS[p], 'wrong_property', PROP_TIP[which]))));
-}
-
-/* ================================================================== */
-/* Zone 3: build the twin (number boxes)                               */
-/* ================================================================== */
-const boxes = (extra) => ({ id: nextId++, kind: 'boxes', ...extra });
-export function genBuild(rnd, form = pick(rnd, ['distNeg', 'factor', 'combine', 'assoc'])) {
-  const v = pick(rnd, VARS);
-  if (form === 'distNeg') {            // −3(7 + 5g) = □ + □g
-    const a = pick(rnd, [-2, -3, -4, -5]), b = int(rnd, 2, 9), c = pick(rnd, [-5, -3, -2, 2, 3, 5]);
-    return boxes({ type: 'build', form, v, a, b, c, show: `${fmt(a)}(${sum([b, ''], [c, v])})`, pattern: ['', { k: 'k' }, '+', { k: 'm' }, v], want: { k: a * b, m: a * c }, answerText: sum([a * b, ''], [a * c, v]),
-      prompt: `Build the twin with the Distributive Property: <b class="mono">${fmt(a)}(${sum([b, ''], [c, v])})</b> = ? (Boxes can hold negative numbers.)` });
-  }
-  if (form === 'factor') {             // 4d − 12 = □(d − □)
-    const a = int(rnd, 2, 9), b = int(rnd, 1, 9);
-    return boxes({ type: 'build', form, v, a, b, show: sum([a, v], [-a * b, '']), pattern: ['', { k: 'g' }, `(${v} −`, { k: 'b' }, ')'], want: { g: a, b }, answerText: `${a}(${v} − ${b})`,
-      prompt: `Build the twin by factoring: <b class="mono">${sum([a, v], [-a * b, ''])}</b> = ?` });
-  }
-  if (form === 'combine') {            // −5x + 2y + 3x = □x + 2y
-    const a = pick(rnd, [-7, -6, -5, -4]), c = int(rnd, 2, 3), y = int(rnd, 2, 6);
-    return boxes({ type: 'build', form, v, a, c, y, show: `${sum([a, v], [y, 'y'], [c, v])}`, pattern: ['', { k: 'm' }, `${v} + ${y}y`], want: { m: a + c }, answerText: sum([a + c, v], [y, 'y']),
-      prompt: `Build the twin by reordering and combining like terms: <b class="mono">${sum([a, v], [y, 'y'], [c, v])}</b> = ?` });
-  }
-  if (form === 'frac') {               // 4x + ½ + 2x − 3 = □x − □   (boss)
-    const a = int(rnd, 2, 5), c = int(rnd, 2, 4), d = int(rnd, 2, 5), h = pick(rnd, [[1, 2], [1, 4], [3, 4]]);
-    const k = d - h[0] / h[1];
-    return boxes({ type: 'build', form, v, a, c, d, h, show: `${a}${v} + ${h[0]}/${h[1]} + ${c}${v} − ${d}`, pattern: ['', { k: 'm' }, `${v} −`, { k: 'c' }], want: { m: a + c, c: k }, answerText: `${a + c}${v} − ${fmt(k)}`,
-      prompt: `Build the twin: <b class="mono">${a}${v} + ${h[0]}/${h[1]} + ${c}${v} − ${d}</b> = ? (A decimal or a fraction is fine.)` });
-  }
-  const a = int(rnd, 2, 9), b = int(rnd, 2, 9);     // (w + 9) + 3 = w + □
-  return boxes({ type: 'build', form: 'assoc', v, a, b, show: `(${v} + ${a}) + ${b}`, pattern: [`${v} +`, { k: 's' }], want: { s: a + b }, answerText: `${v} + ${a + b}`,
-    prompt: `Build the twin with the Associative Property: <b class="mono">(${v} + ${a}) + ${b}</b> = ?` });
-}
-export function checkBoxes(p, vals) {
-  const keys = p.pattern.filter((x) => typeof x === 'object').map((x) => x.k);
-  const g = {};
-  for (const k of keys) { g[k] = parseNumber(vals[k]); if (g[k] === null) return { correct: false, nudge: true, key: 'incomplete', message: 'Fill in every box (negative numbers are allowed).' }; }
-  const w = p.want;
-  if (keys.every((k) => near(g[k], w[k]))) return { correct: true, key: 'correct', message: `The bridges match: ${p.show} = ${p.answerText}.` };
-  if (p.form === 'distNeg') {
-    if (near(g.k, w.k) && near(g.m, p.c)) return { correct: false, key: 'first_term_only', message: `${fmt(p.a)} multiplies BOTH terms: ${fmt(p.a)} × ${fmt(p.c)}${p.v} = ${fmt(w.m)}${p.v}.` };
-    if (near(Math.abs(g.k), Math.abs(w.k)) && near(Math.abs(g.m), Math.abs(w.m))) return { correct: false, key: 'sign_error', message: `Check the signs: ${fmt(p.a)} × ${fmt(p.b)} = ${fmt(w.k)} and ${fmt(p.a)} × ${fmt(p.c)} = ${fmt(w.m)}. A negative times a ${p.c < 0 ? 'negative is positive' : 'positive is negative'}.` };
-    return { correct: false, key: 'check_it', message: `Multiply ${fmt(p.a)} by each term: ${fmt(p.a)} × ${fmt(p.b)} and ${fmt(p.a)} × ${fmt(p.c)}${p.v}.` };
-  }
-  if (p.form === 'factor') {
-    if (near(g.g * g.b, p.a * p.b) && !near(g.g, p.a)) return { correct: false, key: 'factor_both_terms', message: `The number outside must divide BOTH terms. ${fmt(g.g)} × ${p.v} would give ${fmt(g.g)}${p.v}, not ${p.a}${p.v}.` };
-    if (near(g.g, p.a) && near(g.b, p.a * p.b)) return { correct: false, key: 'forgot_to_divide', message: `Divide the ${p.a * p.b} by ${p.a} too: ${p.a * p.b} ÷ ${p.a} = ${p.b}.` };
-    return { correct: false, key: 'check_it', message: `Check by distributing back: ${fmt(g.g)}(${p.v} − ${fmt(g.b)}) = ${fmt(g.g)}${p.v} − ${fmt(g.g * g.b)}.` };
-  }
-  if (p.form === 'combine') {
-    if (near(g.m, Math.abs(p.a) + p.c)) return { correct: false, key: 'lost_negative', message: `${fmt(p.a)}${p.v} is negative: ${fmt(p.a)} + ${p.c} = ${fmt(w.m)}, not ${Math.abs(p.a) + p.c}.` };
-    if (near(g.m, p.a + p.c + p.y)) return { correct: false, key: 'combine_unlike', message: `${p.y}y is not an ${p.v}-term. Only combine ${fmt(p.a)}${p.v} and ${p.c}${p.v}.` };
-    return { correct: false, key: 'check_it', message: `Reorder so the ${p.v}-terms are together: ${fmt(p.a)}${p.v} + ${p.c}${p.v} = ${fmt(w.m)}${p.v}.` };
-  }
-  if (p.form === 'frac') {
-    if (near(g.m, w.m) && near(g.c, p.d + p.h[0] / p.h[1])) return { correct: false, key: 'sign_error', message: `The numbers are +${p.h[0]}/${p.h[1]} and −${p.d}: together that is −${fmt(w.c)}, so the box is ${fmt(w.c)}.` };
-    if (!near(g.m, w.m)) return { correct: false, key: 'combine_unlike', message: `Combine the ${p.v}-terms only: ${p.a}${p.v} + ${p.c}${p.v} = ${w.m}${p.v}.` };
-    return { correct: false, key: 'check_it', message: `${p.h[0]}/${p.h[1]} − ${p.d} = −${fmt(w.c)}.` };
-  }
-  return { correct: false, key: 'check_it', message: `Only the grouping changes: ${p.a} + ${p.b} = ${w.s}.` };
-}
-
-/* ================================================================== */
-/* Zone 4: find every twin (select all)                                */
-/* ================================================================== */
-export function genSelect(rnd, form = pick(rnd, ['dist', 'collect'])) {
+export function genRaft(rnd, form = pick(rnd, ['dist', 'collect', 'assoc'])) {
   const v = pick(rnd, VARS);
   let target, cards;
   if (form === 'dist') {
     const a = pick(rnd, [-2, -3, -4, 2, 3, 5]), b = nz(rnd, -7, 7);
     target = ex(paren(a, v, b), a, a * b);
     cards = [
-      { ...ex(sum([a, v], [a * b, '']), a, a * b) },
-      { ...ex(sum([a * b, ''], [a, v]), a, a * b) },
-      { ...ex(`(${sum([1, v], [b, ''])}) · ${a < 0 ? `(${fmt(a)})` : fmt(a)}`, a, a * b) },
+      { ...ex(sum([a, v], [a * b, '']), a, a * b), prop: 'D' },
+      { ...ex(sum([a * b, ''], [a, v]), a, a * b), prop: 'C' },
+      { ...ex(`(${sum([1, v], [b, ''])}) · ${a < 0 ? `(${fmt(a)})` : fmt(a)}`, a, a * b), prop: 'C' },
       { ...ex(sum([a, v], [b, '']), a, b), key: 'first_term_only', message: `${fmt(a)} must multiply BOTH terms, so the number is ${fmt(a * b)}, not ${fmt(b)}.` },
       { ...ex(sum([a, v], [-a * b, '']), a, -a * b), key: 'sign_error', message: `Check the sign: ${fmt(a)} × ${fmt(b)} = ${fmt(a * b)}.` },
       { ...ex(term(a * b, v), a * b, 0), key: 'combine_unlike', message: `${fmt(a)} × ${fmt(b)} = ${fmt(a * b)} is a plain number; it does not attach to ${v}.` },
     ];
-  } else {                             // t + 4 + 3 − 2t
+  } else if (form === 'collect') {     // t + 4 + 3 − 2t
     const a = int(rnd, 1, 4), b = int(rnd, 2, 9), c = int(rnd, 2, 9), d = a + int(rnd, 1, 4);
     target = ex(sum([a, v], [b, ''], [c, ''], [-d, v]), a - d, b + c);
     cards = [
-      { ...ex(sum([a - d, v], [b + c, '']), a - d, b + c) },
-      { ...ex(sum([b + c, ''], [a - d, v]), a - d, b + c) },
-      { ...ex(sum([a, v], [-d, v], [b + c, '']), a - d, b + c) },
+      { ...ex(sum([a - d, v], [b + c, '']), a - d, b + c), prop: 'L' },
+      { ...ex(sum([b + c, ''], [a - d, v]), a - d, b + c), prop: 'L' },
+      { ...ex(sum([a, v], [-d, v], [b + c, '']), a - d, b + c), prop: 'C' },
       { ...ex(sum([a + d, v], [b + c, '']), a + d, b + c), key: 'lost_negative', message: `The ${d}${v} is SUBTRACTED: ${a}${v} − ${d}${v} = ${fmt(a - d)}${v}. The sign travels with its term.` },
       { ...ex(term(a - d + b + c, v), a - d + b + c, 0), key: 'combine_unlike', message: `${b} and ${c} are plain numbers. They cannot be combined with the ${v}-terms.` },
       { ...ex(sum([d - a, v], [b + c, '']), d - a, b + c), key: 'sign_error', message: `${a}${v} − ${d}${v} is ${fmt(a - d)}${v}, not ${fmt(d - a)}${v}.` },
     ];
+  } else {                             // (2x + 5) + 3x
+    const a = int(rnd, 2, 5), b = int(rnd, 2, 9), c = int(rnd, 2, 6);
+    target = ex(`(${sum([a, v], [b, ''])}) + ${c}${v}`, a + c, b);
+    cards = [
+      { ...ex(`${a}${v} + (${b} + ${c}${v})`, a + c, b), prop: 'A' },
+      { ...ex(`(${a}${v} + ${c}${v}) + ${b}`, a + c, b), prop: 'C' },
+      { ...ex(sum([a + c, v], [b, '']), a + c, b), prop: 'L' },
+      { ...ex(term(a + b + c, v), a + b + c, 0), key: 'combine_unlike', message: `${b} is a plain number. It cannot be combined with ${a}${v} and ${c}${v}.` },
+      { ...ex(sum([a, v], [b + c, '']), a, b + c), key: 'combine_unlike', message: `${c}${v} is an ${v}-term: it joins ${a}${v}, not the ${b}.` },
+      { ...ex(sum([a * c, v], [b, '']), a * c, b), key: 'times_not_plus', message: `${a}${v} + ${c}${v} is ${a + c}${v}. The terms are added, not multiplied.` },
+    ];
   }
-  cards = shuffle(rnd, cards.filter((c, i) => !cards.slice(0, i).some((u) => u.text === c.text) && c.text !== target.text)).map((c) => ({ ...c, ok: same(c, target) }));
-  return { id: nextId++, kind: 'select', type: 'select', form, v, target, cards, answerText: cards.filter((c) => c.ok).map((c) => c.text).join('  and  '),
-    prompt: `Tap EVERY expression that is equivalent to <b class="mono">${target.text}</b>.` };
+  cards = shuffle(rnd, cards.filter((c, i) => !cards.slice(0, i).some((u) => u.text === c.text) && c.text !== target.text)).map((c) => ({ ...c, twin: same(c, target) }));
+  if (cards.some((c) => c.twin !== Boolean(c.prop))) return genRaft(rnd, form);   // a trap that happens to equal the target: draw again
+  return { id: nextId++, type: 'raft', form, v, target, cards, seconds: 8 };
 }
-/** picked: a Set (or array) of card numbers. All-or-nothing, with a hint about what is wrong. */
-export function checkSelect(p, picked) {
-  const set = new Set(picked);
-  if (!set.size) return { correct: false, nudge: true, key: 'incomplete', message: 'Tap at least one expression first.' };
-  const wrong = p.cards.map((c, i) => ({ c, i })).filter(({ c, i }) => set.has(i) && !c.ok);
-  const missed = p.cards.filter((c, i) => c.ok && !set.has(i)).length;
-  if (!wrong.length && !missed) return { correct: true, key: 'correct', message: `Every twin found! They all equal ${sum([p.target.m, p.v], [p.target.k, ''])}.` };
-  if (wrong.length) return { correct: false, key: wrong[0].c.key, wrong: wrong.map((w) => w.i), message: `${wrong[0].c.text} is not a twin. ${wrong[0].c.message}${missed ? ` (And ${missed} twin${missed > 1 ? 's are' : ' is'} still missing.)` : ''}` };
-  return { correct: false, key: 'missed_twin', wrong: [], message: `All of those are twins, but ${missed} more ${missed > 1 ? 'are' : 'is'} hiding. Terms can be reordered: test a value if you are not sure.` };
+/** Raft i went by. hooked: the student hooked it onto the bridge. quiet: nothing to score (a trap rightly let go). */
+export function checkRaft(p, i, hooked) {
+  const c = p.cards[i], x = POSTS.find((v) => !near(valueOf(c, v), valueOf(p.target, v)));
+  if (hooked && c.twin) return { ok: true, key: 'correct', property: PROPS[c.prop], message: `${c.text} is a twin.` };
+  if (!hooked && !c.twin) return { ok: true, quiet: true, key: 'correct', message: '' };
+  if (hooked) return { ok: false, key: c.key, at: x, message: `${c.text} is not a twin: at ${p.v} = ${fmt(x)} the bridge is ${fmt(valueOf(p.target, x))} but this is ${fmt(valueOf(c, x))}. ${c.message}` };
+  return { ok: false, key: 'missed_twin', message: `${c.text} was a twin: it equals ${plain(p.target.m, p.target.k, p.v)} too. Terms can be reordered and regrouped.` };
 }
 
 /* ================================================================== */
-/* Boss pieces                                                         */
+/* Build: the twin on two dials                                        */
 /* ================================================================== */
-/** Maria's error: −4n + 3 + 9n − 4 "= 4n". */
-export function genMaria(rnd) {
-  const a = int(rnd, 2, 5), b = int(rnd, 2, 6), c = a + int(rnd, 3, 6), d = int(rnd, 2, 6), v = 'n';
-  const text = sum([-a, v], [b, ''], [c, v], [-d, '']);
-  const hers = -a + b + c - d, right = sum([c - a, v], [b - d, '']);
-  if (hers === 0 || b === d) return genMaria(rnd);
-  return choice(rnd, { type: 'maria', v, show: text, answerText: right,
-    prompt: `Maria says <b class="mono">${text}</b> is equivalent to <b class="mono">${term(hers, v)}</b>. What error did she most likely make?` }, [
-    ok(`She combined the plain numbers with the ${v}-terms`),
-    no('She forgot that −' + a + v + ' is negative', 'not_the_error', `If she had only lost that sign she would have ${a + c}${v} and some number left over. Add ALL four numbers: ${fmt(-a)} + ${b} + ${c} − ${d} = ${hers}. She combined unlike terms. It should be ${right}.`),
-    no('She used the Distributive Property incorrectly', 'not_the_error', `There are no parentheses to distribute. ${fmt(-a)} + ${b} + ${c} − ${d} = ${hers}: she added the plain numbers to the ${v}-terms. It should be ${right}.`),
-    no('No error: she is correct', 'combine_unlike', `Test ${v} = 2: the original gives ${(c - a) * 2 + b - d}, but hers gives ${hers * 2}. Only like terms combine: ${right}.`),
-  ]);
+/** form: assoc, distNeg, dist, combine, sub (subtract a whole group), dec, frac (a decimal or fraction outside), hidden. */
+export function genBuild(rnd, form = pick(rnd, ['distNeg', 'dist', 'combine'])) {
+  const v = pick(rnd, VARS);
+  // A trap that happens to give the right answer (2 + 2 = 2 × 2) is not a trap.
+  const make = (text, m, k, more) => ({ id: nextId++, type: 'build', form, v, A: ex(text, m, k), ...more, traps: more.traps.filter((tr) => !(near(tr.m, m) && near(tr.k, k))) });
+  if (form === 'assoc') { const a = int(rnd, 2, 9), b = int(rnd, 2, 9); return make(`(${v} + ${a}) + ${b}`, 1, a + b, { prop: 'A', traps: [] }); }
+  if (form === 'distNeg') {            // −3(x − 4)
+    const a = pick(rnd, [-2, -3, -4, -5]), b = nz(rnd, -6, 6);
+    return make(paren(a, v, b), a, a * b, { prop: 'D', traps: [
+      { m: a, k: b, key: 'first_term_only', message: `${fmt(a)} multiplies BOTH terms inside, not only the ${v}.` },
+      { m: a, k: -a * b, key: 'sign_error', message: `Check the sign of the number part: what is ${fmt(a)} × ${fmt(b)}?` },
+      { m: -a, k: a * b, key: 'sign_error', message: `Check the sign of the ${v}-part: the ${fmt(a)} outside is negative.` }] });
+  }
+  if (form === 'dist') {               // 4(2x − 3)
+    const a = int(rnd, 2, 5), c = int(rnd, 2, 3), b = nz(rnd, -6, 6);
+    return make(`${a}(${sum([c, v], [b, ''])})`, a * c, a * b, { prop: 'D', traps: [
+      { m: a * c, k: b, key: 'first_term_only', message: `${a} multiplies BOTH terms inside, not only the ${c}${v}.` },
+      { m: c, k: a * b, key: 'first_term_only', message: `${a} multiplies the ${c}${v} as well.` },
+      { m: a + c, k: a * b, key: 'times_not_plus', message: `${a} TIMES ${c}${v}, not ${a} plus ${c}.` }] });
+  }
+  if (form === 'combine') {            // −5x + 8 + 3x − 2
+    const a = pick(rnd, [-7, -6, -5, -4, 4, 5]), c = int(rnd, 2, 3), b = int(rnd, 4, 9), d = int(rnd, 1, 6);
+    return make(sum([a, v], [b, ''], [c, v], [-d, '']), a + c, b - d, { prop: 'L', traps: [
+      { m: Math.abs(a) + c, k: b - d, key: 'lost_negative', message: `Keep the sign with its term: ${fmt(a)}${v} + ${c}${v}.` },
+      { m: a + c, k: b + d, key: 'lost_negative', message: `The ${d} is SUBTRACTED: ${b} − ${d}.` },
+      { m: a + c + b - d, k: 0, key: 'combine_unlike', message: `Plain numbers cannot be combined with ${v}-terms.` }].filter((tr) => a < 0 || tr.m !== Math.abs(a) + c || tr.k !== b - d) });
+  }
+  if (form === 'sub') {                // 7x − (2x + 5)
+    const a = int(rnd, 5, 9), c = int(rnd, 2, 4), d = nz(rnd, -6, 6);
+    return make(`${a}${v} − (${sum([c, v], [d, ''])})`, a - c, -d, { prop: 'D', traps: [
+      { m: a - c, k: d, key: 'subtract_group', message: `The minus sign is for the WHOLE group: subtracting (${sum([c, v], [d, ''])}) changes the sign of the ${fmt(d)} too.` },
+      { m: a + c, k: -d, key: 'subtract_group', message: `The ${c}${v} inside the group is subtracted.` }] });
+  }
+  if (form === 'dec') {                // 0.5(4x − 6)
+    const [a, c] = pick(rnd, [[0.5, 4], [0.5, 6], [1.5, 2], [2.5, 2], [0.25, 8]]), b = pick(rnd, [-8, -4, 4, 8]);
+    return make(`${fmt(a)}(${sum([c, v], [b, ''])})`, a * c, a * b, { prop: 'D', traps: [
+      { m: a * c, k: b, key: 'first_term_only', message: `${fmt(a)} multiplies BOTH terms inside.` },
+      { m: c, k: a * b, key: 'first_term_only', message: `${fmt(a)} multiplies the ${c}${v} as well.` }] });
+  }
+  if (form === 'frac') {               // 2/3(9x − 6)
+    const [n, d, c] = pick(rnd, [[1, 2, 6], [2, 3, 9], [3, 4, 8], [1, 3, 6], [2, 5, 10]]), b = d * nz(rnd, -3, 3);
+    return make(`${n}/${d}(${sum([c, v], [b, ''])})`, (n * c) / d, (n * b) / d, { prop: 'D', traps: [
+      { m: (n * c) / d, k: b, key: 'first_term_only', message: `${n}/${d} multiplies BOTH terms inside.` },
+      { m: c, k: (n * b) / d, key: 'first_term_only', message: `${n}/${d} multiplies the ${c}${v} as well.` }] });
+  }
+  const m = nz(rnd, -4, 5), k = nz(rnd, -8, 9);      // hidden: only its planks can be seen
+  return make('? ? ?', m, k, { hidden: true, tests: 3, prop: null, traps: [] });
 }
-/** Prove a pair is equivalent with a test value: both sides give the same number. */
-export function genProve(rnd) {
-  const v = pick(rnd, VARS), a = pick(rnd, [-2, -3, -4]), b = int(rnd, 2, 7), x0 = pick(rnd, [-2, 3, 4]);
-  const A = ex(paren(a, v, b), a, a * b), B = ex(sum([a, v], [a * b, '']), a, a * b);
-  const answer = valueOf(A, x0);
-  return { id: nextId++, kind: 'num', type: 'prove', v, A, B, x0, answer, label: 'both bridges',
-    prompt: `Prove the twins match: when <b class="mono">${v} = ${fmt(x0)}</b>, what do <b class="mono">${A.text}</b> and <b class="mono">${B.text}</b> BOTH equal?`,
-    traps: [
-      { v: r2(a * x0 + b), key: 'first_term_only', message: `${fmt(a)} multiplies the whole (${fmt(x0)} + ${b}) = ${fmt(x0 + b)}: ${fmt(a)} × ${fmt(x0 + b)} = ${fmt(answer)}.` },
-      { v: -answer, key: 'sign_error', message: `Check the sign: ${fmt(a)} × ${fmt(x0 + b)} = ${fmt(answer)}.` },
-      { v: r2(Math.abs(a) * x0 + Math.abs(a * b)), key: 'sign_error', message: `Keep the negatives: ${fmt(a)}(${fmt(x0)}) + (${fmt(a * b)}) = ${fmt(a * x0)} + (${fmt(a * b)}) = ${fmt(answer)}.` },
-    ].filter((t, i, all) => !near(t.v, answer) && !all.slice(0, i).some((u) => near(u.v, t.v))) };
+/** The twin the student built:  m·x + k. */
+export function checkBuild(p, m, k) {
+  const A = p.A, mine = ex(plain(m, k, p.v), m, k), base = { mine, agree: agreeAt(A, mine) };
+  if (same(A, mine)) return { ok: true, key: 'correct', ...base, property: p.prop ? PROPS[p.prop] : null, message: `${p.hidden ? 'The hidden bridge is' : `${A.text} =`} ${mine.text}: twins at every post.` };
+  const no = (key, message) => ({ ok: false, key, ...base, message });
+  const trap = p.traps.find((t) => near(t.m, m) && near(t.k, k));
+  if (trap) return no(trap.key, trap.message);
+  if (near(m, A.m)) return no('number_part', `Your bridge runs beside the other one and never meets it, always ${fmt(Math.abs(k - A.k))} ${k > A.k ? 'too high' : 'too low'}. The ${p.v}-part is right: check the number part.`);
+  if (near(k, A.k)) return no('x_part', `Your bridge meets the other one only at ${p.v} = 0. The number part is right: check the ${p.v}-part.`);
+  return no('off', p.hidden ? `Look at the plank at ${p.v} = 0: that is the number part. Then see how much the planks rise from one post to the next.` : 'Your bridge splits from the other one. Work out the number part and the part with the letter one at a time.');
 }
+export const buildAnswer = (p) => `${p.hidden ? 'The hidden bridge was' : `${p.A.text} =`} ${plain(p.A.m, p.A.k, p.v)}.`;
 
 /* ================================================================== */
-/* Zones, backups and the simple checks                                */
+/* Chain: a worked simplification with one wrong step                  */
+/* ================================================================== */
+/** lines[0] is the start; each line should be a twin of the one before. bad: the first line that is not. */
+export function genChain(rnd, slip = pick(rnd, ['distribute', 'reorder', 'combine'])) {
+  const v = pick(rnd, VARS), a = pick(rnd, [-2, -3, 2, 3, 4]), b = nz(rnd, -5, 5), c = int(rnd, 2, 5), d = int(rnd, 1, 6);
+  const right = { m: a + c, k: a * b - d };
+  const line = (text, m, k) => ex(text, m, k);
+  const L0 = line(`${paren(a, v, b)} + ${c}${v} − ${d}`, right.m, right.k);
+  let kb = a * b, mc = c, kd = -d, key, why;             // the pieces as the (possibly wrong) work carries them
+  if (slip === 'distribute') { kb = b; key = 'first_term_only'; why = `${fmt(a)} multiplies BOTH terms: ${fmt(a)} × ${fmt(b)} = ${fmt(a * b)}, not ${fmt(b)}.`; }
+  const L1 = line(sum([a, v], [kb, ''], [mc, v], [kd, '']), a + mc, kb + kd);
+  if (slip === 'reorder') { kd = d; key = 'lost_negative'; why = `The ${d} was subtracted. Its minus sign has to travel with it when the terms are reordered.`; }
+  const L2 = line(sum([a, v], [mc, v], [kb, ''], [kd, '']), a + mc, kb + kd);
+  let L3 = line(plain(a + mc, kb + kd, v), a + mc, kb + kd);
+  if (slip === 'combine') { L3 = line(term(a + mc + kb + kd, v), a + mc + kb + kd, 0); key = 'combine_unlike'; why = `Plain numbers cannot be combined with ${v}-terms: ${fmt(a)}${v} + ${c}${v} is ${fmt(a + c)}${v}, and ${fmt(a * b)} − ${d} is ${fmt(a * b - d)}.`; }
+  const lines = [L0, L1, L2, L3], bad = lines.findIndex((l, i) => i > 0 && !same(l, lines[i - 1]));
+  if (bad < 0 || near(right.m, 0) || lines.some((l) => l.text.length > 22) || same(lines[3], L0)) return genChain(rnd, slip);
+  return { id: nextId++, type: 'chain', v, lines, bad, slip, key, why, A: L0, walks: 3, traps: [{ m: lines[3].m, k: lines[3].k, key, message: `That is the same as the wrong last line. ${why}` }], prop: 'L' };
+}
+/** What each line of the chain gives at a post, and the first line where the value changes (-1: it never does there). */
+export function walkChain(p, x) {
+  const values = p.lines.map((l) => valueOf(l, x)), falls = values.findIndex((val, i) => i > 0 && !near(val, values[i - 1]));
+  return { values, falls };
+}
+/** The student tapped the step into line i as the wrong one. */
+export function checkSpan(p, i) {
+  if (i === p.bad) return { ok: true, key: 'correct', message: `That is the wrong step. ${p.why} Now build the right last line.` };
+  return { ok: false, key: 'wrong_span', message: 'That step is fine: the two lines it joins are twins. Walk a post and watch where the number changes.' };
+}
+export const chainAnswer = (p) => `The wrong step is the one into line ${p.bad + 1}. ${p.why}`;
+
+/* ================================================================== */
+/* Zones                                                               */
 /* ================================================================== */
 export const ZONES = [
-  { name: 'Test the Bridges', blurb: 'Same value for every input?' },
-  { name: 'Name the Property', blurb: 'Commutative, Associative, Distributive' },
-  { name: 'Build the Twin', blurb: 'Fill the boxes, mind the signs' },
-  { name: 'Find Every Twin', blurb: 'Select all that are equivalent' },
-  { name: 'The Flood Crossing', blurb: 'Boss: find the error and prove it' },
+  { name: 'Test the Bridges', blurb: 'Choose posts to test, then call it: twins or not?' },
+  { name: 'Rafts on the River', blurb: 'Hook every twin as it floats past' },
+  { name: 'Build the Twin', blurb: 'Set the dials, then send the hiker' },
+  { name: 'The Broken Span', blurb: 'One step is wrong: find it and fix it' },
+  { name: 'The Flood Crossing', blurb: 'Boss: decimals, fractions, groups and a hidden bridge' },
 ];
+/** The rounds of a zone, in order. */
 export function genZone(rnd, zone) {
-  if (zone === 0) return [genTest(rnd, { eq: true }), genTest(rnd, { eq: false }), ...shuffle(rnd, [genTest(rnd, { eq: false }), genTest(rnd, { eq: true })]), genLucky(rnd)];
-  if (zone === 1) return shuffle(rnd, [genProperty(rnd, 'C'), genProperty(rnd, 'A'), genProperty(rnd, 'D'), genProperty(rnd, 'C'), genProperty(rnd, 'D')]);
-  if (zone === 2) return [genBuild(rnd, 'assoc'), genBuild(rnd, 'distNeg'), genBuild(rnd, 'factor'), genBuild(rnd, 'combine'), genBuild(rnd, 'distNeg')];
-  if (zone === 3) return [genSelect(rnd, 'dist'), genSelect(rnd, 'collect'), genSelect(rnd, 'dist'), genSelect(rnd, 'collect'), genSelect(rnd, 'dist')];
-  return [genMaria(rnd), genBuild(rnd, 'frac'), genSelect(rnd, 'collect'), genBuild(rnd, 'distNeg'), genProve(rnd)];
-}
-export function genBackup(rnd, p) {
-  if (p.type === 'test') return genTest(rnd, { eq: p.eq });
-  if (p.type === 'lucky') return genLucky(rnd);
-  if (p.type === 'property') return genProperty(rnd, p.which);
-  if (p.type === 'build') return genBuild(rnd, p.form);
-  if (p.type === 'select') return genSelect(rnd, p.form);
-  if (p.type === 'maria') return genMaria(rnd);
-  return genProve(rnd);
-}
-/** Test the bridges: the two typed values and the decision (true = "equivalent"). */
-export function checkTest(p, rawA, rawB, saysEq) {
-  const a = parseNumber(rawA), b = parseNumber(rawB);
-  if (a === null || b === null) return { correct: false, nudge: true, key: 'incomplete', message: 'Type what each bridge equals first.' };
-  if (!near(a, p.va)) return { correct: false, key: 'evaluation_slip', side: 'A', message: `Check bridge 1: ${p.A.text} with ${p.v} = ${fmt(p.x0)} is ${fmt(p.va)}.` };
-  if (!near(b, p.vb)) return { correct: false, key: 'evaluation_slip', side: 'B', message: `Check bridge 2: ${p.B.text} with ${p.v} = ${fmt(p.x0)} is ${fmt(p.vb)}.` };
-  if (saysEq === p.eq) return { correct: true, key: 'correct', message: p.eq ? `Both give ${fmt(p.va)}, and they always will. ${p.why}` : `${fmt(p.va)} is not ${fmt(p.vb)}: one different value proves they are NOT equivalent. ${p.why}` };
-  if (p.eq) return { correct: false, key: 'same_values', message: `Both bridges gave ${fmt(p.va)}. ${p.why} They are equivalent.` };
-  return { correct: false, key: p.slipKey, message: `The bridges gave ${fmt(p.va)} and ${fmt(p.vb)}. Different values mean NOT equivalent. ${p.why}` };
-}
-export function checkChoice(p, i) {
-  const o = p.options[i];
-  if (o.ok) return { correct: true, key: 'correct', message: p.type === 'property' ? `Yes: ${PROP_TIP[p.which]}` : p.type === 'maria' ? `Right. Only like terms combine: ${p.answerText}.` : 'Right! One matching value is not proof; one DIFFERENT value is.' };
-  return { correct: false, key: o.key, message: o.message };
-}
-export function checkNum(p, raw) {
-  const v = parseNumber(raw);
-  if (v === null) return { correct: false, nudge: true, key: 'incomplete', message: 'Type a number (it can be negative).' };
-  if (near(v, p.answer)) return { correct: true, key: 'correct', message: `Both bridges give ${fmt(p.answer)}. The twins hold!` };
-  const trap = p.traps.find((t) => near(v, t.v));
-  if (trap) return { correct: false, key: trap.key, message: trap.message };
-  return { correct: false, key: 'evaluation_slip', message: `Substitute ${fmt(p.x0)} for ${p.v} in either expression, then follow the order of operations.` };
-}
-
-/* ================================================================== */
-/* Worked solutions (after two misses)                                 */
-/* ================================================================== */
-export function workedSolution(p) {
-  if (p.type === 'test') return [`${p.A.text} with ${p.v} = ${fmt(p.x0)}: ${fmt(p.va)}`, `${p.B.text} with ${p.v} = ${fmt(p.x0)}: ${fmt(p.vb)}`, p.why, `Answer: ${p.answerText}.`];
-  if (p.type === 'lucky') return [`${p.v} = 0 gives ${p.va} on both.`, `${p.v} = 1 gives ${valueOf(p.A, 1)} and ${valueOf(p.B, 1)}.`, 'One different value proves they are NOT equivalent.'];
-  if (p.type === 'property') return [`${p.from}  →  ${p.to}`, PROP_TIP[p.which]];
-  if (p.type === 'build') return [p.show, p.form === 'distNeg' ? `${fmt(p.a)} × ${fmt(p.b)} = ${fmt(p.want.k)} and ${fmt(p.a)} × ${fmt(p.c)}${p.v} = ${fmt(p.want.m)}${p.v}` : p.form === 'factor' ? `Both terms divide by ${p.a}: ${p.a * p.b} ÷ ${p.a} = ${p.b}` : p.form === 'assoc' ? `Regroup: ${p.a} + ${p.b} = ${p.want.s}` : 'Put like terms together, then combine them.', `= ${p.answerText}`];
-  if (p.type === 'select') return [`${p.target.text} simplifies to ${sum([p.target.m, p.v], [p.target.k, ''])}.`, `The twins: ${p.answerText}.`, 'The others change a sign, skip a term, or combine unlike terms.'];
-  if (p.type === 'maria') return [`${p.v}-terms and plain numbers are not like terms.`, `Combine them separately: ${p.answerText}.`];
-  return [`${p.A.text} with ${p.v} = ${fmt(p.x0)}: ${fmt(p.answer)}`, `${p.B.text} with ${p.v} = ${fmt(p.x0)}: ${fmt(p.answer)}`];
+  if (zone === 0) return [genTest(rnd, { eq: true }), genTest(rnd, { eq: false }), genTest(rnd, { lucky: true }), ...shuffle(rnd, [genTest(rnd, { eq: true }), genTest(rnd, { lucky: true }), genTest(rnd, { eq: false })])];
+  if (zone === 1) return shuffle(rnd, ['dist', 'collect', 'assoc']).map((f) => genRaft(rnd, f));
+  if (zone === 2) return [genBuild(rnd, 'assoc'), genBuild(rnd, 'dist'), genBuild(rnd, 'distNeg'), genBuild(rnd, 'combine'), genBuild(rnd, 'distNeg'), genBuild(rnd, 'combine')];
+  if (zone === 3) return shuffle(rnd, ['distribute', 'reorder', 'combine']).map((s) => genChain(rnd, s));
+  return [genBuild(rnd, 'sub'), genBuild(rnd, pick(rnd, ['dec', 'frac'])), genBuild(rnd, 'hidden'), genChain(rnd), genBuild(rnd, 'sub')];
 }

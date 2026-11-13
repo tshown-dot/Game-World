@@ -15,7 +15,7 @@ export const STAGES = [
   }),
   stage(2, 'Twin Bridges', 'Generate Equivalent Expressions', { x: 330, y: 500 }, {
     built: true, building: 'twin_bridges', url: './games/4-2-twin-bridges/index.html',
-    description: 'Two bridges, two expressions. They only hold if the expressions are equivalent. Send test values across, name the property, build a twin with the right signs, and find every twin before the river floods.',
+    description: 'Every expression is a bridge across the river. Test posts to see if two bridges are twins, hook the twin rafts, build a twin on the dials and watch a hiker try to cross, then find the one wrong step in a broken span.',
   }),
   stage(3, 'Log Flume', 'Simplify Expressions', { x: 520, y: 600 }, {
     built: true, building: 'log_flume', url: './games/4-3-log-flume/index.html',

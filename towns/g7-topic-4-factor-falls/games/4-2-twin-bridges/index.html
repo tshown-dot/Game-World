@@ -10,12 +10,12 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
     <div class="hud-title">
-      <div class="px hud-lesson">GRADE 7 · LESSON 4-2</div>
+      <div class="px hud-lesson">GRADE 7 · 4-2</div>
       <div class="px hud-name">TWIN BRIDGES</div>
     </div>
     <div class="hud-zone">
@@ -23,8 +23,8 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, the river floods">
-      <div class="px hud-label">RIVER</div>
+    <div class="hud-meter" id="meterBox" title="Every mistake raises the river. When this fills, a rope snaps">
+      <div class="px hud-label">FLOOD</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
     <div class="hud-crates">
@@ -42,21 +42,31 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The river and the two bridges"></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play">
+      <div id="exprs" class="exprs"></div>
+      <svg id="river" class="river" viewBox="0 0 1000 300" role="img" aria-label="The river, its posts and the bridges"></svg>
+      <div id="stamp" class="stamp-eq px"></div>
+      <div id="work" class="work"></div>
+      <div id="bline" class="bline"></div>
+    </div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">THE FLOOD CROSSING</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <div id="tip" class="tip"></div>
+      <button type="button" id="goBtn" class="cbtn go px hidden"></button>
+      <button type="button" id="passBtn" class="cbtn px hidden">LET IT GO (→)</button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -70,33 +80,41 @@
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. TWINS</div>
-          <p>Each bridge carries an expression. The bridges only hold if the two are <b>equivalent</b>: the same value for <b>every</b> input.</p>
-          <p class="mono">3(x − 5) &nbsp;and&nbsp; 3x − 15</p></div>
-        <div class="brief-col"><div class="px col-h">2. TEST AND BUILD</div>
-          <p>Send a <b>test value</b> across both: one different result proves they are NOT twins. To build a twin, use the <b>Commutative, Associative and Distributive</b> Properties.</p></div>
+        <div class="brief-col"><div class="px col-h">1. BRIDGES AND POSTS</div>
+          <p>Each expression is a bridge. Each <b>post</b> is a value of the letter, and the bridge's plank sits at the height the expression gives there.</p></div>
+        <div class="brief-col"><div class="px col-h">2. TWINS MATCH EVERYWHERE</div>
+          <p>Two expressions are <b>equivalent</b> when their bridges match at <b>every</b> post, not just one. A hiker crossing on both falls at the first post where they split.</p>
+          <p class="mono">2(x + 3) and 2x + 6</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>The <b>RIVER</b> rises while you think, and mistakes raise it faster. Lose all <b>3 ropes</b> and the bridges wash out. Make the Flood Crossing to win!</p></div>
+          <p>Every mistake raises the <b>FLOOD</b>. When it fills, a rope snaps. Lose all <b>3 ropes</b> and the bridges wash out. Make the Flood Crossing to win!</p></div>
       </div>
-      <div class="brief-keys">Type numbers (negatives are fine) · <kbd>Y</kbd> / <kbd>N</kbd> equivalent or not · <kbd>1</kbd>–<kbd>6</kbd> answers and cards · <kbd>Tab</kbd> next box · <kbd>Enter</kbd> check</div>
+      <div class="brief-keys"><kbd>1</kbd>-<kbd>8</kbd> or tap a post to test it · <kbd>T</kbd> twins <kbd>N</kbd> not · <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> the dials · <kbd>Enter</kbd> go · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
-        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🌉 CROSS THE RIVER (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no rising river</small></button>
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🌉 START CROSSING (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no flood · rafts wait</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">BRIDGE TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">
       <div class="px big-title">WASHED OUT!</div>
-      <p id="failText">All three ropes snapped.</p>
+      <p id="failText">All 3 ropes snapped.</p>
       <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
     </div>
   </div>

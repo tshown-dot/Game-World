@@ -77,7 +77,7 @@ docs/lessons.md                    lesson lists from the textbook database
   `{ won, good, bad, lives, practiceMode }` to the page that opened it, instead of showing a report. The fort adds the counts
   up (`tally`), a weapon that breaks costs one of the fort's 3 hearts, and the fort itself runs on the same shell.
   Any future town boss can be built the same way. Proposed order for reworking the
-  remaining games: Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3 (and the Topic 3 Boss Castle could become a gauntlet too).
+  remaining games: Grade 7: 4-5, 4-4, 4-1, 4-3 (and the Topic 3 Boss Castle could become a gauntlet too).
   Rework one game at a time, each with a plan the owner approves.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the
@@ -103,8 +103,13 @@ docs/lessons.md                    lesson lists from the textbook database
 - Factor Falls (`towns/g7-topic-4-factor-falls/`, Grade 7 Topic 4, id `g7_topic_4`) is the first Grade 7 town: 8 lessons
   plus the Thunder Falls boss, on the shared town engine. Built so far: 4-1 Ranger Station (`games/4-1-ranger-station/`,
   build `start ± rate·v` by dragging number chips, then evaluate with decimals and negatives) and 4-2 Twin Bridges
-  (`games/4-2-twin-bridges/`: test two expressions with a value, name the property, fill boxes to build a twin, select
-  every twin; expressions are stored as text plus what they equal, `m·x + k`) and 4-3 Log Flume (`games/4-3-log-flume/`:
+  (`games/4-2-twin-bridges/`, rebuilt as an action game on `arcadeShell.js`, `bridges.js`: an expression is a bridge, a
+  post is a value of the letter (-3 to 4) and a plank sits at the height the expression gives there; the student picks
+  posts to test and calls TWINS or NOT (`genTest` / `checkTest`, with pairs that agree at one lucky post), hooks twin
+  rafts (`genRaft` / `checkRaft`), builds a twin on two dials and a hiker walks both bridges (`genBuild` / `checkBuild`),
+  finds the wrong step in a worked chain by walking a post (`genChain` / `walkChain` / `checkSpan`) and builds the twin
+  of a hidden bridge from the posts they choose to look at; expressions are stored as text plus what they equal,
+  `m·x + k`, one letter only) and 4-3 Log Flume (`games/4-3-log-flume/`:
   each term is a log `{ c, v }`; sort logs into channels of like terms, then type each channel's total) and 4-4 Spray Deck
   (`games/4-4-spray-deck/`: an area model, `a(inside) + tail`; type each section's area, then simplify) and 4-5 Factor Mill
   (`games/4-5-factor-mill/`: the deck run backward; pick the wheel = GCF, then type each term divided by it). The other building names
