@@ -22,7 +22,7 @@ export const STAGES = [
   }),
   stage(4, 'Gear Shift', 'Write and Solve Multiplication and Division Equations', { x: 780, y: 600 }, {
     built: true, building: 'gear_shift', url: './games/4-4-gear-shift/index.html',
-    description: 'The canyon mine train runs on a gearbox. A hidden drive wheel turns, a gear multiplies or divides its speed, and the output spins. Write the gearbox as an equation, shift to the opposite gear, and work out the hidden speed. Then free the Stuck Gearbox.',
+    description: 'A gear rolls along a toothed track in equal turns, and it has to stop exactly on the flag. Choose the teeth per turn, the number of turns, or where the flag goes, write the equation for a story, and free the Stuck Gearbox.',
   }),
   stage(5, 'Food Truck', 'Write and Solve Equations with Rational Numbers', { x: 990, y: 555 }, {
     built: true, building: 'food_truck', url: './games/4-5-food-truck/index.html',

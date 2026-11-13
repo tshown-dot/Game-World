@@ -7,10 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@700;800;900&display=swap">
   <link rel="stylesheet" href="../../../../shared/game/game.css">
+  <link rel="stylesheet" href="../../../../shared/game/track.css">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -23,7 +24,7 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, a gear breaks">
+    <div class="hud-meter" id="meterBox" title="Every mistake strains the gearbox. When this fills, a spare gear breaks">
       <div class="px hud-label">STRAIN</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
@@ -42,21 +43,32 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The gearbox"></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play">
+      <div id="eqBox" class="eqbox"><div id="story" class="eq-story"></div><div id="eq" class="eq"></div><div id="slots" class="slots hidden"></div><div id="eqLine" class="eq-line"></div></div>
+      <div id="gearDial" class="geardial hidden">
+        <span id="dialLab" class="lab"></span>
+        <button type="button" id="dialDown" title="Fewer (left arrow)">◀</button><span id="dialVal" class="val"></span><button type="button" id="dialUp" title="More (right arrow)">▶</button>
+      </div>
+      <div id="tiles" class="tiles hidden"></div>
+      <div id="track"></div>
+    </div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">THE STUCK GEARBOX</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <div id="tip" class="tip"></div>
+      <button type="button" id="goBtn" class="cbtn go px hidden"></button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -70,29 +82,36 @@
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. THE GEARBOX</div>
-          <p>A hidden drive wheel turns, a gear <b>multiplies or divides</b> its speed, and the output wheel spins. The <b>equation</b> is the gearbox.</p>
-          <p class="mono">4n = 52</p></div>
-        <div class="brief-col"><div class="px col-h">2. SHIFT GEARS</div>
-          <p>Build the <b>opposite</b> gear and drag it in. × undoes ÷, and ÷ undoes ×. With big numbers, you work out the answer.</p>
-          <p class="mono">52 <b>÷ 4</b> = 13<br>check: 4 × 13 = 52 ✓</p></div>
+        <div class="brief-col"><div class="px col-h">1. THE GEAR AND THE FLAG</div>
+          <p>A gear rolls along the toothed track. Every <b>turn</b> moves it the same number of <b>teeth</b>, and it has to stop exactly on the <b>flag</b>.</p>
+          <p class="mono">4x = 36 : 4 turns of x teeth</p></div>
+        <div class="brief-col"><div class="px col-h">2. SET IT, THEN ROLL</div>
+          <p>The letter is the part <b>you</b> set: the <b>teeth per turn</b>, the number of <b>turns</b>, or where the <b>flag</b> goes. Then roll the gear and watch it count.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p><b>STRAIN</b> builds while you work, and wrong gears add more. When it fills, a spare gear breaks. Lose all <b>3</b> and the run ends. Free the Stuck Gearbox to win!</p></div>
+          <p>Stop short or roll past, and the <b>STRAIN</b> rises. When it fills, a spare gear breaks. Lose all <b>3 spare gears</b> and the gearbox jams. Free the Stuck Gearbox to win!</p></div>
       </div>
-      <div class="brief-keys">Drag tiles and gears (or tap them) · <kbd>*</kbd> × · <kbd>/</kbd> ÷ · <kbd>0</kbd>–<kbd>9</kbd> amount · <kbd>Enter</kbd> build / drop / check · <kbd>1</kbd>–<kbd>4</kbd> pick · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>←</kbd> <kbd>→</kbd> turn the dial or move the flag (<kbd>Shift</kbd> jumps) · or drag the flag · <kbd>Enter</kbd> roll · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
-        <button type="button" id="startBtn" class="btn btn-go"><span class="px">⚙️ START MISSION (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no broken gears</small></button>
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">⚙️ START THE GEARBOX (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no fuse · no strain</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">GEARBOX TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">

@@ -1,497 +1,329 @@
-// Gear Shift (Lesson 4-4): the gearbox screen and controls. The math lives in gears.js;
-// zones, timer, lives, scoring and the report come from the shared game shell (shared/game/gameShell.js).
+// Gear Shift (Lesson 4-4: Write and Solve Multiplication and Division Equations): the screen and the controls.
+// The math is in gears.js. The number-line track is shared/game/track.js (also used by 4-3 Undo Machine). The shared
+// parts of an action game (briefing, top bar, spare gears, hint card, report) are in shared/game/arcadeShell.js.
 //
-// Each problem moves through steps (G.phase):
-//   writeX / writeD   build a × equation, then a ÷ equation, from the story with tiles   (Two Ways)
-//   write             build one equation from the story                                  (boss: half off)
-//   combine           ½ × base first                                                     (boss: triangle)
-//   gear              build the opposite gear and drop it in the gearbox
-//   calc              work out the answer yourself (big numbers and the boss)
-//   pick              choose an equation or a property                                   (Right Gear)
-import {
-  ZONES, SIGN, fmt, parseNumber, apply, exprText, eqText, runForward, afterStep, checkLine, tilesText,
-  genZone, genBackup, checkWritten, checkGear, checkCalc, checkHalf, checkPick, workedSolution,
-} from './gears.js';
-import { hubAudio } from '../../../../shared/audio.js';
-import { createGame } from '../../../../shared/game/gameShell.js';
-import { dragOrTap, inside } from '../../../../shared/game/drag.js';
+// A zone is a list of ROUNDS:
+//   trip   an equation is one trip of the gear: turns × teeth per turn = flag. The student sets the missing part
+//          (a dial, or the flag itself), rolls the gear, and watches it count its turns. A mystery trip gives a
+//          free test turn first.
+//   build  write the equation for a story from tiles; the next round rolls it
+// All timing goes through update(), so the action stops cleanly whenever a banner, hint, help screen or mistake
+// message is showing.
+import { createArcade } from '../../../../shared/game/arcadeShell.js';
+import { createTrack } from '../../../../shared/game/track.js';
+import { ZONES, DIAL, genZone, eqText, tripOf, landOf, checkTrip, checkBuild } from './gears.js';
 
-const SKILL_TIPS = {
-  did_not_undo: 'Shift to the OPPOSITE gear: undo × with ÷, and ÷ with ×.',
-  add_sub_with_coefficient: '4n means 4 TIMES n. Undo times with divide.',
-  used_total: 'Shift by the gear in the box, not by the output number.',
-  wrong_amount: 'Undo exactly the gear in the box, the same number.',
-  wrong_op: 'Match the gear: × undoes ÷, ÷ undoes ×, − undoes +.',
-  twostep_order: 'In a two-step equation, undo the + or − first, then the × or ÷.',
-  multiplied_instead: 'Read the gear: ÷ means divide.',
-  divided_instead: 'Read the gear: × means multiply.',
-  flipped_division: 'In division, the bigger total comes first: 52 ÷ 4, not 4 ÷ 52.',
-  place_value: 'Estimate first, so the answer has the right number of digits.',
-  arith: 'Check your multiplying and dividing with the opposite operation.',
-  wrong_relationship: 'The letter is how many in EACH group. Groups × each = total.',
-  multiplied_both: 'Multiplying the two story numbers makes something far too big.',
-  check_fails: 'Say the story in words, then write it as an equation.',
-  half_trap: 'Half of t is t ÷ 2, not t × 2.',
-  combine_error: '½ × 8 means half of 8.',
-  wrong_property: 'Undo × with the Division Property, and ÷ with the Multiplication Property.',
-};
-
-const shell = createGame({
-  zones: ZONES, makeZone: genZone, makeBackup: genBackup, workedSolution, showProblem,
-  seconds: [40, 70, 60, 35, 80],                       // strain: seconds until a spare gear breaks, per zone
-  meterFloor: 8, wrongBump: 30, rightRelief: 30, pauseOnBanner: true,
-  lifeLostText: (left) => (left > 0 ? 'A GEAR BROKE!' : 'LAST SPARE GEAR GONE!'),
-  onLifeLost: () => { const s = $('sparks'); if (s) s.classList.remove('hidden'); },
-  bossHitText: 'UNSTUCK!', winDelay: (p) => (p.type === 'pick' ? 1200 : 1600),
-  skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. Smooth shifting!',
-  lettersAreInput: () => G.phase && G.phase.startsWith('write'), onKey, testName: '__gears',
-});
-const { G, UI, $, win, miss, showFeedback } = shell;
-Object.assign(G, { phase: null, work: null, rail: [], used: [], typed: '', written: [], pending: null, sel: { op: null, amount: '', armed: false } });
-
-/* ================================================================== */
-/* Drawing the gearbox                                                 */
-/* ================================================================== */
-const K = '#1d1433';
-const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
+const BOSS = ZONES.length - 1;
+const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const track = createTrack($('track'));
 
-/** A gear: teeth around a circle. */
-function gear(cx, cy, r, teeth, fill, cls = '') {
-  const pts = [];
-  for (let i = 0; i < teeth * 2; i++) {
-    const a = (Math.PI * i) / teeth;
-    const rr = i % 2 ? r : r + 9;
-    pts.push(`${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`);
-  }
-  return `<g class="${cls}"><polygon points="${pts.join(' ')}" fill="${fill}" ${O}/><circle cx="${cx}" cy="${cy}" r="${r * 0.32}" fill="#ffd23f" ${O}/></g>`;
-}
-function backdrop() {
-  return `
-    <path d="M0 210 L80 175 L150 195 L220 165 L250 190 L250 520 L0 520 Z" fill="#d98a52" ${O}/>
-    <path d="M800 200 L720 170 L660 190 L600 165 L550 195 L550 520 L800 520 Z" fill="#d98a52" ${O}/>
-    <rect x="0" y="420" width="800" height="100" fill="#a9512b"/><path d="M0 420 H800" stroke="${K}" stroke-width="3"/>
-    <path d="M30 470 H770" stroke="#6b4425" stroke-width="10"/><path d="M30 470 H770" stroke="${K}" stroke-width="2" stroke-dasharray="4 26"/>`;
-}
-/** A wheel with a label in the middle (the drive wheel on the left, the output on the right). */
-function wheel(cx, text, { color = '#c4935a', textColor = K, spin = '', label = '', pop = false } = {}) {
-  const t = String(text);
-  return `<g>${gear(cx, 300, 62, 14, color, spin ? `turn ${spin}` : '')}
-    <circle cx="${cx}" cy="300" r="44" fill="#fff4d6" ${O}/>
-    <text class="${pop ? 'pop-in' : ''}" x="${cx}" y="${310 + (t.length > 5 ? -2 : 0)}" text-anchor="middle" font-size="${t.length > 5 ? 20 : t.length > 3 ? 26 : 32}" font-weight="900" fill="${textColor}" font-family="ui-monospace, monospace">${esc(t)}</text>
-    ${label ? `<text x="${cx}" y="215" text-anchor="middle" font-size="14" font-weight="900" fill="${K}" font-family="ui-monospace, monospace">${esc(label)}</text>` : ''}</g>`;
-}
-/**
- * The gearbox scene.
- *   label   the sign on the box ("4n", "t ÷ 3", "? ? ?")
- *   inText / outText  the drive wheel and the output wheel; inColor/outColor; inLabel/outLabel above them
- *   slot    a gear token sitting on top ("÷ 4"), or null
- *   spin    'fwd' | 'back' | null      ratio  how much faster the output turns (for the look only)
- */
-function drawGearbox({ label, inText, outText, inColor = '#3a8ef0', inTextColor = '#fff', outColor = '#c4935a', inLabel = 'DRIVE', outLabel = 'OUTPUT',
-  slot = null, spin = null, ratio = 'up', pop = '', signColor = '#fff4d6' }) {
-  const L = String(label);
-  const fs = L.length > 16 ? 22 : L.length > 10 ? 28 : 34;
-  const sp = (fast) => (spin ? `${fast ? 'fast' : 'slow'} ${spin === 'back' ? 'back' : ''}` : 'idle');
-  const fastOut = ratio === 'up';
-  UI.scene.innerHTML = `${backdrop()}
-    ${wheel(110, inText, { color: inColor === '#3a8ef0' ? '#7b8bb0' : inColor, textColor: inColor === '#3a8ef0' ? '#1f63c9' : inTextColor, spin: sp(!fastOut), label: inLabel, pop: pop === 'in' })}
-    ${wheel(690, outText, { color: outColor, spin: sp(fastOut), label: outLabel, pop: pop === 'out' })}
-    <g id="gearbox">
-      <path d="M172 300 H262 M538 300 H628" stroke="${K}" stroke-width="16"/><path d="M172 300 H262 M538 300 H628" stroke="#8b90a3" stroke-width="10"/>
-      <rect class="box-body" x="255" y="150" width="290" height="240" rx="18" fill="#8b90a3" ${O}/>
-      <path class="box-body" d="M350 104 L450 104 L430 150 L370 150 Z" fill="#ffd23f" ${O}/>
-      <text x="400" y="132" text-anchor="middle" font-size="12" font-weight="900" fill="${K}" font-family="'Press Start 2P', monospace">SHIFT</text>
-      <rect x="272" y="166" width="256" height="70" rx="10" fill="${signColor}" ${O}/>
-      <text x="400" y="${212 + (34 - fs) / 3}" text-anchor="middle" font-size="${fs}" font-weight="900" fill="${K}" font-family="ui-monospace, monospace">${esc(L)}</text>
-      ${gear(350, 315, 44, 12, '#6b6f80', `turn ${sp(!fastOut)}`)}
-      ${gear(440, 322, 26, 8, '#6b6f80', `turn ${sp(fastOut)} back`)}
-      <text x="400" y="382" text-anchor="middle" font-size="15" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${spin === 'back' ? '◀ ◀ REVERSE' : spin === 'fwd' ? 'CHECK ▶ ▶' : ''}</text>
-      ${slot ? `<g class="slot-drop">${gear(400, 80, 26, 10, '#7b8bb0')}<rect x="356" y="64" width="88" height="32" rx="8" fill="#3a8ef0" ${O}/><text x="400" y="88" text-anchor="middle" font-size="20" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${esc(slot)}</text></g>` : ''}
-    </g>
-    <g id="sparks" class="hidden"><circle class="sparks" cx="560" cy="160" r="16" fill="#ffd23f"/><circle class="sparks" cx="240" cy="170" r="12" fill="#ff7a8a" style="animation-delay:0.3s"/></g>`;
-}
-const ratioOf = (eq) => (eq.kind === 'div' ? 'down' : 'up');
-
-/** The gearbox as the current step stands, before the student acts. */
-function showState() {
-  const p = G.problem, w = G.work;
-  if (G.phase === 'pick') {
-    drawGearbox({ label: p.ask === 'property' ? eqText(p.eq) : '? = ?', inText: p.eq.letter, outText: p.ask === 'property' ? fmt(p.eq.c) : fmt(p.eq.c), ratio: ratioOf(p.eq) });
-    strip([p.ask === 'property' ? 'Which property undoes this gear?' : '<span class="small">Which equation says what the story says?</span>']);
-    return;
-  }
-  if (G.phase.startsWith('write')) {
-    drawGearbox({ label: G.rail.length ? tilesText(G.rail, p.eq.letter) : '? ? ?', inText: p.eq.letter, outText: '?', ratio: ratioOf(p.eq) });
-    strip([...G.written.map((t) => `<span class="good">${esc(t)} ✓</span>`), G.written.length ? '' : '<span class="small">Read the story. Build the equation with the tiles.</span>'].filter(Boolean));
-    return;
-  }
-  if (G.phase === 'calc') {
-    const { op, n } = G.pending;
-    drawGearbox({ label: exprText(w), inText: '?', outText: fmt(w.c), slot: `${SIGN[op]} ${fmt(n)}`, ratio: ratioOf(w), inLabel: `${w.kind === 'twostep' ? `${fmt(w.k)}${w.letter}` : w.letter} =` });
-    strip([eqText(w), `${fmt(w.c)} <span class="you">${SIGN[op]} ${fmt(n)}</span> = ?`]);
-    return;
-  }
-  drawGearbox({ label: exprText(w), inText: w.letter, outText: fmt(w.c), ratio: ratioOf(w), signColor: G.phase === 'combine' ? '#ffe3cc' : '#fff4d6' });
-  const from = w !== p.eq ? [`<span class="small">from ${eqText(p.eq)}</span>`] : [];   // second step of a two-step or the triangle
-  strip(G.phase === 'combine' ? [eqText(w), `<span class="small">½ × ${fmt(w.m)} = ?</span>`] : [...from, eqText(w)]);
-}
-function strip(lines) {
-  const el = $('eqStrip');
-  if (!el) return;
-  el.classList.remove('hidden');
-  el.innerHTML = lines.map((l) => {
-    const small = l.startsWith('<span class="small">');
-    return `<div class="eq-line ${small ? 'small' : ''}">${small ? l.replace(/^<span class="small">(.*)<\/span>$/, '$1') : l}</div>`;
-  }).join('');
-}
-
-/* ================================================================== */
-/* Problems and steps                                                  */
-/* ================================================================== */
-const TAGS = {
-  writeX: 'STEP 1 · A × EQUATION', writeD: 'STEP 2 · A ÷ EQUATION', write: 'STEP 1 · WRITE THE EQUATION', combine: 'STEP 1 · COMBINE',
-  gear: 'SHIFT GEARS', calc: 'WORK IT OUT', pick: 'PICK THE RIGHT ONE',
+// Everything about the round being played.
+const W = {
+  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, set, run, hold, build, gap
+  v: 0,                                             // the student's number: teeth per turn, turns, or where the flag is
+  testsLeft: 0, tests: [], fuseLeft: 0, shownFuse: -1,
+  anim: null, holdLeft: 0, tries: 0,
+  slots: [null, null, null], op: null,              // build: which tile is in each space, and the operation
+  gapLeft: 0, frozen: false, afterResume: null, speed: 1,
 };
-/** The shell has set G.problem, G.attempts and G.isBackup; set up this game's own steps. */
-function showProblem(p) {
-  Object.assign(G, { rail: [], used: [], typed: '', written: [], work: p.eq, pending: null });
-  const first = { twoways: 'writeX', write: 'write', half: 'combine', pick: 'pick' }[p.type] || 'gear';
-  enterPhase(first);
-}
-function enterPhase(phase) {
-  G.phase = phase;
-  G.sel = { op: null, amount: '', armed: false };
-  G.typed = '';
-  if (phase.startsWith('write')) { G.rail = []; G.used = []; }
-  UI.taskTag.textContent = `${TAGS[phase]}${G.isBackup ? ' · BACKUP' : ''}`;
-  renderPrompt();
-  renderControls();
-  showState();
-}
+let gear = null, flag = null, pole = null;
 
-function renderPrompt() {
-  const p = G.problem, w = G.work;
-  const story = p.story ? `<span class="story">${esc(p.story)}</span>` : '';
-  let html;
-  switch (G.phase) {
-    case 'writeX': html = `Write a <b>multiplication</b> equation for the story.${story}`; break;
-    case 'writeD': html = `Now write a <b>division</b> equation for the same story.${story}`; break;
-    case 'write': html = `Turn the story into an equation.${story}`; break;
-    case 'combine': html = `Stuck! Combine first: what is ½ × ${fmt(w.m)}?${story}`; break;
-    case 'calc': html = `Gear set: <b>${SIGN[G.pending.op]} ${fmt(G.pending.n)}</b>. Now work it out yourself.<span class="eq">${eqText(w)}</span>`; break;
-    case 'pick': html = p.ask === 'property' ? `Which property of equality would you use to solve this?<span class="eq">${eqText(p.eq)}</span>` : `Which equation fits the story?${story}`; break;
-    default: html = `${p.type === 'gear' && !p.calc ? 'A hidden drive wheel turns the gearbox.' : 'Shift gears.'} Build the opposite gear and drop it in to find <b>${w.letter}</b>.<span class="eq">${eqText(w)}</span>`;
+const HINTS = {
+  add_vs_times: 'A number next to a letter means MULTIPLY: equal turns, not one extra step.<span class="mono">4x = 36 : four turns of x teeth</span>Undo multiplying by dividing: 36 ÷ 4.',
+  used_the_number: 'Read the equation as a trip.<span class="mono">4x = 36 : 4 turns, x teeth each, stops at 36</span>Which number is the turns, and which is the teeth?',
+  one_turn: 'One turn is only the first step. Count every turn.<span class="mono">x ÷ 5 = 7 : five turns of 7, so x = 5 × 7</span>',
+  did_not_undo: 'Dividing is undone by multiplying.<span class="mono">x ÷ 5 = 7 : x = 7 × 5</span>',
+  forgot_start: 'The gear does not always start at 0.<span class="mono">3n + 5 = 26 : it starts at 5, so the turns cover 26 − 5 = 21</span>Then 21 ÷ 3.',
+  off: 'Check it before you roll: multiply the turns by the teeth.<span class="mono">4 × 8 = 32 : is that the flag?</span>',
+  story_order: 'Say your equation as a sentence. Does it tell the story?<span class="mono">groups × amount in each = total</span>',
+};
+const TIPS = {
+  add_vs_times: '4x means 4 times x. Solve it by dividing both sides by 4.',
+  used_the_number: 'In 4x = 36, x is the missing factor, not the 4.',
+  one_turn: 'x ÷ 5 = 7 means x is 5 groups of 7.',
+  did_not_undo: 'Solve x ÷ 5 = 7 by multiplying both sides by 5.',
+  forgot_start: 'In 3n + 5 = 26, undo the + 5 first, then divide by 3.',
+  off: 'Check a solution by multiplying back.',
+  story_order: 'Equal groups: number of groups × amount in each = total.',
+};
+
+const arcade = createArcade({
+  zones: ZONES, startZone, stopZone, onKey, hints: HINTS, skillTips: TIPS, testName: '__gears',
+  perfectText: 'Every gear on the flag: no mistakes to sharpen!',
+  lifeLostText: (left) => (left > 0 ? `A SPARE GEAR BROKE! ${left} LEFT` : 'GEARBOX JAMMED'),
+});
+const { G, hubAudio } = arcade;
+if (window.__gears) window.__gears.W = W;
+const busy = () => W.frozen || arcade.paused();
+
+/* ================================================================== */
+/* Zones and rounds                                                    */
+/* ================================================================== */
+function startZone(z) {
+  W.rounds = genZone(Math.random, z);
+  startRound(0);
+}
+function stopZone() {
+  Object.assign(W, { phase: 'idle', frozen: false, afterResume: null, anim: null });
+  $('callout').classList.add('hidden');
+}
+function startRound(i) {
+  const round = W.rounds[i];
+  Object.assign(W, { ri: i, round, tries: 0, anim: null, frozen: false, afterResume: null, slots: [null, null, null], op: null, tests: [] });
+  if (G.zone === BOSS) arcade.setBossProgress((i / W.rounds.length) * 100);
+  $('eqBox').classList.remove('ok'); showLine('');
+  if (round.type === 'build') beginBuild(); else beginTrip();
+  renderSign(true); renderCtl();
+}
+function rest(seconds) { W.phase = 'gap'; W.gapLeft = seconds; renderCtl(); }
+function endRound() { rest(0.9); }
+function nextRound() {
+  if (W.ri + 1 < W.rounds.length) return startRound(W.ri + 1);
+  W.phase = 'idle';
+  if (G.zone === BOSS) arcade.setBossProgress(100);
+  arcade.zoneCleared();
+}
+function stopFor(message, button, then) {
+  W.frozen = true; W.afterResume = then;
+  $('calloutText').textContent = message;
+  $('resumeBtn').textContent = button;
+  $('callout').classList.remove('hidden');
+}
+function resume() {
+  if (!W.frozen || arcade.paused()) return;
+  W.frozen = false;
+  $('callout').classList.add('hidden');
+  const then = W.afterResume;
+  W.afterResume = null;
+  if (then) then();
+}
+function showLine(text, off = false) { $('eqLine').textContent = text; $('eqLine').classList.toggle('off', off); }
+
+/* ================================================================== */
+/* A trip: set it up, roll, watch                                      */
+/* ================================================================== */
+/** The numbers the student may set for this round. */
+const limits = (r) => (r.unknown === 'flag' ? r.axis : DIAL[r.unknown]);
+function beginTrip() {
+  const r = W.round, mid = Math.round((r.axis.lo + r.axis.hi) / 2);
+  W.phase = 'set';
+  W.v = r.unknown === 'flag' ? (mid === r.x ? mid + 3 : mid) : 1;   // never start on the answer
+  W.testsLeft = r.tests || 0; W.fuseLeft = r.fuse; W.shownFuse = -1;
+  $('story').textContent = r.story ? W.rounds[W.ri - 1].story : '';
+  $('eq').textContent = eqText(r);
+  $('eq').classList.remove('hidden'); $('slots').classList.add('hidden'); $('tiles').classList.add('hidden');
+  $('track').classList.remove('hidden');
+  $('track').classList.toggle('drag', r.unknown === 'flag');
+  $('gearDial').classList.toggle('hidden', r.unknown === 'flag');
+  track.draw(r.axis);
+  track.layer.innerHTML = '<div class="triplab"></div><div class="flagpole"></div><div class="flagcloth"></div><div class="gear"></div><div class="tests"></div>';
+  flag = track.layer.querySelector('.flagcloth'); pole = track.layer.querySelector('.flagpole'); gear = track.layer.querySelector('.gear');
+  flag.classList.toggle('mine', r.unknown === 'flag');
+  drawTrip();
+}
+function tripText(r) {
+  const L = r.letter;
+  if (r.kind === 'gear') return `${r.k} turns  ×  ${L} teeth each`;
+  if (r.kind === 'flag') return `${r.k} turns  ×  ${r.c} teeth each`;
+  if (r.kind === 'turns') return `${L} turns  ×  ${r.s} teeth each`;
+  if (r.kind === 'offset') return `starts at ${r.b}, then ${r.k} turns  ×  ${L} teeth each`;
+  return W.testsLeft > 0 ? 'a hidden gear: roll ONE test turn' : `the same gear makes ${r.n} turns`;
+}
+/** at: where the gear is drawn (while it rolls). Otherwise it sits at its start. */
+function drawTrip(at = null) {
+  const r = W.round, t = tripOf(r, W.v), pos = at === null ? t.start : at;
+  gear.style.left = `${track.X(track.clamp(pos))}px`;
+  gear.style.transform = `rotate(${Math.round(pos * 37)}deg)`;
+  const fx = `${track.X(track.clamp(t.flag))}px`;
+  pole.style.left = fx; flag.style.left = fx;
+  flag.textContent = r.unknown === 'flag' ? `${r.letter} = ${W.v}` : t.flag;
+  track.layer.querySelector('.triplab').textContent = tripText(r);
+  $('dialLab').textContent = r.unknown === 'turns' ? 'TURNS' : 'TEETH PER TURN';
+  $('dialVal').textContent = `${r.letter} = ${W.v}`;
+  track.layer.querySelector('.tests').textContent = W.tests.join('     ');
+}
+const clearHops = () => { for (const h of track.layer.querySelectorAll('.hop')) h.remove(); };
+function addHop(pos, n) {
+  const h = document.createElement('div');
+  h.className = 'hop'; h.style.left = `${track.X(track.clamp(pos))}px`; h.textContent = n;
+  track.layer.appendChild(h);
+}
+const canSet = () => W.phase === 'set' && !busy();
+function setV(v) {
+  if (!canSet()) return;
+  const { lo, hi } = limits(W.round);
+  v = Math.round(Math.min(hi, Math.max(lo, v)));
+  if (v === W.v) return;
+  W.v = v; hubAudio.playStep(); drawTrip();
+}
+function roll() {
+  if (!canSet()) return;
+  const r = W.round, t = tripOf(r, W.v), turns = W.testsLeft > 0 ? 1 : t.turns;
+  W.phase = 'run'; W.anim = { start: t.start, size: t.size, turns, i: 0, t: 0, each: Math.min(0.45, 3.2 / turns) };
+  gear.classList.remove('bad', 'good'); clearHops();
+  hubAudio.playCartridgeLaunch(); renderCtl();
+}
+function updateRun(dt) {
+  const A = W.anim, r = W.round;
+  A.t += dt;
+  const u = Math.min(1, A.t / A.each), ease = u * u * (3 - 2 * u), from = A.start + A.i * A.size;
+  drawTrip(from + A.size * ease);
+  if (A.t < A.each + 0.12) return;                   // a beat at the end of each turn, so the turns can be counted
+  A.i += 1; A.t = 0;
+  addHop(A.start + A.i * A.size, A.i);
+  hubAudio.playStep();
+  if (A.i >= A.turns || A.start + A.i * A.size > r.axis.hi) landed();     // done, or it has rolled off the end of the track
+}
+function landed() {
+  const r = W.round, A = W.anim;
+  W.anim = null;
+  if (W.testsLeft > 0) {                             // a free test turn: it leaves a note, no score
+    W.testsLeft -= 1;
+    W.tests.push(`1 turn → ${A.start + A.size}`);
+    hubAudio.playSelect();
+    drawTrip(A.start + A.size);
+    W.phase = 'hold'; W.holdLeft = 1;
+    renderSign(); return;
   }
-  UI.prompt.innerHTML = html;
+  const res = checkTrip(r, W.v);
+  showLine(res.message.split('. ')[0], !res.ok);
+  if (res.ok) {
+    arcade.good(15); hubAudio.playCoinClink();
+    gear.classList.add('good'); flag.classList.add('ok'); $('eqBox').classList.add('ok');
+    return rest(1.3);
+  }
+  W.tries += 1;
+  gear.classList.add('bad');
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;                    // that was the last spare gear: the zone has stopped
+  const moveOn = W.tries >= 2;
+  stopFor(res.message + (moveOn ? ` The answer: ${r.letter} = ${r.x}.` : ''), moveOn ? 'NEXT (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? endRound : backToSet);
+}
+function backToSet() {
+  W.phase = 'set'; W.fuseLeft = W.round.fuse; W.shownFuse = -1;
+  gear.classList.remove('bad'); clearHops();
+  showLine(''); drawTrip(); renderCtl();
 }
 
 /* ================================================================== */
-/* Controls                                                            */
+/* Write it: build the equation for a story                            */
 /* ================================================================== */
-function renderControls() {
-  const p = G.problem;
-  if (G.phase === 'pick') {
-    UI.controls.innerHTML = p.options.map((o, i) => `<button type="button" class="choice" data-choice="${i}"><b>${i + 1}</b>${esc(o.text)}</button>`).join('');
-    UI.controls.querySelectorAll('[data-choice]').forEach((b) => b.addEventListener('click', () => answerPick(Number(b.dataset.choice))));
-    return;
-  }
-  if (G.phase.startsWith('write')) {
-    const nums = p.tiles.map((v, i) => `<button type="button" class="tile num" data-tile="num" data-i="${i}" ${G.used.includes(i) ? 'disabled' : ''}>${fmt(v)}<small>${i + 1}</small></button>`).join('');
-    const varUsed = G.rail.some((t) => t.t === 'var');
-    const chip = (t) => `<span class="tile chip ${t.t === 'num' ? 'num' : t.t === 'var' ? 'var' : t.t === 'eq' ? 'eqs' : ''}">${t.t === 'num' ? fmt(t.v) : t.t === 'var' ? p.eq.letter : t.t === 'eq' ? '=' : SIGN[t.v]}</span>`;
-    UI.controls.innerHTML = `
-      ${G.written.map((t) => `<div class="done-eq">✓ ${esc(t)}</div>`).join('')}
-      <div class="label px">${G.phase === 'writeX' ? 'YOUR × EQUATION' : G.phase === 'writeD' ? 'YOUR ÷ EQUATION' : 'YOUR EQUATION'}</div>
-      <div id="rail" class="rail ${G.rail.length ? 'filled' : ''}">${G.rail.length ? G.rail.map(chip).join('') : '<span class="empty">Drag or tap tiles to build it here</span>'}</div>
-      <div class="tiles">${nums}
-        <button type="button" class="tile var" data-tile="var" ${varUsed ? 'disabled' : ''}>${p.eq.letter}</button>
-        <button type="button" class="tile" data-tile="×">×</button><button type="button" class="tile" data-tile="÷">÷</button>
-        <button type="button" class="tile eqs" data-tile="eq">=</button></div>
-      <div class="row-btns"><button type="button" id="undoTile" class="px">⌫ BACK</button><button type="button" id="clearRail" class="px">CLEAR</button>
-        <button type="button" id="buildBtn" class="go px">BUILD IT (ENTER)</button></div>
-      <div id="helpLine" class="help-line">Keys: <kbd>1</kbd>–<kbd>${p.tiles.length}</kbd> numbers · <kbd>${p.eq.letter}</kbd> · <kbd>*</kbd> × · <kbd>/</kbd> ÷ · <kbd>=</kbd></div>`;
-    UI.controls.querySelectorAll('[data-tile]').forEach((b) => b.addEventListener('pointerdown', (e) => startDrag(e, 'tile')));
-    $('undoTile').addEventListener('click', removeTile);
-    $('clearRail').addEventListener('click', () => { if (!G.locked) { G.rail = []; G.used = []; renderControls(); showState(); } });
-    $('buildBtn').addEventListener('click', submitWritten);
-    return;
-  }
-  if (G.phase === 'combine' || G.phase === 'calc') {
-    const sum = G.phase === 'combine' ? `½ × ${fmt(G.work.m)} = ?` : `${fmt(G.work.c)} ${SIGN[G.pending.op]} ${fmt(G.pending.n)} = ?`;
-    UI.controls.innerHTML = `
-      <div class="sum">${sum}</div>
-      <div id="typed" class="typed">${G.typed || '?'}</div>
-      <div class="pad six">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, ','].map((d) => `<button type="button" data-digit="${d}">${d}</button>`).join('')}<button type="button" data-digit="back">⌫</button></div>
-      <button type="button" id="checkBtn" class="apply px">CHECK (ENTER)</button>
-      <div id="helpLine" class="help-line">Use scrap paper if you need it. Commas are optional: 2,392 or 2392.</div>`;
-    UI.controls.querySelectorAll('[data-digit]').forEach((b) => b.addEventListener('click', () => typeKey(String(b.dataset.digit))));
-    $('checkBtn').addEventListener('click', submitTyped);
-    return;
-  }
-  // gear: build a gear token and drop it in the gearbox
-  UI.controls.innerHTML = `
-    <div class="label px">1. WHICH GEAR?</div>
-    <div class="op-row">${['×', '÷', '+', '-'].map((op) => `<button type="button" class="op-btn ${G.sel.op === op ? 'on' : ''}" data-op="${op}">${SIGN[op]}</button>`).join('')}</div>
-    <div class="label px">2. HOW MUCH?</div>
-    <div class="pad six">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((d) => `<button type="button" data-digit="${d}">${d}</button>`).join('')}<button type="button" data-digit="back" style="grid-column: span 2">⌫</button></div>
-    <div class="label px">3. DRAG THE GEAR INTO THE GEARBOX</div>
-    <div class="tray"><button type="button" id="block" class="block gear"></button></div>
-    <div id="helpLine" class="help-line"></div>`;
-  UI.controls.querySelectorAll('[data-op]').forEach((b) => b.addEventListener('click', () => pickOp(b.dataset.op)));
-  UI.controls.querySelectorAll('[data-digit]').forEach((b) => b.addEventListener('click', () => typeKey(String(b.dataset.digit))));
-  $('block').addEventListener('pointerdown', (e) => startDrag(e, 'block'));
-  refreshBlock();
+const OP_TEXT = { '×': '×', '÷': '÷' };
+function beginBuild() {
+  const p = W.round;
+  W.phase = 'build';
+  $('story').textContent = p.story;
+  $('eq').classList.add('hidden'); $('track').classList.add('hidden'); $('gearDial').classList.add('hidden');
+  const slot = (k, cls = '') => `<button type="button" class="slot ${cls}" data-slot="${k}"></button>`;
+  $('slots').innerHTML = `${slot(0)}${slot('op', 'op')}${slot(1)}<span>=</span>${slot(2)}`;
+  $('tiles').innerHTML = `${p.tiles.map((t, i) => `<button type="button" class="tile" data-tile="${t.id}"><b>${i + 1}</b>${esc(t.text)}</button>`).join('')}
+    <span class="opkeys">${Object.keys(OP_TEXT).map((op) => `<button type="button" data-op="${op}">${op}</button>`).join('')}</span>`;
+  $('slots').classList.remove('hidden'); $('tiles').classList.remove('hidden');
+  renderBuild();
 }
-
-/* ---- the gear token ---- */
-const gearAmount = () => parseNumber(G.sel.amount);
-const gearReady = () => G.sel.op && gearAmount() !== null && gearAmount() > 0;
-function refreshBlock() {
-  const b = $('block');
-  if (!b) return;
-  b.textContent = G.sel.op ? `${SIGN[G.sel.op]} ${G.sel.amount ? fmt(Number(G.sel.amount)) : '?'}` : '? ?';
-  b.className = `block gear ${gearReady() ? 'ready' : 'empty'} ${G.sel.armed ? 'armed' : ''}`;
-  UI.controls.querySelectorAll('[data-op]').forEach((x) => x.classList.toggle('on', x.dataset.op === G.sel.op));
-  $('helpLine').innerHTML = G.sel.armed ? '<b>Now tap the gearbox.</b>' : 'Drag it into the gearbox, or tap it then tap the gearbox. <kbd>Enter</kbd> drops it.';
+$('tiles').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; b.blur(); if (b.dataset.tile) placeTile(b.dataset.tile); else setOp(b.dataset.op); });
+$('slots').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; b.blur(); clearSlot(b.dataset.slot); });
+const canBuild = () => W.phase === 'build' && !busy();
+function renderBuild() {
+  const p = W.round, text = (id) => (p.tiles.find((t) => t.id === id) || {}).text || '';
+  W.slots.forEach((id, k) => { const el = $('slots').querySelector(`[data-slot="${k}"]`); el.textContent = text(id); el.classList.toggle('full', Boolean(id)); });
+  const opEl = $('slots').querySelector('[data-slot="op"]'); opEl.textContent = W.op || ''; opEl.classList.toggle('full', Boolean(W.op));
+  for (const b of $('tiles').querySelectorAll('[data-tile]')) b.classList.toggle('used', W.slots.includes(b.dataset.tile));
 }
-function pickOp(op) {
-  if (G.locked || G.phase !== 'gear') return;
-  hubAudio.playSelect();
-  G.sel.op = op; G.sel.armed = false;
-  refreshBlock();
+function placeTile(id) {
+  if (!canBuild() || !id || W.slots.includes(id)) return;
+  const k = W.slots.indexOf(null);
+  if (k < 0) return;
+  W.slots[k] = id; hubAudio.playStep(); renderBuild();
 }
-function typeKey(d) {
-  if (G.locked) return;
-  if (G.phase === 'gear') {
-    if (d === 'back') { if (G.sel.amount) G.sel.amount = G.sel.amount.slice(0, -1); else G.sel.op = null; }
-    else if (/^\d$/.test(d) && G.sel.amount.length < 5) G.sel.amount = (G.sel.amount + d).replace(/^0+(?=\d)/, '');
-    G.sel.armed = false;
-    return refreshBlock();
-  }
-  if (G.phase === 'combine' || G.phase === 'calc') {
-    if (d === 'back') G.typed = G.typed.slice(0, -1);
-    else if (G.typed.replace(/,/g, '').length < 7 && /^[\d,.]$/.test(d)) G.typed += d;
-    $('typed').textContent = G.typed || '?';
-  }
-}
-function nudge(text) {
-  const h = $('helpLine');
-  if (h) h.innerHTML = `<span class="warn">${text}</span>`;
-  else showFeedback(true, text);
-  hubAudio.playTone(220, 'square', 0.12, 0.05);
-}
-
-/* ---- dragging: tiles onto the rail, the gear into the gearbox ---- */
-function startDrag(e, kind) {
-  if (G.locked) return;
-  const src = e.currentTarget;
-  if (src.disabled) return;
-  if (kind === 'block' && !gearReady()) return nudge(G.sel.op ? 'Type how much first.' : 'Build a gear first: pick ×, ÷, + or − and a number.');
-  if (kind === 'tile') {
-    return dragOrTap(e, src, {
-      targetAt: (x, y) => (inside($('rail'), x, y) ? 'rail' : null), glow: (t) => $('rail')?.classList.toggle('drop-target', Boolean(t)),
-      onDrop: () => addTile(src), onTap: () => addTile(src), lift: false,
-    });
-  }
-  dragOrTap(e, src, {
-    targetAt: (x, y) => (inside(UI.scene, x, y) ? 'gearbox' : null), glow: (t) => $('gearbox')?.classList.toggle('drop-target', Boolean(t)),
-    onDrop: dropGear, scene: UI.scene,
-    onTap: () => { G.sel.armed = !G.sel.armed; if (G.sel.armed) hubAudio.playSelect(); refreshBlock(); },
-  });
+function setOp(op) { if (!canBuild() || !OP_TEXT[op]) return; W.op = op; hubAudio.playStep(); renderBuild(); }
+function clearSlot(k) { if (!canBuild()) return; if (k === 'op') W.op = null; else W.slots[Number(k)] = null; renderBuild(); }
+function clearLast() { if (!canBuild()) return; for (let k = 2; k >= 0; k--) if (W.slots[k]) { W.slots[k] = null; break; } renderBuild(); }
+function sendEquation() {
+  if (!canBuild()) return;
+  const p = W.round, res = checkBuild(p, W.slots[0], W.op, W.slots[1], W.slots[2]);
+  if (res.nudge) return showLine(res.message, true);
+  if (res.correct) { arcade.good(15); hubAudio.playCoinClink(); showLine(res.message); $('eqBox').classList.add('ok'); return rest(1.4); }
+  W.tries += 1;
+  showLine('');
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;
+  const moveOn = W.tries >= 2;
+  stopFor(res.message + (moveOn ? ` One way to write it: ${eqText(p.trip)}.` : ''), moveOn ? 'ROLL THE GEAR (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? endRound : () => { W.slots = [null, null, null]; W.op = null; renderBuild(); });
 }
 
 /* ================================================================== */
-/* Answers                                                             */
+/* The clock, keys, sign and the bottom bar                            */
 /* ================================================================== */
-function addTile(src) {
-  if (G.locked || !G.phase.startsWith('write') || !src) return;
-  const kind = src.dataset.tile;
-  if (G.rail.length >= 7) return nudge('That row is full. Use ⌫ BACK or CLEAR.');
-  if (kind === 'num') {
-    const i = Number(src.dataset.i);
-    if (G.used.includes(i)) return;
-    G.used.push(i);
-    G.rail.push({ t: 'num', v: G.problem.tiles[i], i });
-  } else if (kind === 'var') {
-    if (G.rail.some((t) => t.t === 'var')) return;
-    G.rail.push({ t: 'var' });
-  } else if (kind === 'eq') G.rail.push({ t: 'eq' });
-  else G.rail.push({ t: 'op', v: kind });
-  hubAudio.playTone(440 + G.rail.length * 30, 'triangle', 0.08, 0.06);
-  renderControls();
-  showState();
-}
-function removeTile() {
-  if (G.locked || !G.rail.length) return;
-  const t = G.rail.pop();
-  if (t.t === 'num') G.used = G.used.filter((i) => i !== t.i);
-  renderControls();
-  showState();
-}
-function submitWritten() {
-  if (G.locked || !G.phase.startsWith('write')) return;
-  const p = G.problem;
-  const need = G.phase === 'writeX' ? '×' : G.phase === 'writeD' ? '÷' : null;
-  const res = checkWritten(p, G.rail, need);
-  if (res.nudge) return nudge(res.message);
-  if (!res.correct) return miss(res, { lock: true, delay: 1200, retry: () => { G.rail = []; G.used = []; renderControls(); showState(); } });
-  hubAudio.playCoinClink();
-  showFeedback(true, res.message);
-  G.written.push(tilesText(G.rail, p.eq.letter));
-  G.locked = true;
-  showState();
-  setTimeout(() => {
-    if (G.problem !== p) return;
-    G.locked = false;
-    UI.feedback.classList.add('hidden');
-    enterPhase(G.phase === 'writeX' ? 'writeD' : 'gear');
-  }, 1100);
-}
-
-/** The gear lands in the gearbox. */
-function dropGear() {
-  const p = G.problem, w = G.work;
-  if (G.locked || G.phase !== 'gear') return;
-  if (!gearReady()) return nudge(G.sel.op ? 'Type how much first.' : 'Build a gear first: pick ×, ÷, + or − and a number.');
-  const op = G.sel.op, n = gearAmount();
-  G.sel.armed = false;
-  G.locked = true;
-  const res = checkGear(w, op, n);
-  const tok = `${SIGN[op]} ${fmt(n)}`;
-  hubAudio.playTone(300, 'triangle', 0.15, 0.08);
-  drawGearbox({ label: exprText(w), inText: w.letter, outText: fmt(w.c), slot: tok, spin: 'back', ratio: ratioOf(w) });
-  const both = w.flipped
-    ? `${fmt(w.c)} <span class="you">${tok}</span> = ${esc(exprText(w))} <span class="you">${tok}</span>`
-    : `${esc(exprText(w))} <span class="you">${tok}</span> = ${fmt(w.c)} <span class="you">${tok}</span>`;
-  strip([eqText(w), both]);
-  // Right gear on a "work it out" problem: the student does the arithmetic next.
-  if (res.correct && (p.calc || w.kind === 'twostep')) {
-    setTimeout(() => {
-      if (G.problem !== p) return;
-      G.locked = false;
-      G.pending = { op, n };
-      hubAudio.playCoinClink();
-      enterPhase('calc');
-    }, 800);
-    return;
-  }
-  setTimeout(() => {                                   // the drive wheel shows what comes out
-    if (G.problem !== p) return;
-    drawGearbox({ label: exprText(w), inText: fmt(res.value), inColor: '#fff', inTextColor: '#1f63c9', inLabel: `${w.letter} =`, outText: '', slot: tok, ratio: ratioOf(w), pop: 'in' });
-    strip([both, `${w.letter} = ${fmt(res.value)}`]);
-    hubAudio.playTone(520, 'triangle', 0.12, 0.08);
-  }, 800);
-  setTimeout(() => {                                   // the check: run it forward
-    if (G.problem !== p) return;
-    G.locked = false;
-    finishCheck(w, res.value, res);
-  }, 1700);
-}
-
-/** Runs the gearbox forward with value v and settles the problem. */
-function finishCheck(w, v, res) {
-  const out = runForward(w, v);
-  const ok = res.correct;
-  drawGearbox({ label: exprText(w), inText: fmt(v), inColor: '#fff', inTextColor: '#1f63c9', inLabel: `${w.letter} =`, outText: fmt(out),
-    outColor: ok ? '#2fbf71' : '#e5484d', outLabel: ok ? '✓ CHECK' : `✗ NEEDS ${fmt(w.c)}`, spin: 'fwd', ratio: ratioOf(w), pop: 'out' });
-  const full = G.problem.eq;
-  strip([`${full.letter} = ${fmt(v)}`, `<span class="${ok ? 'good' : 'bad'}">Check: ${esc(checkLine(ok ? full : w, ok ? full.x : v))}${ok ? ' ✓' : ' ✗'}</span>`]);
-  if (ok) win({ ...res, message: `${full.letter} = ${fmt(full.x)}. Check: ${checkLine(full, full.x)} ✓` });
-  else miss(res, { lock: true, delay: 1200, retry: () => enterPhase('gear') });
-}
-
-function submitTyped() {
-  if (G.locked) return;
-  const p = G.problem, w = G.work;
-  if (G.phase === 'combine') {
-    const res = checkHalf(w, G.typed);
-    if (res.nudge) return nudge(res.message);
-    if (!res.correct) return miss(res, { lock: true, delay: 1200, retry: () => { G.typed = ''; renderControls(); } });
-    hubAudio.playCoinClink();
-    showFeedback(true, res.message);
-    G.work = afterStep(w);
-    G.locked = true;
-    drawGearbox({ label: exprText(G.work), inText: G.work.letter, outText: fmt(G.work.c), spin: 'fwd', signColor: '#d9f7e3' });
-    strip([`<span class="small">${eqText(w)}</span>`, eqText(G.work)]);
-    setTimeout(() => { if (G.problem !== p) return; G.locked = false; UI.feedback.classList.add('hidden'); enterPhase('gear'); }, 1300);
-    return;
-  }
-  if (G.phase === 'calc') {
-    const { op, n } = G.pending;
-    const res = checkCalc(w.c, op, n, G.typed);
-    if (res.nudge) return nudge(res.message);
-    if (!res.correct) return miss(res, { lock: true, delay: 1200, retry: () => { G.typed = ''; renderControls(); showState(); } });
-    const v = apply(w.c, op, n);
-    if (w.kind === 'twostep') {                        // step 1 of 2 done: now k·x = what is left
-      hubAudio.playCoinClink();
-      showFeedback(true, `${res.message} Now ${fmt(w.k)}${w.letter} = ${fmt(v)}.`);
-      G.work = afterStep(w, v);
-      G.locked = true;
-      drawGearbox({ label: exprText(G.work), inText: G.work.letter, outText: fmt(G.work.c), spin: 'fwd', signColor: '#d9f7e3' });
-      strip([`<span class="small">${eqText(w)}</span>`, eqText(G.work)]);
-      setTimeout(() => { if (G.problem !== p) return; G.locked = false; UI.feedback.classList.add('hidden'); enterPhase('gear'); }, 1300);
-      return;
-    }
-    finishCheck(w, v, { ...res, correct: true });
+function update(dt) {
+  if (W.phase === 'idle' || busy()) return;
+  if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
+  if (W.phase === 'hold') { W.holdLeft -= dt; if (W.holdLeft <= 0) { W.phase = 'set'; clearHops(); drawTrip(); renderCtl(); } return; }
+  if (W.phase === 'run') return updateRun(dt);
+  if (W.phase === 'set' && W.round.fuse && !G.practice && W.testsLeft === 0) {     // the gear rolls by itself when the fuse runs out
+    W.fuseLeft -= dt;
+    if (W.fuseLeft <= 0) return roll();
+    if (Math.ceil(W.fuseLeft) !== W.shownFuse) renderCtl();
   }
 }
-
-function answerPick(i) {
-  if (G.locked || G.phase !== 'pick') return;
-  const res = checkPick(G.problem, i);
-  UI.controls.querySelector(`[data-choice="${i}"]`)?.classList.add(res.correct ? 'right' : 'wrong');
-  if (res.correct) return win(res);
-  miss(res, { oneShot: true, nextText: 'NEXT (ENTER)' });  // one quick decision: show the work, then the next one
-}
-
-/* ================================================================== */
-/* Keys and start-up                                                   */
-/* ================================================================== */
-/** Keys while a problem is in play (the shell handles Enter on buttons, help, sound and the briefing). */
+function go() { if (W.phase === 'set') roll(); else if (W.phase === 'build') sendEquation(); }
 function onKey(e) {
-  const key = e.key;
-  const p = G.problem;
-  if (G.phase === 'pick') {
-    const n = Number(key);
-    if (n >= 1 && n <= p.options.length) answerPick(n - 1);
-    return;
+  const k = e.key;
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else go(); return; }
+  if (W.frozen) return;
+  if (W.phase === 'set' && (k === 'ArrowLeft' || k === 'ArrowRight')) { e.preventDefault(); setV(W.v + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? (W.round.unknown === 'flag' ? 10 : 5) : 1)); }
+  if (W.phase === 'build') {
+    const op = { '*': '×', x: '×', X: '×', '/': '÷' }[k];
+    if (op) { e.preventDefault(); setOp(op); }
+    else if (/^[1-3]$/.test(k)) placeTile((W.round.tiles[Number(k) - 1] || {}).id);
+    else if (k === 'Backspace') { e.preventDefault(); clearLast(); }
   }
-  if (G.phase.startsWith('write')) {
-    const n = Number(key);
-    const btn = (sel) => UI.controls.querySelector(sel);
-    if (n >= 1 && n <= p.tiles.length) return addTile(btn(`[data-tile="num"][data-i="${n - 1}"]`));
-    if (key.toLowerCase() === p.eq.letter) return addTile(btn('[data-tile="var"]'));
-    if (key === '*' || key === 'x' || key === 'X') return addTile(btn('[data-tile="×"]'));
-    if (key === '/') { e.preventDefault(); return addTile(btn('[data-tile="÷"]')); }
-    if (key === '=') return addTile(btn('[data-tile="eq"]'));
-    if (key === 'Backspace') { e.preventDefault(); return removeTile(); }
-    if (key === 'Enter') { e.preventDefault(); return submitWritten(); }
-    return;
+}
+$('goBtn').addEventListener('click', (e) => { e.currentTarget.blur(); go(); });
+$('resumeBtn').addEventListener('click', (e) => { e.currentTarget.blur(); resume(); });
+$('dialDown').addEventListener('click', (e) => { e.currentTarget.blur(); setV(W.v - 1); });
+$('dialUp').addEventListener('click', (e) => { e.currentTarget.blur(); setV(W.v + 1); });
+// Drag the flag along the track (when the letter is where the gear stops).
+let dragging = false;
+const canDrag = () => canSet() && W.round.unknown === 'flag';
+$('track').addEventListener('pointerdown', (e) => { if (!canDrag()) return; dragging = true; $('track').setPointerCapture(e.pointerId); setV(track.valueAt(e.clientX)); });
+$('track').addEventListener('pointermove', (e) => { if (dragging && canDrag()) setV(track.valueAt(e.clientX)); });
+$('track').addEventListener('pointerup', () => { dragging = false; });
+$('track').addEventListener('pointercancel', () => { dragging = false; });
+
+function renderSign(isNew = false) {
+  const r = W.round, at = `${W.ri + 1}/${W.rounds.length}`;
+  let small = `TRIP ${at} · TURNS × TEETH = FLAG`;
+  let text = r.unknown === 'flag' ? 'PUT THE FLAG WHERE THE GEAR WILL STOP' : r.unknown === 'turns' ? 'SET THE TURNS SO THE GEAR STOPS ON THE FLAG' : 'PICK THE GEAR THAT STOPS ON THE FLAG';
+  if (r.type === 'build') { small = `STORY ${at}`; text = 'WRITE THE EQUATION FOR THIS STORY'; }
+  else if (r.kind === 'mystery') {
+    small = W.testsLeft > 0 ? 'MYSTERY GEAR · 1 FREE TEST TURN' : 'MYSTERY GEAR · THIS ONE COUNTS';
+    text = W.testsLeft > 0 ? 'ROLL ONE TURN: HOW BIG IS THE GEAR?' : `NOW PUT THE FLAG WHERE ${r.n} TURNS WILL STOP`;
   }
-  if (G.phase === 'gear') {
-    if (key === '*' || key === 'x' || key === 'X') return pickOp('×');
-    if (key === '/') { e.preventDefault(); return pickOp('÷'); }
-    if (key === '+') return pickOp('+');
-    if (key === '-') return pickOp('-');
-    if (/^[0-9]$/.test(key)) return typeKey(key);
-    if (key === 'Backspace') { e.preventDefault(); return typeKey('back'); }
-    if (key === 'Enter') { e.preventDefault(); return dropGear(); }
-    return;
-  }
-  if (/^[0-9,.]$/.test(key)) return typeKey(key);
-  if (key === 'Backspace') { e.preventDefault(); return typeKey('back'); }
-  if (key === 'Enter') { e.preventDefault(); submitTyped(); }
+  $('signSmall').textContent = small;
+  $('signText').textContent = text;
+  if (isNew) { const s = $('sign'); s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); }
+}
+function renderCtl() {
+  const p = W.phase, r = W.round || {};
+  W.shownFuse = Math.ceil(W.fuseLeft);
+  const fuse = p === 'set' && r.fuse && !G.practice && W.testsLeft === 0 ? ` · ${Math.max(1, W.shownFuse)}` : '';
+  $('goBtn').classList.toggle('hidden', !(p === 'set' || p === 'build'));
+  $('goBtn').textContent = p === 'build' ? 'CHECK THE EQUATION (ENTER)' : W.testsLeft > 0 ? 'ROLL A TEST TURN (ENTER)' : `ROLL THE GEAR (ENTER)${fuse}`;
+  $('tip').textContent = p === 'build' ? 'Tap tiles to fill the spaces. Tap a space to empty it.'
+    : p === 'set' ? (r.unknown === 'flag' ? '← → move the flag (Shift jumps 10), or drag it.' : '← → turn the dial (Shift jumps 5).') : '';
+  $('waveTag').textContent = W.rounds.length ? `ROUND ${W.ri + 1}/${W.rounds.length}` : '';
 }
 
-function init() {
-  const stripEl = document.createElement('div');
-  stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
-  $('stage').appendChild(stripEl);
-  // tap the gear, then tap the gearbox
-  $('stage').addEventListener('click', (e) => { if (G.sel.armed && inside(UI.scene, e.clientX, e.clientY)) dropGear(); });
-  // A sample gearbox behind the briefing.
-  drawGearbox({ label: '4n', inText: 'n', outText: '52' });
+let last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  update(dt * W.speed);
+  requestAnimationFrame(frame);
 }
-
-init();
+// Something to look at behind the briefing.
+$('eq').textContent = '4x = 36';
+track.draw({ lo: 0, hi: 40 });
+requestAnimationFrame(frame);
