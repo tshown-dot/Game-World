@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -23,8 +23,8 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, the rockslide hits">
-      <div class="px hud-label">ROCKSLIDE</div>
+    <div class="hud-meter" id="meterBox" title="Every mistake wears the scout out. When this fills, a canteen is gone">
+      <div class="px hud-label">TIRED</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
     <div class="hud-crates">
@@ -42,21 +42,36 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The trail map, the logbook and the rule"></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play">
+      <svg id="map" class="tmap" viewBox="0 0 500 470" role="img" aria-label="The trail map"></svg>
+      <div class="side">
+        <div class="rcard"><small class="px" id="ruleHead">THE RULE</small><div id="ruleText" class="mono"></div><div id="ruleKey" class="rkey"></div></div>
+        <div class="logbook"><small class="px">LOGBOOK</small>
+          <table><thead><tr><th id="logX"></th><th id="logY"></th><th id="logMine" class="hidden">YOURS</th></tr></thead><tbody id="logRows"></tbody></table></div>
+        <div id="dials" class="dials hidden">
+          <div class="dial"><span class="px">TIMES</span><button type="button" data-dial="m" data-by="-1" title="Less (left arrow)">◀</button><span id="dialM" class="val"></span><button type="button" data-dial="m" data-by="1" title="More (right arrow)">▶</button></div>
+          <div class="dial"><span class="px">PLUS</span><button type="button" data-dial="b" data-by="-1" title="Less (down arrow)">◀</button><span id="dialB" class="val"></span><button type="button" data-dial="b" data-by="1" title="More (up arrow)">▶</button></div>
+        </div>
+        <div id="tline" class="tline"></div>
+      </div>
+    </div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">ROCKSLIDE PASS</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <div id="tip" class="tip"></div>
+      <button type="button" id="goBtn" class="cbtn go px hidden"></button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -70,33 +85,41 @@
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. ONE TRAIL, 3 WAYS</div>
-          <p>Every trail is shown as a <b>RULE</b> (equation), a <b>LOGBOOK</b> (table) and a <b>MAP</b> (graph). All three must match.</p>
-          <p class="mono">d = 4t &nbsp;·&nbsp; 3 ➜ 12 &nbsp;·&nbsp; (3, 12)</p></div>
-        <div class="brief-col"><div class="px col-h">2. MAP IT</div>
-          <p>Plot points by tapping the map: go <b>across</b> to the input, then <b>up</b> to the output. Read the map, write rules from it, and spot bad maps.</p></div>
+        <div class="brief-col"><div class="px col-h">1. ONE TRAIL, THREE WAYS</div>
+          <p>Every trail has a <b>rule</b> (an equation), a <b>logbook</b> (a table) and a <b>map</b> (a graph). They all say the same thing.</p>
+          <p class="mono">d = 3t : (2, 6) : 2 across, 6 up</p></div>
+        <div class="brief-col"><div class="px col-h">2. SET IT, THEN SEND THE SCOUT</div>
+          <p>Put <b>stakes</b> on the map, slide a <b>pointer</b> along an axis, or set the <b>rule</b> on the dials. Then the scout walks the real trail and shows what matches.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>A <b>ROCKSLIDE</b> builds while you think, and mistakes speed it up. Run out of all <b>3 canteens</b> and you're lost in the canyon. Clear Rockslide Pass to win!</p></div>
+          <p>Every mistake makes the scout more <b>TIRED</b>. When it fills, a canteen is gone. Lose all <b>3 canteens</b> and the trip is over. Cross Rockslide Pass to win!</p></div>
       </div>
-      <div class="brief-keys">Tap the map, or <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> + <kbd>space</kbd> to plot · type numbers · <kbd>1</kbd>–<kbd>4</kbd> answers · <kbd>Enter</kbd> check · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys">Tap the map, or <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> to move · <kbd>Space</kbd> stake · <kbd>Enter</kbd> send the scout · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
-        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🗺️ HIT THE TRAIL (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no rockslide</small></button>
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🗺️ START THE TRAIL (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no canteens lost</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">TRAIL TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">
-      <div class="px big-title">LOST IN THE CANYON!</div>
-      <p id="failText">All three canteens ran dry.</p>
+      <div class="px big-title">TRIP OVER!</div>
+      <p id="failText">All 3 canteens are empty.</p>
       <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
     </div>
   </div>

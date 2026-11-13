@@ -46,7 +46,7 @@ export const STAGES = [
   }),
   stage(10, 'Trail Mapper', 'Relate Tables, Graphs, and Equations', { x: 570, y: 320 }, {
     built: true, building: 'trail_mapper', url: './games/4-10-trail-mapper/index.html',
-    description: 'Map canyon trails three ways: a rule, a logbook and a map. Plot points, read the map, write rules from graphs, spot the bad map, and clear Rockslide Pass.',
+    description: 'Every trail has a rule, a logbook and a map that all say the same thing. Stake the trail on the map, read the map with a pointer, set the rule that makes a trail, and fix a map with a stake out of place. Each time a scout walks the real trail to show what matches. Then cross Rockslide Pass.',
   }),
   {
     id: 'node_4_boss', lessonCode: 'BOSS', title: 'Golem Fort', subtitle: 'Topic 4 boss: The Equation Golem',

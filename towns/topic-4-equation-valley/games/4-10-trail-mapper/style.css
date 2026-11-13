@@ -1,38 +1,80 @@
-/* Trail Mapper (Lesson 4-10): the map, logbook and rule boxes. Shared looks are in shared/game/game.css. */
-.trail { animation: drawTrail 0.9s ease-out; }
-@keyframes drawTrail { from { opacity: 0; } }
-.guess { animation: drawTrail 0.5s ease-out; }
-.cursor { animation: pulse 1.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-@keyframes pulse { 50% { transform: scale(1.25); } }
-.pick-ok rect:first-of-type { stroke: #2fbf71; stroke-width: 7; }
-.pick-bad rect:first-of-type { stroke: #e5484d; stroke-width: 7; }
-.thermo { transition: all 1s ease; }
-.mono { font-family: ui-monospace, 'Courier New', monospace; }
-.prompt .story { display: block; font-size: 15px; font-weight: 800; background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 7px 10px; margin-top: 6px; }
+/* Trail Mapper (Lesson 4-10): the map (a graph), the rule card, the logbook and the dials. Shared looks are in shared/game/game.css. */
+#app.arcade { grid-template-columns: 1fr; background: #2b2a1f; }
+#app.arcade .hud { grid-column: 1; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; font-weight: 900; }
+.stage { background: linear-gradient(#c58a55 0%, #e0b07a 100%); }
+.play { position: absolute; inset: 0 0 66px 0; overflow: hidden; }
 
-/* ---- plotted points ---- */
-.chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 44px; align-items: center; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; }
-.chip { font-family: ui-monospace, 'Courier New', monospace; font-weight: 900; font-size: 17px; background: #dbe9ff; color: #1f63c9; border: 2px solid #1f63c9; border-radius: 8px; padding: 2px 8px; }
-.chips .empty, .rule-row .empty { font-family: Nunito, system-ui, sans-serif; font-size: 14px; font-weight: 800; color: #a99a74; }
-.row-btns { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
-.row-btns button { height: 50px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 10px; box-shadow: 0 4px 0 var(--ink); }
-.row-btns .go { background: var(--red); color: #fff; }
+/* ---- the instruction sign ---- */
+.sign { position: absolute; z-index: 2; top: 8px; left: 50%; transform: translateX(-50%); min-width: 420px; max-width: 1080px; text-align: center; white-space: nowrap;
+  background: #fff8e1; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 7px 22px 9px; pointer-events: none; }
+.sign small { display: block; font-size: 8px; color: #8a6d3b; margin-bottom: 6px; }
+#signText { font-family: ui-monospace, 'Courier New', monospace; font-size: 19px; font-weight: 900; color: var(--ink); }
+.sign.new { animation: signPop 0.4s ease-out; }
+@keyframes signPop { from { transform: translateX(-50%) scale(1.1); background: var(--gold); } to { transform: translateX(-50%) scale(1); } }
+#app.arcade .boss-bar { left: auto; right: 12px; top: 10px; transform: none; width: 130px; }
 
-/* ---- rule shapes and number boxes ---- */
-.shapes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.shape { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink);
-  font-family: ui-monospace, 'Courier New', monospace; font-size: 19px; font-weight: 900; color: var(--ink); }
-.shape.on { background: #ffe680; outline: 4px solid var(--gold); outline-offset: 2px; }
-.shape .sq { color: #8f3f22; }
-.rule-row { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 56px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
-  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 24px; font-weight: 900; color: var(--ink); }
-.rbox { width: 76px; height: 44px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900;
-  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
-.rbox.wide { width: 120px; }
-.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }
+/* ---- what went wrong. It sits under the logbook, so the whole map stays in view ---- */
+.callout { position: absolute; z-index: 6; bottom: 74px; left: 716px; width: 560px; background: #ffe3cc; border: 4px solid var(--ink); border-radius: 14px;
+  box-shadow: 0 5px 0 var(--ink); padding: 8px 14px; font-size: 16px; font-weight: 800; line-height: 1.3; text-align: center; }
+.callout button { margin-top: 6px; height: 36px; padding: 0 16px; border: 3px solid var(--ink); border-radius: 10px; background: var(--gold); font-size: 10px; }
 
-/* ---- rule / logbook / map ---- */
-.trio { display: grid; gap: 8px; }
-.trio button { height: 54px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 12px; box-shadow: 0 4px 0 var(--ink); text-align: left; padding-left: 14px; }
-.trio button b { display: inline-block; width: 24px; height: 24px; line-height: 20px; text-align: center; margin-right: 10px; border: 2px solid var(--ink); border-radius: 6px; background: var(--gold); font-size: 11px; }
-.trio button:disabled { opacity: 0.4; box-shadow: none; }
+/* ---- the bar along the bottom ---- */
+.ctl { position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 14px;
+  background: var(--night); border-top: 4px solid var(--ink); }
+.cbtn { height: 46px; padding: 0 14px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 #000; font-size: 10px; font-weight: 900; color: var(--ink); }
+.cbtn.go { background: var(--red); color: #fff; min-width: 260px; }
+.tip { color: #fff; font-size: 14px; font-weight: 800; }
+.wave-tag { color: var(--gold); font-size: 9px; min-width: 100px; text-align: right; }
+
+/* ---- the map ---- */
+.tmap { position: absolute; left: 96px; top: 76px; width: 580px; height: 545px; background: #fdf6e3; border: 5px solid var(--ink); border-radius: 14px; box-shadow: 0 6px 0 rgba(0,0,0,0.3); touch-action: none; cursor: crosshair; user-select: none; }
+.tmap .gl { stroke: #cdbf9b; stroke-width: 1; }
+.tmap .ax { stroke: #1d1433; stroke-width: 3; }
+.tmap .al { font: 900 13px ui-monospace, 'Courier New', monospace; fill: #1d1433; }
+.tmap .al.known { fill: #b3261e; font-size: 16px; }
+.tmap .an { font: 800 13px Nunito, system-ui, sans-serif; fill: #6b4a12; }
+.tmap .trail { stroke: #2e7d4f; stroke-width: 5; stroke-linecap: round; }
+.tmap .ghost { stroke: #2563eb; stroke-width: 4; stroke-dasharray: 9 7; stroke-linecap: round; }
+.tmap .guide { fill: none; stroke: #b3261e; stroke-width: 3; stroke-dasharray: 6 5; }
+.tmap .dot { fill: #2e7d4f; stroke: #1d1433; stroke-width: 2; }
+.tmap .dot.hit { fill: #ffd23f; }
+.tmap .spot { fill: none; stroke: #2e7d4f; stroke-width: 3; stroke-dasharray: 4 3; }
+.tmap .cursor { fill: none; stroke: #1d1433; stroke-width: 2.5; stroke-dasharray: 5 4; }
+.tmap .flag line { stroke: #1d1433; stroke-width: 3; }
+.tmap .flag path { fill: #ffd23f; stroke: #1d1433; stroke-width: 2; }
+.tmap .flag circle { fill: #1d1433; }
+.tmap .flag.given path { fill: #9aa3b2; }
+.tmap .flag.lit path { fill: #4ade80; }
+.tmap .flag.bad path { fill: #ff4d4d; }
+.tmap .flag.bad circle { fill: #ff4d4d; }
+.tmap .pointer { fill: #ffd23f; stroke: #1d1433; stroke-width: 2.5; }
+.tmap .pointer.lit { fill: #4ade80; } .tmap .pointer.bad { fill: #ff4d4d; }
+.tmap .scout { fill: #e5484d; stroke: #fff; stroke-width: 3; }
+.tmap .scout.mine { fill: #2563eb; }
+.tmap .rocks { fill: #7b7469; stroke: #1d1433; stroke-width: 3; }
+.tmap .rocktext { font: 900 15px ui-monospace, 'Courier New', monospace; fill: #fff; letter-spacing: 2px; }
+
+/* ---- beside the map: the rule, the logbook, the dials ---- */
+.side { position: absolute; left: 716px; top: 76px; width: 560px; display: flex; flex-direction: column; gap: 10px; }
+.rcard { background: #fffdf4; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 rgba(0,0,0,0.3); padding: 8px 14px 10px; text-align: center; }
+.rcard small, .logbook small { display: block; font-size: 8px; color: #8a6d3b; margin-bottom: 4px; }
+#ruleText { font-size: 38px; line-height: 44px; color: var(--ink); }
+#ruleText.quiet { font-size: 20px; color: #8a6d3b; }
+.rkey { font-size: 14px; font-weight: 800; color: #4a3d28; }
+.logbook { background: #fffdf4; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 rgba(0,0,0,0.3); padding: 8px 14px 10px; text-align: center; }
+.logbook table { width: 100%; border-collapse: collapse; font: 900 18px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.logbook th { background: #ead9b0; border: 2px solid var(--ink); height: 28px; }
+.logbook td { border: 2px solid var(--ink); height: 28px; }
+.logbook td.yes { background: #bff2cd; } .logbook td.no { background: #ffc2c2; }
+.dials { display: flex; gap: 12px; justify-content: center; }
+.dial { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 4px solid var(--ink); border-radius: 14px; background: #8d99ae; color: var(--ink); }
+.dial .px { font-size: 8px; }
+.dial button { width: 42px; height: 40px; border: 3px solid var(--ink); border-radius: 10px; background: #fff; font-size: 16px; font-weight: 900; }
+.dial .val { min-width: 84px; height: 40px; border: 3px solid var(--ink); border-radius: 10px; background: #fff3c4; font: 900 22px ui-monospace, 'Courier New', monospace; line-height: 34px; text-align: center; }
+.tline { min-height: 24px; text-align: center; font-size: 16px; font-weight: 900; line-height: 22px; color: #14532d; }
+.tline.off { color: #8f2020; }
+
+.hint-card { width: 640px; }
+.hint-text { font-size: 17px; font-weight: 800; line-height: 1.45; margin: 12px 0 14px; }
+.hint-text .mono { display: block; margin: 8px 0; font-size: 19px; }

@@ -4,6 +4,10 @@
 // Every trail is one relationship shown three ways: a RULE (equation), a LOGBOOK (table) and a MAP (graph).
 // A rule is { form, m, b }:   times y = m·x    plus y = x + b    line y = m·x + b    minus y = m·x − b
 // The map is the first quadrant with 10 squares each way; each axis counts by its own step (1, 2, 5, 10 ...).
+// Round types (the student sets something on the map, then a scout walks the true trail and shows what matches):
+//   stake   put a stake on the map for each row of the logbook (fix: one stake is already wrong; hidden: no rule, two stakes given)
+//   drop    read the map: slide a pointer along an axis to the value that goes with a given one (forward or backward)
+//   rule    the map shows a trail: set the rule on two dials, and a second scout walks that rule over the map
 
 let nextId = 1;
 const EPS = 1e-6;
@@ -127,249 +131,139 @@ function trail(rnd, kind, { n = 3, extra = 0 } = {}) {
 }
 const base = (t, extra) => ({ id: nextId++, rule: t.rule, rows: t.rows, grid: t.grid, X: t.s.X, Y: t.s.Y, xName: t.s.xName, yName: t.s.yName, unit: t.s.unit, start: t.s.start, ...extra });
 
-/** Zone 1 and the boss: the rule is given; plot a point for every logbook input. */
-export function genPlot(rnd, { kind = pick(rnd, ['times', 'plus']) } = {}) {
-  const t = trail(rnd, kind);
-  return base(t, { type: 'plot', kind });
+/* ================================================================== */
+/* Stake: a stake on the map for every row of the logbook             */
+/* ================================================================== */
+/**
+ * n: rows to stake. zero: the first row is x = 0 (where the trail starts).
+ * hidden: the rule is not shown and the first two rows are already staked (the student finds the pattern).
+ */
+export function genStake(rnd, kind = pick(rnd, ['times', 'plus']), { n = 3, zero = false, hidden = false } = {}) {
+  for (let tries = 0; tries < 200; tries++) {
+    const t = trail(rnd, kind, { n: hidden ? n + 2 : n });
+    let rows = t.rows, { grid } = t;
+    if (zero) { rows = [{ x: 0, y: run(t.rule, 0) }, ...rows.slice(1)]; grid = fitGrid([...rows, { x: 10, y: 0 }]); if (!grid || rows[0].y < 0) continue; }
+    const fixed = hidden ? rows.slice(0, 2) : [];
+    if (hidden && fixed[1].x - fixed[0].x > 3) continue;            // two stakes close enough to see the pattern
+    return base({ ...t, rows, grid }, { type: 'stake', hidden, fixed, want: rows.slice(fixed.length), preset: [] });
+  }
+  throw new Error(`no stake round for ${kind}`);
 }
-/** Zone 2 and the boss: read the map (forward: y for an x; backward: x for a y). */
-export function genRead(rnd, { kind = pick(rnd, ['times', 'plus']), backward = false } = {}) {
-  const t = trail(rnd, kind, { n: 2, extra: 1 });
-  const x = t.others[0];
-  const y = run(t.rule, x);
-  return base(t, { type: 'read', kind, backward, ask: { x, y }, answer: backward ? x : y });
+const same = (p, q) => near(p.x, q.x) && near(p.y, q.y);
+const onMap = (grid, p) => p.x >= 0 && p.y >= 0 && p.x <= grid.xMax && p.y <= grid.yMax && near(p.x / grid.xStep, Math.round(p.x / grid.xStep)) && near(p.y / grid.yStep, Math.round(p.y / grid.yStep));
+/** What the rule would be if times and plus were mixed up: 3x read as x + 3, x + 4 read as 4x. */
+const mixedUp = (rule, x) => (rule.form === 'times' ? x + rule.m : rule.form === 'plus' ? rule.b * x : null);
+/** One stake is already on the map in the wrong place: find it and move it. */
+export function genFix(rnd, kind = pick(rnd, ['times', 'plus'])) {
+  for (let tries = 0; tries < 300; tries++) {
+    const t = trail(rnd, kind, { n: 4 }), bad = int(rnd, 0, 3), r = t.rows[bad];
+    const traps = shuffle(rnd, [
+      { trap: 'swapped', pt: { x: r.y, y: r.x } },
+      { trap: 'times_plus', pt: { x: r.x, y: mixedUp(t.rule, r.x) } },
+      { trap: 'off', pt: { x: r.x, y: r.y + pick(rnd, [-1, 1]) * t.grid.yStep } },
+    ]).filter((c) => c.pt.y !== null && onMap(t.grid, c.pt) && !t.rows.some((q) => same(q, c.pt)));
+    if (!traps.length) continue;
+    const preset = t.rows.map((q, i) => (i === bad ? traps[0].pt : { x: q.x, y: q.y }));
+    return base(t, { type: 'stake', fix: true, hidden: false, fixed: [], want: t.rows, preset, bad, trap: traps[0].trap });
+  }
+  throw new Error(`no fix round for ${kind}`);
 }
-/** Zone 2: what does this point on the trail mean? */
-export function genMeaning(rnd, { kind = pick(rnd, ['times', 'plus']) } = {}) {
-  const t = trail(rnd, kind, { n: 2, extra: 1 });
-  const x = t.others[0], y = run(t.rule, x);
-  const xn = t.s.xName.replace(/ \(.*\)$/, ''), yn = t.s.yName.replace(/ \(.*\)$/, '');
-  const options = shuffle(rnd, [
-    { text: `When the ${xn} is ${fmt(x)}, the ${yn} is ${fmt(y)}.`, ok: true, key: 'correct' },
-    { text: `When the ${xn} is ${fmt(y)}, the ${yn} is ${fmt(x)}.`, ok: false, key: 'swapped_pair' },
-    { text: `The ${yn} goes up by ${fmt(y)} for every ${t.s.unit}.`, ok: false, key: 'pair_is_rate' },
-    { text: `The ${xn} and the ${yn} add up to ${fmt(x + y)}.`, ok: false, key: 'pair_is_sum' },
-  ]);
-  return base(t, { type: 'meaning', kind, ask: { x, y }, options });
+/**
+ * The stakes the student has on the map (not counting the given ones). Returns
+ * { ok, key, message, hits: [true/false for each wanted row], strays: [stakes that belong to no row] }.
+ * The message says what went wrong without giving the answer away.
+ */
+export function checkStakes(p, pts) {
+  const { rule, grid, X, Y } = p, hits = p.want.map((r) => pts.some((q) => same(q, r))), strays = pts.filter((q) => !p.want.some((r) => same(q, r)));
+  if (hits.every(Boolean) && !strays.length) return { ok: true, key: 'correct', message: 'Every stake is on the trail.', hits, strays };
+  if (pts.length < p.want.length && !strays.length) return { ok: false, nudge: true, key: 'incomplete', message: `Every row of the logbook needs a stake: ${p.want.length - pts.length} more.`, hits, strays };
+  const r = p.want[hits.indexOf(false)] || p.want[0], no = (key, message) => ({ ok: false, key, message, hits, strays });
+  if (strays.some((q) => q.x === r.y && q.y === r.x) && r.x !== r.y) return no('swapped', `The stake at ${pair(r.y, r.x)} is turned around. In ${pair(r.x, r.y)} the first number goes ACROSS (${X}) and the second goes UP (${Y}).`);
+  const here = strays.find((q) => near(q.x, r.x));
+  if (here) {
+    if (grid.yStep !== 1 && near(here.y, r.y * grid.yStep)) return no('scale', `Read the numbers on the side of the map, do not count squares. Each square up is ${fmt(grid.yStep)}.`);
+    if (!p.hidden && mixedUp(rule, r.x) !== null && near(here.y, mixedUp(rule, r.x))) return no('times_plus', rule.form === 'times' ? `${fmt(rule.m)}${X} means ${fmt(rule.m)} TIMES ${X}, not ${X} plus ${fmt(rule.m)}.` : `${X} + ${fmt(rule.b)} means ADD ${fmt(rule.b)}, not multiply by it.`);
+    if (!p.hidden && (rule.form === 'line' || rule.form === 'minus') && near(here.y, rule.m * r.x)) return no('forgot_start', `That is only ${fmt(rule.m)} × ${fmt(r.x)}. The rule also ${rule.form === 'line' ? `adds ${fmt(rule.b)}` : `takes away ${fmt(rule.b)}`}.`);
+    return no('off', p.hidden ? `The stake above ${X} = ${fmt(r.x)} is off the trail. Look at the two stakes you were given: what happens to ${Y} each time ${X} goes up by 1?`
+      : `The stake above ${X} = ${fmt(r.x)} is off the trail. Put ${fmt(r.x)} into the rule again: ${ruleText(rule, `(${fmt(r.x)})`, Y)}.`);
+  }
+  if (grid.xStep !== 1 && strays.some((q) => near(q.x, r.x * grid.xStep))) return no('scale', `Read the numbers along the bottom of the map, do not count squares. Each square across is ${fmt(grid.xStep)}.`);
+  return no('off', `There is no stake above ${X} = ${fmt(r.x)}. Each stake goes straight above its logbook ${X}.`);
 }
-/** Zone 3 and the boss: the map shows a trail; write its rule. */
-export function genRule(rnd, { kind = pick(rnd, ['times', 'plus', 'line', 'minus']) } = {}) {
-  const t = trail(rnd, kind);
+export const stakeAnswer = (p) => `The trail goes through ${p.want.map((r) => pair(r.x, r.y)).join(', ')}.`;
+
+/* ================================================================== */
+/* Drop: read the map, forward or backward                             */
+/* ================================================================== */
+/** backward: the height is given and the student finds x. rocks: the drawn trail stops early, so it has to be extended. */
+export function genDrop(rnd, kind = pick(rnd, ['times', 'plus']), { backward = false, rocks = false } = {}) {
+  for (let tries = 0; tries < 300; tries++) {
+    const t = trail(rnd, kind, { n: 3, extra: 1 }), ask = { x: t.others[0], y: run(t.rule, t.others[0]) };
+    if (!onMap(t.grid, ask) || ask.x === ask.y) continue;
+    const seen = rocks ? Math.min(...t.xs) + 2 : null;                // the trail can be seen as far as this x
+    if (rocks && (ask.x <= seen || t.xs[1] > seen)) continue;
+    return base(t, { type: 'drop', backward, rocks, seen, ask, given: backward ? ask.y : ask.x, answer: backward ? ask.x : ask.y });
+  }
+  throw new Error(`no drop round for ${kind}`);
+}
+/** x for a height on this trail (null when it is not on the map). */
+const xFor = (rule, y) => { const { form, m = 1, b = 0 } = rule; return r2(form === 'times' ? y / m : form === 'plus' ? y - b : form === 'line' ? (y - b) / m : (y + b) / m); };
+/** v: where the student put the pointer (on the y-axis going forward, on the x-axis going backward). */
+export function checkDrop(p, v) {
+  const { grid, X, Y, ask, backward } = p, want = p.answer, given = p.given;
+  if (near(v, want)) return { ok: true, key: 'correct', message: backward ? `When ${Y} = ${fmt(ask.y)}, ${X} = ${fmt(ask.x)}: the point ${pair(ask.x, ask.y)}.` : `When ${X} = ${fmt(ask.x)}, ${Y} = ${fmt(ask.y)}: the point ${pair(ask.x, ask.y)}.` };
+  const no = (key, message) => ({ ok: false, key, message });
+  const other = backward ? run(p.rule, given) : xFor(p.rule, given);  // what you get by starting from the wrong axis
+  if (near(v, given) || near(v, other)) return no('wrong_axis', backward ? `${fmt(given)} is a ${Y} value. Find ${fmt(given)} on the SIDE of the map, go ACROSS to the trail, then DOWN.` : `${fmt(given)} is an ${X} value. Find ${fmt(given)} along the BOTTOM of the map, go UP to the trail, then ACROSS.`);
+  const step = backward ? grid.yStep : grid.xStep, counted = backward ? xFor(p.rule, given * step) : run(p.rule, given * step);
+  if (step !== 1 && near(v, counted)) return no('scale', `Read the numbers on the map, do not count squares. Each square ${backward ? 'up' : 'across'} is ${fmt(step)}.`);
+  return no('off', backward ? `Start at ${fmt(given)} on the side, go straight ACROSS to the trail, then straight DOWN.` : `Start at ${fmt(given)} along the bottom, go straight UP to the trail, then straight ACROSS.`);
+}
+export const dropAnswer = (p) => `The trail goes through ${pair(p.ask.x, p.ask.y)}.`;
+
+/* ================================================================== */
+/* Rule: write the rule for a trail on the map                         */
+/* ================================================================== */
+/** The dials: y = (times) x + (plus). A minus rule is a negative plus. */
+export const DIALS = { m: [0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], b: { lo: -10, hi: 10 } };
+export function genRule(rnd, kind = pick(rnd, ['times', 'plus'])) {
+  const t = trail(rnd, kind, { n: 3 });
   return base(t, { type: 'rule', kind });
 }
-/** Zone 4: rule, logbook and map — one of them doesn't match the other two. */
-export function genOdd(rnd) {
-  const kind = pick(rnd, ['times', 'plus', 'line']);
-  for (let tries = 0; tries < 200; tries++) {
-    const t = trail(rnd, kind);
-    const odd = pick(rnd, ['rule', 'table', 'map']);
-    const r = t.rule;
-    // a believable wrong version: the other shape through the first row, or a changed number
-    const wrong = r.form === 'times' ? { form: 'plus', m: 1, b: t.rows[0].y - t.rows[0].x }
-      : r.form === 'plus' ? { form: 'times', m: t.rows[0].y / t.rows[0].x, b: 0 }
-        : { form: 'times', m: r.m, b: 0 };
-    if (!Number.isInteger(wrong.m) || wrong.b < 0 || near(wrong.m, 1) && wrong.form === 'times') continue;
-    const wrongRows = t.rows.map((row) => ({ x: row.x, y: run(wrong, row.x) }));
-    if (wrongRows.every((w, i) => near(w.y, t.rows[i].y))) continue;
-    let table = t.rows;
-    if (odd === 'table') { const i = int(rnd, 1, 2); table = t.rows.map((row, k) => (k === i ? { x: row.x, y: r2(row.y + t.grid.yStep * pick(rnd, [1, 2])) } : row)); }
-    const mapRule = odd === 'map' ? wrong : r;
-    const grid = fitGrid([...table, ...t.rows.map((row) => ({ x: row.x, y: run(mapRule, row.x) })), { x: 10, y: 0 }]);
-    if (!grid) continue;
-    return base(t, { type: 'odd', kind, odd, grid, plaqueRule: odd === 'rule' ? wrong : r, table, mapRule });
-  }
-  throw new Error('no odd trail');
+/** The rule the dials show. */
+export function ruleFromDials(m, b) {
+  if (near(b, 0)) return { form: 'times', m, b: 0 };
+  if (b < 0) return { form: 'minus', m, b: -b };
+  return near(m, 1) ? { form: 'plus', m: 1, b } : { form: 'line', m, b };
 }
-/** Zone 4: one marker is off the trail. Which one? */
-export function genOffPoint(rnd) {
-  const t = trail(rnd, pick(rnd, ['times', 'plus', 'line']), { n: 4 });
-  const bad = int(rnd, 0, 3);
-  const pts = t.rows.map((row, i) => (i === bad ? { x: row.x, y: r2(row.y + t.grid.yStep * pick(rnd, [-1, 1, 2])) } : row));
-  if (pts[bad].y < 0 || pts[bad].y > t.grid.yMax) pts[bad].y = r2(t.rows[bad].y + t.grid.yStep);
-  if (pts[bad].y > t.grid.yMax) pts[bad].y = r2(t.rows[bad].y - t.grid.yStep);
-  return base(t, { type: 'offpoint', kind: 'off', pts, bad, rows: t.rows });
+/** A rule as dial settings. */
+export const dialsOf = (rule) => ({ m: rule.form === 'plus' ? 1 : rule.m, b: rule.form === 'times' ? 0 : rule.form === 'minus' ? -rule.b : rule.b });
+export function checkRule(p, m, b) {
+  const want = dialsOf(p.rule), { X, Y } = p, mine = ruleFromDials(m, b);
+  if (near(m, want.m) && near(b, want.b)) return { ok: true, key: 'correct', mine, message: `${ruleText(p.rule, X, Y)}: your trail and the map are the same trail.` };
+  const no = (key, message) => ({ ok: false, key, mine, message });
+  if ((p.rule.form === 'times' && near(m, 1) && near(b, want.m)) || (p.rule.form === 'plus' && near(b, 0) && near(m, want.b))) return no('times_plus', `Your trail splits from the map. Check a point: is ${Y} a number of TIMES ${X}, or ${X} PLUS a number?`);
+  if (near(m, want.m)) return no('forgot_start', `Your trail climbs like the map's but sits ${b > want.b ? 'above' : 'below'} it. Where is the map's trail when ${X} = 0?`);
+  if (near(b, want.b)) return no('steep', `Your trail starts in the right place but climbs too ${m > want.m ? 'fast' : 'slowly'}. How much does ${Y} go up when ${X} goes up by 1?`);
+  return no('off', `Your trail splits from the map. Pick two points on the map: what happens to ${Y} when ${X} goes up by 1?`);
 }
-/** Zone 4: Mary's ratio equation ("for every 4 bananas, 2 apples": 4b × 2 = a). */
-const RATIOS = [
-  { X: 'b', Y: 'a', xName: 'bananas sold', yName: 'apples sold', k: 2, q: 2 },
-  { X: 'b', Y: 'r', xName: 'blue beads', yName: 'red beads', k: 3, q: 2 },
-  { X: 'm', Y: 'w', xName: 'miles hiked', yName: 'water bottles', k: 3, q: 1 },
-];
-export function genMary(rnd) {
-  const s = pick(rnd, RATIOS);
-  const k = s.k, q = pick(rnd, [1, 2]) * s.q, P = k * q;     // for every P of X there are q of Y, so Y = X ÷ k
-  const rule = { form: 'times', m: 1 / k, b: 0 };
-  const rows = [1, 2, 3].map((i) => ({ x: P * i, y: q * i }));
-  const options = shuffle(rnd, [
-    { text: `${s.Y} = ${s.X} ÷ ${k}`, ok: true, key: 'correct' },
-    { text: `${P}${s.X} × ${q} = ${s.Y}`, ok: false, key: 'mary_multiply' },
-    { text: `${s.Y} = ${k}${s.X}`, ok: false, key: 'ratio_backwards' },
-    { text: `${s.Y} = ${s.X} − ${P - q}`, ok: false, key: 'ratio_difference' },
-  ]);
-  const grid = fitGrid([...rows, { x: 10, y: 0 }]);
-  return { id: nextId++, type: 'mary', kind: 'mary', rule, rows, grid, options, P, q, k, X: s.X, Y: s.Y, xName: s.xName, yName: s.yName };
-}
-/** The boss: a goal problem. "How many pom poms to raise at least $50?" (round UP: 90 only makes $49.50). */
-const GOALS = [
-  { X: 'n', Y: 'r', xName: 'pom poms sold', yName: 'money raised ($)', what: 'pom poms', club: 'The booster club' },
-  { X: 'c', Y: 'r', xName: 'cookies sold', yName: 'money raised ($)', what: 'cookies', club: 'The hiking club' },
-  { X: 'k', Y: 'r', xName: 'key chains sold', yName: 'money raised ($)', what: 'key chains', club: 'The rock club' },
-];
-export function genGoal(rnd) {
-  for (let tries = 0; tries < 200; tries++) {
-    const s = pick(rnd, GOALS);
-    const cents = pick(rnd, [55, 41, 35, 45, 65, 75, 40]), goal = pick(rnd, [20, 25, 30, 40, 50, 75]);
-    const exact = (goal * 100) / cents, answer = Math.ceil(exact - 1e-9);
-    if (Number.isInteger(exact) && rnd() < 0.7) continue;         // mostly goals that need rounding up
-    const rule = { form: 'times', m: cents / 100, b: 0 };
-    const rows = [10, 20, 30].map((x) => ({ x, y: run(rule, x) }));
-    return { id: nextId++, type: 'goal', kind: 'goal', rule, rows, goal, answer, exact, cents, X: s.X, Y: s.Y, xName: s.xName, yName: s.yName,
-      question: `${s.club} earns ${money(cents / 100)} for each of its ${s.what}. How many must they sell to raise at least $${goal}?` };
-  }
-  throw new Error('no goal');
-}
+export const ruleAnswer = (p) => `The rule: ${ruleText(p.rule, p.X, p.Y)}.`;
 
+/* ================================================================== */
+/* Zones                                                               */
+/* ================================================================== */
 export const ZONES = [
-  { name: 'Plot the Trail', blurb: 'Rule to logbook to map' },
-  { name: 'Read the Map', blurb: 'What does the graph say?' },
-  { name: 'Map to Rule', blurb: 'Write the equation from the graph' },
-  { name: 'Spot the Bad Map', blurb: 'Which one doesn\'t match?' },
-  { name: 'Rockslide Pass', blurb: 'Boss: goals, starts and halves' },
+  { name: 'Stake the Trail', blurb: 'Rule to map: a stake for every row of the logbook' },
+  { name: 'Read the Map', blurb: 'Slide the pointer: forward, then backward' },
+  { name: 'Map to Rule', blurb: 'Set the rule, then race the map\'s trail' },
+  { name: 'Fix the Map', blurb: 'One stake is wrong. Find it and move it' },
+  { name: 'Rockslide Pass', blurb: 'Boss: hidden rules, head starts and buried trails' },
 ];
+/** The rounds of a zone, in order. */
 export function genZone(rnd, zone) {
-  if (zone === 0) return [genPlot(rnd, { kind: 'times' }), genPlot(rnd, { kind: 'plus' }), genPlot(rnd, { kind: 'times' }), genPlot(rnd, { kind: 'plus' }), genPlot(rnd, { kind: 'line' })];
-  if (zone === 1) return shuffle(rnd, [genRead(rnd, { kind: 'times' }), genRead(rnd, { kind: 'plus' }), genRead(rnd, { kind: 'times', backward: true }), genMeaning(rnd), genMeaning(rnd)]);
-  if (zone === 2) return [genRule(rnd, { kind: 'times' }), genRule(rnd, { kind: 'plus' }), genRule(rnd, { kind: 'times' }), genRule(rnd, { kind: 'line' }), genRule(rnd, { kind: 'minus' })];
-  if (zone === 3) return shuffle(rnd, [genOdd(rnd), genOdd(rnd), genOffPoint(rnd), genMary(rnd), genOdd(rnd)]);
-  return [genGoal(rnd), genPlot(rnd, { kind: 'puppy' }), genRule(rnd, { kind: 'line' }), genRead(rnd, { kind: 'line', backward: true }), genGoal(rnd)];
-}
-export function genBackup(rnd, p) {
-  if (p.type === 'plot') return genPlot(rnd, { kind: p.kind });
-  if (p.type === 'read') return genRead(rnd, { kind: p.kind, backward: p.backward });
-  if (p.type === 'meaning') return genMeaning(rnd);
-  if (p.type === 'rule') return genRule(rnd, { kind: p.kind });
-  if (p.type === 'odd') return genOdd(rnd);
-  if (p.type === 'offpoint') return genOffPoint(rnd);
-  if (p.type === 'mary') return genMary(rnd);
-  return genGoal(rnd);
-}
-
-/* ================================================================== */
-/* Checking                                                            */
-/* ================================================================== */
-/** Plotted points: one for each logbook input. */
-export function checkPlot(p, pts) {
-  const r = p.rule;
-  const swapped = pts.find((q) => p.rows.some((row) => !near(row.x, row.y) && near(q.x, row.y) && near(q.y, row.x)));
-  if (swapped) return { correct: false, key: 'swapped_point', point: swapped, message: `You plotted ${pair(swapped.x, swapped.y)}: that's backwards. The input ${p.X} goes ACROSS first, then the output ${p.Y} goes UP: ${pair(swapped.y, swapped.x)}.` };
-  const missing = p.rows.filter((row) => !pts.some((q) => near(q.x, row.x)));
-  if (missing.length) return { correct: false, nudge: true, key: 'incomplete', message: `Plot a point for every logbook row. Still missing: ${p.X} = ${missing.map((m) => fmt(m.x)).join(', ')}.` };
-  for (const row of p.rows) {
-    const q = pts.find((v) => near(v.x, row.x));
-    if (near(q.y, row.y)) continue;
-    if ((r.form === 'line' || r.form === 'minus') && near(q.y, r.m * row.x)) {
-      return { correct: false, key: 'forgot_start', point: q, message: `At ${p.X} = ${fmt(row.x)} you went up to ${fmt(q.y)}, which is only ${fmt(r.m)} × ${fmt(row.x)}. Don't forget the ${r.form === 'minus' ? '−' : '+'} ${fmt(r.b)}: ${plugIn(r, p.X, p.Y, row.x)}.` };
-    }
-    if (near(q.y, row.x)) return { correct: false, key: 'height_is_input', point: q, message: `The height of a point is the OUTPUT, not the input. ${plugIn(r, p.X, p.Y, row.x)}, so go up to ${fmt(row.y)}.` };
-    return { correct: false, key: 'calc', point: q, message: `Check ${p.X} = ${fmt(row.x)}: ${plugIn(r, p.X, p.Y, row.x)}. Count the squares: each one up is ${fmt(p.grid.yStep)}.` };
-  }
-  const extra = pts.filter((q) => !p.rows.some((row) => near(row.x, q.x)));
-  if (extra.length) return { correct: false, nudge: true, key: 'extra', message: `Only plot the logbook's inputs. Tap ${pair(extra[0].x, extra[0].y)} again to remove it.` };
-  return { correct: true, key: 'correct', message: `On the trail! Every point fits ${ruleText(r, p.X, p.Y)}, so they line up.` };
-}
-/** Reading the map. */
-export function checkRead(p, raw) {
-  const v = parseNumber(raw);
-  if (v === null) return { correct: false, nudge: true, key: 'incomplete', message: 'Type a number.' };
-  const { x, y } = p.ask;
-  if (near(v, p.answer)) return { correct: true, key: 'correct', message: `Yes! The point ${pair(x, y)} is on the trail: ${plugIn(p.rule, p.X, p.Y, x)}.` };
-  if (near(v, p.backward ? y : x)) return { correct: false, key: 'wrong_axis', message: p.backward ? `${fmt(y)} is the ${p.Y} you were given. Find ${fmt(y)} on the UP axis, go across to the trail, then down to read ${p.X}.` : `${fmt(x)} is the ${p.X} you were given. Go across to ${fmt(x)}, UP to the trail, then read the height on the ${p.Y} axis.` };
-  if (!p.backward && (p.rule.form === 'line' || p.rule.form === 'minus') && near(v, p.rule.m * x)) return { correct: false, key: 'forgot_start', message: `That's only ${fmt(p.rule.m)} × ${fmt(x)}. This trail doesn't start at 0: ${plugIn(p.rule, p.X, p.Y, x)}.` };
-  return { correct: false, key: 'misread', message: p.backward ? `Find ${fmt(y)} on the ${p.Y} axis, go across to the trail, then straight down. Each square across is ${fmt(p.grid.xStep)}.` : `Go to ${fmt(x)} on the ${p.X} axis, up to the trail, then across. Each square up is ${fmt(p.grid.yStep)}.` };
-}
-const MEANING_MSG = {
-  swapped_pair: (p) => `Backwards! In ${pair(p.ask.x, p.ask.y)} the FIRST number is the input (${p.xName}) and the second is the output (${p.yName}).`,
-  pair_is_rate: (p) => `A point gives one pair of matching values, not how fast it grows. ${pair(p.ask.x, p.ask.y)} means: input ${fmt(p.ask.x)}, output ${fmt(p.ask.y)}.`,
-  pair_is_sum: (p) => `The two numbers in a point aren't added. ${pair(p.ask.x, p.ask.y)} means: input ${fmt(p.ask.x)} goes with output ${fmt(p.ask.y)}.`,
-};
-export function checkMeaning(p, i) {
-  const o = p.options[i];
-  if (o.ok) return { correct: true, key: 'correct', message: `Right! ${pair(p.ask.x, p.ask.y)}: ${p.X} = ${fmt(p.ask.x)} goes with ${p.Y} = ${fmt(p.ask.y)}.` };
-  return { correct: false, key: o.key, message: MEANING_MSG[o.key](p) };
-}
-/** Writing the rule from the map. The guess is { form, m, b }; it is checked on the plotted points and at 0. */
-export function checkRule(p, guess) {
-  if (!guess || !FORMS.includes(guess.form) || needs(guess.form).some((k) => typeof guess[k] !== 'number' || !Number.isFinite(guess[k]))) {
-    return { correct: false, nudge: true, key: 'incomplete', message: 'Pick the rule\'s shape and fill in every box.' };
-  }
-  const g = { m: 1, b: 0, ...guess };
-  const xs = [0, ...p.rows.map((r) => r.x)];
-  const r = p.rule, got = ruleText(g, p.X, p.Y);
-  if (xs.every((x) => near(run(g, x), run(r, x)))) return { correct: true, key: 'correct', guess: g, message: `The trail matches! ${got}.` };
-  const r0 = p.rows[0], r1 = p.rows[1];
-  const slope = (r1.y - r0.y) / (r1.x - r0.x);
-  const res = (key, message) => ({ correct: false, key, guess: g, message });
-  if (r.form === 'times' && g.form === 'plus' && near(g.b, slope)) return res('add_vs_times', `The trail climbs ${fmt(slope)} for each 1 across, but that means TIMES ${fmt(slope)}, not plus. Check ${pair(r0.x, r0.y)}: ${fmt(r0.y)} = ${fmt(slope)} × ${fmt(r0.x)}.`);
-  if (r.form === 'times' && g.form === 'times' && near(g.m * r.m, 1) && !near(g.m, 1)) return res('swapped', `Upside down! The rule gives ${p.Y} from ${p.X}: ${p.Y} = □${p.X}.`);
-  if ((r.form === 'line' || r.form === 'minus') && near(g.m, r.m) && (g.form === 'times' || near(g.b, 0))) return res('forgot_start', `Right steepness (${fmt(r.m)} each), but this trail doesn't go through (0, 0). At ${p.X} = 0 it is at ${fmt(run(r, 0))}.`);
-  if (r.form === 'minus' && g.form === 'line' && near(g.m, r.m) && near(g.b, r.b)) return res('plus_vs_minus', `If you extend the trail back to ${p.X} = 0, it would be BELOW zero, so the rule subtracts ${fmt(r.b)}.`);
-  const fits = p.rows.filter((row) => near(run(g, row.x), row.y)).length;
-  if (fits > 0) return res('some_points', `${got} goes through ${fits} of the points, but not all of them. Your dashed trail shows where it goes off.`);
-  return res('no_points', `${got} misses the points. Read two points from the map and see how much ${p.Y} grows for each 1 of ${p.X}.`);
-}
-export function checkOdd(p, which) {
-  const name = { rule: 'the RULE', table: 'the LOGBOOK', map: 'the MAP' };
-  const r = p.rule;
-  const why = p.odd === 'table' ? `the logbook row ${pair(p.table.find((t, i) => !near(t.y, p.rows[i].y)).x, p.table.find((t, i) => !near(t.y, p.rows[i].y)).y)} doesn't fit ${ruleText(r, p.X, p.Y)}`
-    : p.odd === 'rule' ? `${ruleText(p.plaqueRule, p.X, p.Y)} doesn't fit the logbook or the map (try ${p.X} = ${fmt(p.rows[1].x)})`
-      : `the map's trail doesn't go through the logbook's points (try ${p.X} = ${fmt(p.rows[1].x)})`;
-  if (which === p.odd) return { correct: true, key: 'correct', message: `Found it: ${why}. The other two agree.` };
-  return { correct: false, key: 'check_all_three', message: `${name[which]} agrees with one of the others. Test the same input in all three: ${why}.` };
-}
-export function checkOffPoint(p, i) {
-  const q = p.pts[p.bad], real = p.rows[p.bad];
-  if (i === p.bad) return { correct: true, key: 'correct', message: `Yes! ${pair(q.x, q.y)} is off the trail: ${plugIn(p.rule, p.X, p.Y, real.x)}, not ${fmt(q.y)}.` };
-  const w = p.pts[i];
-  return { correct: false, key: 'check_each_point', message: `${pair(w.x, w.y)} is on the trail: ${plugIn(p.rule, p.X, p.Y, w.x)}. Put each point's input into the rule.` };
-}
-const MARY_MSG = {
-  mary_multiply: (p) => `That's Mary's equation. Test it: ${fmt(p.P)} ${p.xName} should give ${fmt(p.q)} ${p.yName}, but ${fmt(p.P)} × ${fmt(p.P)} × ${fmt(p.q)} is far too many.`,
-  ratio_backwards: (p) => `Backwards: there are FEWER ${p.yName} than ${p.xName}. ${fmt(p.P)} ${p.xName} → ${fmt(p.q)} ${p.yName}, so divide by ${fmt(p.k)}.`,
-  ratio_difference: (p) => `That works for ${fmt(p.P)} → ${fmt(p.q)} only. Try ${fmt(2 * p.P)}: it should give ${fmt(2 * p.q)}.`,
-};
-export function checkMary(p, i) {
-  const o = p.options[i];
-  if (o.ok) return { correct: true, key: 'correct', message: `Right! ${o.text}: ${fmt(p.P)} → ${fmt(p.q)}, ${fmt(2 * p.P)} → ${fmt(2 * p.q)}, ${fmt(3 * p.P)} → ${fmt(3 * p.q)}.` };
-  return { correct: false, key: o.key, message: MARY_MSG[o.key](p) };
-}
-export function checkGoal(p, raw) {
-  const v = parseNumber(raw);
-  if (v === null) return { correct: false, nudge: true, key: 'incomplete', message: 'Type a number.' };
-  const rate = p.cents / 100;
-  if (near(v, p.answer)) return { correct: true, key: 'correct', message: `Yes! ${fmt(p.answer)} × ${money(rate)} = ${money(p.answer * rate)}${Number.isInteger(p.exact) ? '' : `, and ${fmt(p.answer - 1)} would only make ${money((p.answer - 1) * rate)}`}.` };
-  if (near(v, Math.floor(p.exact)) && !Number.isInteger(p.exact)) return { correct: false, key: 'rounded_down', message: `${fmt(v)} × ${money(rate)} = ${money(v * rate)}: not quite $${p.goal}! "At least" means round UP to ${fmt(v + 1)}.` };
-  if (Math.abs(v - p.exact) < 0.01 && !Number.isInteger(v)) return { correct: false, key: 'not_whole', message: `You can't sell part of one. ${p.goal} ÷ ${fmt(rate)} ≈ ${fmt(p.exact)}, so they need a whole number: round up.` };
-  if (near(v, p.goal * rate)) return { correct: false, key: 'multiplied', message: `That multiplied. Use the rule ${ruleText(p.rule, p.X, p.Y)} with ${p.Y} = ${p.goal}: divide ${p.goal} by ${fmt(rate)}.` };
-  return { correct: false, key: 'use_the_rule', message: `Rule: ${ruleText(p.rule, p.X, p.Y)}. Set ${p.Y} = ${p.goal} and solve: ${p.goal} ÷ ${fmt(rate)}, then round up.` };
-}
-
-/* ================================================================== */
-/* Worked solutions (after two misses)                                 */
-/* ================================================================== */
-export function workedSolution(p) {
-  const r = p.rule, rt = ruleText(r, p.X, p.Y);
-  if (p.type === 'plot') return [`Rule: ${rt}.`, ...p.rows.map((row) => `${plugIn(r, p.X, p.Y, row.x)} → plot ${pair(row.x, row.y)}`), `Across to ${p.X} first, then up to ${p.Y}.`];
-  if (p.type === 'read') return [`The trail's rule is ${rt}.`, `${plugIn(r, p.X, p.Y, p.ask.x)}, so ${pair(p.ask.x, p.ask.y)} is on the trail.`, `Answer: ${p.backward ? p.X : p.Y} = ${fmt(p.answer)}.`];
-  if (p.type === 'meaning') return [`In an ordered pair, input first, output second.`, `${pair(p.ask.x, p.ask.y)}: ${p.xName} = ${fmt(p.ask.x)}, ${p.yName} = ${fmt(p.ask.y)}.`];
-  if (p.type === 'rule') {
-    const [a, c] = p.rows;
-    const lines = [`Read two points: ${pair(a.x, a.y)} and ${pair(c.x, c.y)}.`, `For each 1 across, ${p.Y} goes up ${fmt((c.y - a.y) / (c.x - a.x))}.`];
-    lines.push(r.form === 'times' || r.form === 'plus' ? `Check ${pair(a.x, a.y)}: ${plugIn(r, p.X, p.Y, a.x)} ✓` : `At ${p.X} = 0 the trail would be at ${fmt(run(r, 0))}.`);
-    lines.push(`Rule: ${rt}.`);
-    return lines;
-  }
-  if (p.type === 'odd') return [`Test ${p.X} = ${fmt(p.rows[1].x)} in all three.`, `Rule ${ruleText(p.plaqueRule, p.X, p.Y)} gives ${fmt(run(p.plaqueRule, p.rows[1].x))}; logbook says ${fmt(p.table[1].y)}; map shows ${fmt(run(p.mapRule, p.rows[1].x))}.`, `The odd one out: the ${({ rule: 'rule', table: 'logbook', map: 'map' })[p.odd]}.`];
-  if (p.type === 'offpoint') return p.pts.map((q, i) => `${pair(q.x, q.y)}: ${plugIn(r, p.X, p.Y, q.x)} ${i === p.bad ? '✗ off the trail' : '✓'}`);
-  if (p.type === 'mary') return [`${fmt(p.P)} ${p.xName} go with ${fmt(p.q)} ${p.yName}: that's ${fmt(p.k)} times fewer.`, `So ${p.Y} = ${p.X} ÷ ${fmt(p.k)}.`, `Check: ${fmt(2 * p.P)} ÷ ${fmt(p.k)} = ${fmt(2 * p.q)} ✓`];
-  return [`Rule: ${rt}. Set ${p.Y} = ${p.goal}.`, `${p.goal} = ${fmt(p.cents / 100)}${p.X}, so ${p.X} = ${p.goal} ÷ ${fmt(p.cents / 100)} ≈ ${fmt(p.exact)}.`, Number.isInteger(p.exact) ? `They need exactly ${fmt(p.answer)}.` : `Round UP: ${fmt(p.answer)} (${fmt(p.answer - 1)} makes only ${money((p.answer - 1) * p.cents / 100)}).`];
+  if (zone === 0) return [genStake(rnd, 'times'), genStake(rnd, 'plus'), genStake(rnd, 'times', { zero: true }), genStake(rnd, pick(rnd, ['times', 'plus']), { n: 4 })];
+  if (zone === 1) return [genDrop(rnd, 'times'), genDrop(rnd, 'plus'), genDrop(rnd), genDrop(rnd, 'times', { backward: true }), genDrop(rnd, 'plus', { backward: true }), genDrop(rnd, undefined, { backward: true })];
+  if (zone === 2) return [genRule(rnd, 'times'), genRule(rnd, 'plus'), ...shuffle(rnd, [genRule(rnd, 'times'), genRule(rnd, 'plus')]), genRule(rnd, 'line')];
+  if (zone === 3) return shuffle(rnd, ['times', 'plus', 'times', 'plus']).map((k) => genFix(rnd, k));
+  return [genStake(rnd, 'line', { zero: true }), genStake(rnd, pick(rnd, ['times', 'plus']), { hidden: true }), genRule(rnd, pick(rnd, ['line', 'minus'])), genDrop(rnd, 'times', { backward: true, rocks: true }), genRule(rnd, 'puppy')];
 }

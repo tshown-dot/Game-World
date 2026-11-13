@@ -1,402 +1,356 @@
-// Trail Mapper (Lesson 4-10): the trail map, the logbook, the rule plaque and the controls. The math and checks live in
-// trail.js; zones, timer, lives, scoring and the report come from the shared game shell (shared/game/gameShell.js).
+// Trail Mapper (Lesson 4-10: Relate Tables, Graphs, and Equations): the screen and the controls.
+// The math is in trail.js. The shared parts of an action game (briefing, top bar, canteens, hint card, report) are in
+// shared/game/arcadeShell.js.
 //
-// Problem types: plot (tap the map), read (read the map), meaning (what does a point mean?), rule (write the rule from
-// the map), odd (rule, logbook or map: which is wrong?), offpoint (which marker is off the trail?), mary (ratio equation),
-// goal (boss: "at least" goals).
+// The map (a first-quadrant graph) is the playfield. A zone is a list of ROUNDS (see trail.js):
+//   stake  put stakes on the map for the logbook's rows, then the scout walks the real trail
+//   drop   slide a pointer along an axis to read the map, then the scout walks to that point
+//   rule   set the rule on two dials, then a second scout walks that rule over the map's trail
+// All timing goes through update(), so the action stops cleanly whenever a banner, hint, help screen or mistake
+// message is showing.
+import { createArcade } from '../../../../shared/game/arcadeShell.js';
 import {
-  ZONES, genZone, genBackup, workedSolution, ruleText, needs, fmt, run, parseNumber, snap, near, pair,
-  checkPlot, checkRead, checkMeaning, checkRule, checkOdd, checkOffPoint, checkMary, checkGoal,
+  ZONES, DIALS, genZone, genDrop, run, fmt, pair, ruleText, snap, near, checkStakes, stakeAnswer, checkDrop, dropAnswer,
+  ruleFromDials, dialsOf, checkRule, ruleAnswer,
 } from './trail.js';
-import { hubAudio } from '../../../../shared/audio.js';
-import { createGame } from '../../../../shared/game/gameShell.js';
 
-const SKILL_TIPS = {
-  swapped_point: 'Plot (x, y): go ACROSS to the input first, then UP to the output.',
-  forgot_start: 'Some trails don\'t start at 0: use the whole rule, start amount included.',
-  height_is_input: 'A point\'s height is its output, worked out with the rule.',
-  calc: 'Count squares carefully: check how much each square is worth on each axis.',
-  wrong_axis: 'Read the answer on the OTHER axis from the number you were given.',
-  misread: 'Go along one axis to the trail, then across (or down) to the other axis.',
-  swapped_pair: 'In an ordered pair, the input comes first and the output second.',
-  pair_is_rate: 'A point is one matching pair of values, not the rate.',
-  pair_is_sum: 'The two numbers in a point are a pair, not a sum.',
-  add_vs_times: 'A trail through (0, 0) that climbs the same amount each step is a TIMES rule.',
-  swapped: 'The rule gives the output from the input: y = …x.',
-  plus_vs_minus: 'If the trail would be below 0 at x = 0, the rule subtracts.',
-  some_points: 'A rule must go through EVERY point on the trail.',
-  no_points: 'Read two points and find how much y grows for each 1 of x.',
-  check_all_three: 'Test the same input in the rule, the logbook and the map.',
-  check_each_point: 'Put each point\'s input into the rule and compare the output.',
-  mary_multiply: 'Test a ratio equation with the numbers it should give.',
-  ratio_backwards: 'Fewer outputs than inputs means divide, not multiply.',
-  ratio_difference: 'A ratio is about multiplying or dividing, not a fixed difference.',
-  rounded_down: '"At least" means round UP so the goal is really reached.',
-  not_whole: 'You can\'t sell part of an item: use a whole number.',
-  multiplied: 'To find how many, divide the goal by the price.',
-  use_the_rule: 'Set the output to the goal and solve the rule.',
+const BOSS = ZONES.length - 1;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+// Everything about the round being played.
+const W = {
+  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, stake, drop, rule, run, hold, gap
+  stakes: [], cur: { x: 0, y: 0 },                  // stake: the student's stakes, and the keyboard cursor
+  pv: 0,                                            // drop: where the pointer is on its axis
+  mi: 1, b: 0,                                      // rule: the two dials (mi is a place in DIALS.m)
+  shown: {},                                        // what the scout has shown so far: rows, guide, trail, ghost
+  anim: null, tries: 0,
+  gapLeft: 0, frozen: false, afterResume: null, speed: 1,
 };
 
-const shell = createGame({
-  zones: ZONES, makeZone: genZone, makeBackup: genBackup, workedSolution, showProblem,
-  seconds: [60, 50, 60, 50, 80],                      // seconds until the rockslide, per zone
-  meterFloor: 8, wrongBump: 30, rightRelief: 25, pauseOnBanner: true,
-  lifeLostText: (left) => (left > 0 ? 'A CANTEEN RAN DRY!' : 'LOST IN THE CANYON!'),
-  bossHitText: 'PASS CLEARED!', winDelay: () => 1700,
-  skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. Master trail mapper!',
-  onKey, testName: '__trail',
+const HINTS = {
+  swapped: 'A point is (across, up). The first number is always the one along the bottom.<span class="mono">(2, 6) : 2 across, then 6 up</span>',
+  scale: 'Squares are not always worth 1. Read the numbers printed on the axis.<span class="mono">0, 5, 10, 15 : each square is 5</span>',
+  times_plus: 'A number written next to a letter means TIMES.<span class="mono">3x : 3 times x</span><span class="mono">x + 3 : 3 more than x</span>',
+  forgot_start: 'Some trails do not start at 0. Find where the trail is when x = 0: that is the number the rule adds.<span class="mono">y = 2x + 3 starts at 3</span>',
+  off: 'Check one point at a time: put the x into the rule, work out y, then go x across and y up.',
+  wrong_axis: 'To read a map, start on the axis you KNOW, go to the trail, then turn to the other axis.<span class="mono">x known: up, then across</span><span class="mono">y known: across, then down</span>',
+  steep: 'How steep a trail is comes from the TIMES number: how much y goes up each time x goes up by 1.',
+};
+const TIPS = {
+  swapped: 'In an ordered pair (x, y), x goes across and y goes up.',
+  scale: 'Check the scale on each axis before plotting or reading a point.',
+  times_plus: '3x means 3 times x; x + 3 means 3 more than x.',
+  forgot_start: 'In y = 2x + 3, the 3 is the value of y when x is 0.',
+  off: 'Substitute x into the equation to find y, then plot (x, y).',
+  wrong_axis: 'To read a graph, start from the known value on its own axis.',
+  steep: 'The number multiplying x tells how much y changes when x goes up by 1.',
+};
+
+const arcade = createArcade({
+  zones: ZONES, startZone, stopZone, onKey, hints: HINTS, skillTips: TIPS, testName: '__trail',
+  perfectText: 'Every trail mapped: no mistakes to sharpen!',
+  lifeLostText: (left) => (left > 0 ? `A CANTEEN IS EMPTY! ${left} LEFT` : 'TRIP OVER'),
 });
-const { G, UI, $, win, miss, showFeedback } = shell;
-const SHAPES = ['times', 'plus', 'line', 'minus'];
-Object.assign(G, { pts: [], cursor: { i: 0, j: 0 }, form: null, vals: { m: '', b: '' }, guess: null, done: false, bad: null, tried: [], chosen: null });
+const { G, hubAudio } = arcade;
+if (window.__trail) window.__trail.W = W;
+const busy = () => W.frozen || arcade.paused();
 
 /* ================================================================== */
-/* Drawing: the map, the logbook and the rule plaque                   */
+/* Zones and rounds                                                    */
 /* ================================================================== */
-const K = '#1d1433';
-const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const FONT = 'font-family="Nunito, system-ui, sans-serif" font-weight="900"';
-const MONO = 'font-family="ui-monospace, \'Courier New\', monospace" font-weight="900"';
-const MAP = { x0: 80, y0: 430, size: 40 };            // the origin on screen, and the size of one square
-const sx = (g, x) => MAP.x0 + (x / g.xStep) * MAP.size;
-const sy = (g, y) => MAP.y0 - (y / g.yStep) * MAP.size;
-
-function text(t, x, y, size, fill = K, anchor = 'middle', font = FONT) {
-  return `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${fill}" ${font}>${esc(t)}</text>`;
+function startZone(z) {
+  W.rounds = genZone(Math.random, z);
+  startRound(0);
 }
-function wrap(t, x, y, n, size, fill = K) {
-  const out = [];
-  for (const w of String(t).split(' ')) { const last = out[out.length - 1]; if (last && `${last} ${w}`.length <= n) out[out.length - 1] = `${last} ${w}`; else out.push(w); }
-  return out.map((l, i) => text(l, x, y + i * (size + 3), size, fill)).join('');
+function stopZone() {
+  Object.assign(W, { phase: 'idle', frozen: false, afterResume: null, anim: null });
+  $('callout').classList.add('hidden');
 }
-/** The visible piece of a rule's line, clipped to the map. */
-function trailPath(rule, g, attrs) {
-  const y0 = run(rule, 0), s = run(rule, 1) - y0;
-  let xa = 0, xb = g.xMax;
-  if (s > 0) { xa = Math.max(0, -y0 / s); xb = Math.min(g.xMax, (g.yMax - y0) / s); }
-  if (xb <= xa || y0 > g.yMax) return '';
-  return `<path d="M${sx(g, xa)} ${sy(g, run(rule, xa))} L${sx(g, xb)} ${sy(g, run(rule, xb))}" ${attrs}/>`;
+function startRound(i) {
+  const p = W.rounds[i];
+  Object.assign(W, { ri: i, round: p, tries: 0, anim: null, frozen: false, afterResume: null, shown: {}, phase: p.type });
+  if (G.zone === BOSS) arcade.setBossProgress((i / W.rounds.length) * 100);
+  if (p.type === 'stake') { W.stakes = p.preset.map((q) => ({ ...q })); W.cur = { x: p.grid.xStep * 5, y: p.grid.yStep * 5 }; }
+  if (p.type === 'drop') { const step = p.backward ? p.grid.xStep : p.grid.yStep, mid = step * 5; W.pv = near(mid, p.answer) ? step * 3 : mid; }   // never start on the answer
+  if (p.type === 'rule') { W.mi = 1; W.b = 0; }      // the dials start at y = x
+  showLine('');
+  renderSign(true); renderSide(); renderCtl(); draw();
 }
-function mapSvg(p, g, { line = null, guess = null, markers = [], cursor = null }) {
-  let grid = '';
-  for (let i = 0; i <= 10; i++) {
-    const a = MAP.x0 + i * MAP.size, b = MAP.y0 - i * MAP.size;
-    grid += `<path d="M${a} ${MAP.y0} V${MAP.y0 - 400} M${MAP.x0} ${b} H${MAP.x0 + 400}" stroke="#c9b48a" stroke-width="${i === 0 ? 0 : 1.5}"/>`;
-    grid += text(fmt(i * g.xStep), a, MAP.y0 + 20, 13, '#5b4a3a');
-    if (i > 0) grid += text(fmt(i * g.yStep), MAP.x0 - 8, b + 5, 13, '#5b4a3a', 'end');
-  }
-  return `<rect x="${MAP.x0 - 60}" y="10" width="480" height="490" rx="14" fill="#f6e7c1" ${O}/>
-    ${grid}
-    <path d="M${MAP.x0} ${MAP.y0 - 404} V${MAP.y0} H${MAP.x0 + 404}" stroke="${K}" stroke-width="3" fill="none"/>
-    ${text(`${p.xName} (${p.X}) ➜`, MAP.x0 + 200, MAP.y0 + 44, 15, '#8f3f22')}
-    <g transform="translate(${MAP.x0 - 44} ${MAP.y0 - 200}) rotate(-90)">${text(`${p.yName} (${p.Y}) ➜`, 0, 0, 15, '#8f3f22')}</g>
-    ${line ? trailPath(line, g, `class="trail" stroke="#8f3f22" stroke-width="6" stroke-dasharray="14 8" stroke-linecap="round" fill="none"`) : ''}
-    ${guess ? trailPath(guess, g, `class="guess" stroke="#1f63c9" stroke-width="5" stroke-dasharray="6 8" stroke-linecap="round" fill="none"`) : ''}
-    ${markers.map((m) => `<g class="${m.cls || ''}"><circle cx="${sx(g, m.x)}" cy="${sy(g, m.y)}" r="9" fill="${m.fill || '#e5484d'}" ${O}/>${m.label ? text(m.label, sx(g, m.x) + 14, sy(g, m.y) - 10, 15, K, 'start') : ''}</g>`).join('')}
-    ${cursor ? `<circle class="cursor" cx="${sx(g, cursor.x)}" cy="${sy(g, cursor.y)}" r="14" fill="none" stroke="#1f63c9" stroke-width="4"/>` : ''}
-    <g id="hover"></g>
-    <rect id="mapHit" x="${MAP.x0 - 20}" y="${MAP.y0 - 420}" width="440" height="440" fill="transparent" style="cursor:${p.type === 'plot' ? 'crosshair' : 'default'}"/>`;
+function rest(seconds) { W.phase = 'gap'; W.gapLeft = seconds; renderCtl(); }
+function endRound() { rest(0.7); }
+function nextRound() {
+  if (W.ri + 1 < W.rounds.length) return startRound(W.ri + 1);
+  W.phase = 'idle';
+  if (G.zone === BOSS) arcade.setBossProgress(100);
+  arcade.zoneCleared();
 }
-function plaque(t, { glow = false, mark = '' } = {}) {
-  return `<rect x="520" y="14" width="268" height="58" rx="10" fill="${glow ? '#ffe680' : '#3b3049'}" ${O} class="${mark}"/>
-    ${text('RULE', 534, 32, 11, glow ? '#8f3f22' : '#c9b8ff', 'start')}
-    ${text(t, 654, 60, t.length > 16 ? 18 : 22, glow ? K : '#ffd23f', 'middle', MONO)}`;
+function stopFor(message, button, then) {
+  W.frozen = true; W.afterResume = then;
+  $('calloutText').textContent = message;
+  $('resumeBtn').textContent = button;
+  $('callout').classList.remove('hidden');
 }
-function logbook(rows, { mark = '' } = {}) {
-  const h = 38, top = 116;
-  return `<rect x="520" y="84" width="268" height="${40 + rows.length * h}" rx="10" fill="#fff4d6" ${O} class="${mark}"/>
-    ${text('LOGBOOK', 534, 102, 11, '#8f3f22', 'start')}
-    ${rows.map((r, i) => `<g>
-      <rect x="532" y="${top + i * h}" width="244" height="${h - 6}" rx="7" fill="${r.state === 'ok' ? '#9be7b4' : r.state === 'bad' ? '#ffadb3' : r.state === 'ask' ? '#fff3c4' : '#efe2c4'}" stroke="${K}" stroke-width="2"/>
-      ${text(r.x, 594, top + i * h + 23, 19, K, 'middle', MONO)}${text('➜', 654, top + i * h + 23, 16, '#8f3f22')}${text(r.y, 714, top + i * h + 23, 19, r.you ? '#1f63c9' : K, 'middle', MONO)}
-    </g>`).join('')}`;
+function resume() {
+  if (!W.frozen || arcade.paused()) return;
+  W.frozen = false;
+  $('callout').classList.add('hidden');
+  const then = W.afterResume;
+  W.afterResume = null;
+  if (then) then();
 }
-function note(t, y = 360) {
-  return `<rect x="520" y="${y}" width="268" height="${Math.min(500 - y, 120)}" rx="10" fill="#efe2c4" ${O}/>${wrap(t, 654, y + 28, 26, 15, '#5b4a3a')}`;
-}
-function sky() {
-  return `<rect x="-300" y="-300" width="1400" height="1120" fill="#c4643a"/>
-    <path d="M-300 520 L-300 300 L-120 220 L-60 520 Z M1100 520 V260 L900 200 L840 520 Z" fill="#9e4a2b"/>`;
+function showLine(text, off = false) { $('tline').textContent = text; $('tline').classList.toggle('off', off); }
+/** A mistake. First time: try again. Second time: the answer is shown and the round moves on. */
+function miss(res, { answer, retry, show = null }) {
+  W.tries += 1; W.phase = 'hold';
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;                    // that was the last canteen: the zone has stopped
+  const moveOn = W.tries >= 2;
+  if (moveOn && show) show();
+  stopFor(res.message + (moveOn ? ` ${answer}` : ''), moveOn ? 'NEXT (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? endRound : retry);
+  renderCtl();
 }
 
 /* ================================================================== */
-/* Problems                                                            */
+/* The map                                                             */
 /* ================================================================== */
-const TAGS = { plot: 'PLOT THE TRAIL', read: 'READ THE MAP', meaning: 'WHAT DOES THIS POINT MEAN?', rule: 'MAP TO RULE', odd: 'SPOT THE BAD MAP', offpoint: 'WHICH MARKER IS OFF?', mary: 'IS MARY RIGHT?', goal: 'REACH THE GOAL' };
-function showProblem(p, isBackup) {
-  Object.assign(G, { pts: [], cursor: { i: 1, j: 1 }, form: null, vals: { m: '', b: '' }, guess: null, done: false, bad: null, tried: [], chosen: null });
-  UI.taskTag.textContent = `${p.type === 'read' && p.backward ? 'READ THE MAP BACKWARD' : TAGS[p.type]}${isBackup ? ' · BACKUP' : ''}`;
-  renderPrompt();
-  renderControls();
-  draw();
+const OX = 64, OY = 420, SQ = 40;                    // where (0, 0) is in the drawing, and the size of a square
+const PX = (x) => OX + (x / W.round.grid.xStep) * SQ;
+const PY = (y) => OY - (y / W.round.grid.yStep) * SQ;
+/** The ends of a rule's trail on this map: from where it enters to where it leaves (or to `to`, for a buried trail). */
+function trailEnds(rule, to = null) {
+  const { grid } = W.round, pts = [];
+  for (let k = 0; k <= 100; k++) { const x = (grid.xMax * k) / 100, y = run(rule, x); if (y >= -1e-6 && y <= grid.yMax + 1e-6 && (to === null || x <= to + 1e-6)) pts.push({ x, y }); }
+  return pts.length ? [pts[0], pts[pts.length - 1]] : null;
 }
-const rt = (p) => ruleText(p.rule, p.X, p.Y);
-function renderPrompt() {
-  const p = G.problem;
-  const say = {
-    plot: () => `Rule: <b class="mono">${esc(rt(p))}</b>. Plot a point for every logbook input: go <b>across</b> to ${esc(p.X)}, then <b>up</b> to ${esc(p.Y)}.`,
-    read: () => (p.backward ? `Use the map: when is <b>${esc(p.Y)} = ${fmt(p.ask.y)}</b>? Find ${esc(p.X)}.` : `Use the map: what is <b>${esc(p.Y)}</b> when <b>${esc(p.X)} = ${fmt(p.ask.x)}</b>?`),
-    meaning: () => `What does the point <b>${pair(p.ask.x, p.ask.y)}</b> on this trail mean?`,
-    rule: () => `Write the rule for the trail on the map. Input <b>${esc(p.X)}</b>: ${esc(p.xName)}. Output <b>${esc(p.Y)}</b>: ${esc(p.yName)}.`,
-    odd: () => 'The rule, the logbook and the map should all show the <b>same</b> trail. One of them is wrong. Which one?',
-    offpoint: () => `The rule is <b class="mono">${esc(rt(p))}</b>. One trail marker is in the wrong spot. Which?`,
-    mary: () => `For every <b>${fmt(p.P)} ${esc(p.xName)}</b> there are <b>${fmt(p.q)} ${esc(p.yName)}</b>. Mary wrote <b class="mono">${fmt(p.P)}${esc(p.X)} × ${fmt(p.q)} = ${esc(p.Y)}</b>. Which equation is right?`,
-    goal: () => `<span class="story">${esc(p.question)}</span>`,
-  };
-  UI.prompt.innerHTML = say[p.type]();
-}
-function draw({ glow = G.done } = {}) {
-  const p = G.problem, g = p.grid;
-  let left = '', right = '';
-  const showLine = glow ? p.rule : null;
-  if (p.type === 'plot') {
-    const markers = G.pts.map((q) => ({ ...q, fill: G.bad && near(G.bad.x, q.x) && near(G.bad.y, q.y) ? '#e5484d' : glow ? '#2fbf71' : '#1f63c9' }));
-    left = mapSvg(p, g, { line: showLine, markers, cursor: glow ? null : { x: G.cursor.i * g.xStep, y: G.cursor.j * g.yStep } });
-    right = plaque(rt(p), { glow }) + logbook(p.rows.map((r) => { const q = G.pts.find((v) => near(v.x, r.x)); return { x: fmt(r.x), y: q ? fmt(q.y) : '?', you: !!q, state: glow ? 'ok' : q ? null : 'ask' }; }))
-      + note('Tap a crossing on the map to plot. Tap a point again to remove it.', 300);
-  } else if (p.type === 'read') {
-    const markers = p.rows.map((r) => ({ ...r, fill: '#8f3f22' }));
-    if (glow) markers.push({ ...p.ask, fill: '#2fbf71', label: pair(p.ask.x, p.ask.y) });
-    left = mapSvg(p, g, { line: p.rule, markers });
-    const ask = p.backward ? { x: glow ? fmt(p.ask.x) : '?', y: fmt(p.ask.y), state: glow ? 'ok' : 'ask' } : { x: fmt(p.ask.x), y: glow ? fmt(p.ask.y) : '?', state: glow ? 'ok' : 'ask' };
-    right = plaque(glow ? rt(p) : '???', { glow }) + logbook([...p.rows.map((r) => ({ x: fmt(r.x), y: fmt(r.y) })), ask]) + note('Move the pointer over the map to see where you are.', 300);
-  } else if (p.type === 'meaning') {
-    left = mapSvg(p, g, { line: p.rule, markers: [{ ...p.ask, fill: '#ffd23f', label: pair(p.ask.x, p.ask.y) }] });
-    right = plaque(rt(p), { glow }) + note(`Input ${p.X}: ${p.xName}. Output ${p.Y}: ${p.yName}.`, 100);
-  } else if (p.type === 'rule') {
-    left = mapSvg(p, g, { line: p.rule, guess: G.guess, markers: p.rows.map((r) => ({ ...r, fill: glow ? '#2fbf71' : '#8f3f22' })) });
-    right = plaque(glow ? rt(p) : `${p.Y} = ???`, { glow }) + note(G.guess ? 'Blue dashes: YOUR rule. Does it follow the trail?' : 'Read the points. How much does the trail climb for each 1 across? Where would it be at 0?', 100);
-  } else if (p.type === 'odd') {
-    const pick = (w) => (G.chosen === w ? (w === p.odd ? 'pick-ok' : 'pick-bad') : '');
-    left = mapSvg(p, g, { line: p.mapRule, markers: p.rows.map((r) => ({ x: r.x, y: run(p.mapRule, r.x), fill: '#8f3f22' })) });
-    left = `<g class="${pick('map')}">${left}</g>`;
-    right = `<g class="${pick('rule')}">${plaque(ruleText(p.plaqueRule, p.X, p.Y))}</g><g class="${pick('table')}">${logbook(p.table.map((r) => ({ x: fmt(r.x), y: fmt(r.y) })))}</g>`
-      + note('Test one input in all three. Two agree; the odd one out is wrong.', 290);
-  } else if (p.type === 'offpoint') {
-    const L = 'ABCD';
-    left = mapSvg(p, g, { line: glow ? p.rule : null, markers: p.pts.map((q, i) => ({ ...q, label: L[i], fill: glow && i === p.bad ? '#e5484d' : G.tried.includes(i) ? '#9be7b4' : '#ffd23f' })) });
-    right = plaque(rt(p), { glow }) + note('Put each marker\'s input into the rule. Does the output match its height?', 100);
-  } else if (p.type === 'mary') {
-    left = `<rect x="20" y="10" width="480" height="490" rx="14" fill="#f6e7c1" ${O}/>
-      ${text(`FOR EVERY ${fmt(p.P)}`, 260, 120, 26, '#8f3f22')}${wrap(p.xName.toUpperCase(), 260, 160, 22, 22)}
-      ${text('THERE ARE', 260, 250, 22, '#8f3f22')}${text(fmt(p.q), 260, 310, 46, K, 'middle', MONO)}${wrap(p.yName.toUpperCase(), 260, 350, 22, 22)}`;
-    right = plaque(glow ? p.options.find((o) => o.ok).text : `MARY: ${fmt(p.P)}${p.X} × ${fmt(p.q)} = ${p.Y}`, { glow })
-      + logbook(p.rows.map((r) => ({ x: fmt(r.x), y: fmt(r.y) })));
-  } else {
-    const fill = glow ? 1 : 0.3;
-    left = `<rect x="20" y="10" width="480" height="490" rx="14" fill="#f6e7c1" ${O}/>
-      <rect x="200" y="60" width="120" height="380" rx="20" fill="#fff" ${O}/>
-      <rect class="thermo" x="208" y="${68 + 364 * (1 - fill)}" width="104" height="${364 * fill}" rx="14" fill="#e5484d"/>
-      <path d="M180 68 H340" stroke="${K}" stroke-width="5"/>${text(`GOAL: $${p.goal}`, 260, 50, 22, '#8f3f22')}
-      ${text(`$${(p.cents / 100).toFixed(2)} each`, 260, 480, 20, K)}`;
-    right = plaque(rt(p), { glow }) + logbook(p.rows.map((r) => ({ x: fmt(r.x), y: `$${r.y.toFixed(2)}` }))) + note('"At least" means they must reach the goal, maybe a little over.', 300);
+const line = (a, b, cls) => `<line class="${cls}" x1="${PX(a.x)}" y1="${PY(a.y)}" x2="${PX(b.x)}" y2="${PY(b.y)}"/>`;
+const flag = (q, cls) => `<g class="flag ${cls}" transform="translate(${PX(q.x)},${PY(q.y)})"><line y2="-24"/><path d="M0,-24 L17,-18 L0,-12 Z"/><circle r="4.5"/></g>`;
+function draw() {
+  const p = W.round, { grid } = p, S = W.shown, out = [];
+  for (let k = 0; k <= 10; k++) {
+    out.push(`<line class="gl" x1="${OX + k * SQ}" y1="${OY}" x2="${OX + k * SQ}" y2="${OY - 10 * SQ}"/><line class="gl" x1="${OX}" y1="${OY - k * SQ}" x2="${OX + 10 * SQ}" y2="${OY - k * SQ}"/>`);
+    const xv = k * grid.xStep, yv = k * grid.yStep;
+    const xKnown = p.type === 'drop' && !p.backward && near(xv, p.given), yKnown = p.type === 'drop' && p.backward && near(yv, p.given);
+    out.push(`<text class="al ${xKnown ? 'known' : ''}" x="${OX + k * SQ}" y="${OY + 18}" text-anchor="middle">${fmt(xv)}</text><text class="al ${yKnown ? 'known' : ''}" x="${OX - 9}" y="${OY - k * SQ + 5}" text-anchor="end">${fmt(yv)}</text>`);
   }
-  UI.scene.innerHTML = sky() + left + right;
-  const hit = $('mapHit');
-  if (hit) {
-    hit.addEventListener('pointerdown', (e) => { if (G.problem.type === 'plot') { e.preventDefault(); tapMap(e); } });
-    hit.addEventListener('pointermove', hover);
-    hit.addEventListener('pointerleave', () => { const h = $('hover'); if (h) h.innerHTML = ''; });
+  out.push(`<line class="ax" x1="${OX}" y1="${OY}" x2="${OX + 10 * SQ}" y2="${OY}"/><line class="ax" x1="${OX}" y1="${OY}" x2="${OX}" y2="${OY - 10 * SQ}"/>`);
+  out.push(`<text class="an" x="${OX + 5 * SQ}" y="${OY + 42}" text-anchor="middle">${esc(p.X)} = ${esc(p.xName)}</text><text class="an" transform="translate(13,${OY - 5 * SQ}) rotate(-90)" text-anchor="middle">${esc(p.Y)} = ${esc(p.yName)}</text>`);
+  // the map's own trail: drawn from the start for drop and rule rounds, and as far as the scout has walked for stakes
+  const upTo = p.type === 'stake' ? (S.walked ?? -1) : p.rocks && !S.cleared ? p.seen : null;
+  const ends = upTo === null || upTo >= 0 ? trailEnds(p.rule, upTo) : null;
+  if (ends) out.push(line(ends[0], ends[1], 'trail'));
+  if (p.type !== 'stake') for (const r of p.rows) if (!p.rocks || S.cleared || r.x <= p.seen) out.push(`<circle class="dot" cx="${PX(r.x)}" cy="${PY(r.y)}" r="5.5"/>`);
+  if (p.rocks && !S.cleared) out.push(`<rect class="rocks" x="${PX(p.seen) + 8}" y="${OY - 10 * SQ}" width="${OX + 10 * SQ - PX(p.seen) - 8}" height="${10 * SQ}" rx="10"/><text class="rocktext" x="${(PX(p.seen) + 8 + OX + 10 * SQ) / 2}" y="${OY - 5 * SQ}" text-anchor="middle">ROCKSLIDE</text>`);
+  if (S.ghost) { const g = trailEnds(S.ghost.rule, S.ghost.to); if (g) out.push(line(g[0], g[1], 'ghost')); }
+  if (S.guide) { const a = p.ask; out.push(`<polyline class="guide" points="${p.backward ? `${OX},${PY(a.y)} ${PX(a.x)},${PY(a.y)} ${PX(a.x)},${OY}` : `${PX(a.x)},${OY} ${PX(a.x)},${PY(a.y)} ${OX},${PY(a.y)}`}"/><circle class="dot hit" cx="${PX(a.x)}" cy="${PY(a.y)}" r="7"/>`); }
+  if (p.type === 'stake') {
+    for (const q of p.fixed) out.push(flag(q, 'given'));
+    for (const r of p.want) if (S.rows && S.rows[r.x] && !W.stakes.some((q) => near(q.x, r.x) && near(q.y, r.y))) out.push(`<circle class="spot" cx="${PX(r.x)}" cy="${PY(r.y)}" r="9"/>`);
+    for (const q of W.stakes) { const on = p.want.some((r) => near(q.x, r.x) && near(q.y, r.y)); out.push(flag(q, S.judged ? (on ? 'lit' : 'bad') : '')); }
+    if (W.phase === 'stake') out.push(`<circle class="cursor" cx="${PX(W.cur.x)}" cy="${PY(W.cur.y)}" r="13"/>`);
   }
+  if (p.type === 'drop') {
+    const tip = p.backward ? `${PX(W.pv)},${OY + 3} ${PX(W.pv) - 11},${OY + 24} ${PX(W.pv) + 11},${OY + 24}` : `${OX - 3},${PY(W.pv)} ${OX - 24},${PY(W.pv) - 11} ${OX - 24},${PY(W.pv) + 11}`;
+    out.push(`<polygon class="pointer ${S.guide ? (near(W.pv, p.answer) ? 'lit' : 'bad') : ''}" points="${tip}"/>`);
+  }
+  if (S.scout) out.push(`<circle class="scout" cx="${PX(S.scout.x)}" cy="${PY(S.scout.y)}" r="9"/>`);
+  if (S.runner) out.push(`<circle class="scout mine" cx="${PX(S.runner.x)}" cy="${PY(Math.min(grid.yMax, Math.max(0, S.runner.y)))}" r="8"/>`);
+  $('map').innerHTML = out.join('');
 }
-/** Screen point → map values (snapped to a crossing). */
+/** A tap on the map, as numbers on the two axes (snapped to the nearest crossing). */
 function mapPoint(e) {
-  const g = G.problem.grid;
-  const pt = UI.scene.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
-  const v = pt.matrixTransform(UI.scene.getScreenCTM().inverse());
-  return snap(g, ((v.x - MAP.x0) / MAP.size) * g.xStep, ((MAP.y0 - v.y) / MAP.size) * g.yStep);
+  const box = $('map').getBoundingClientRect(), { grid } = W.round;
+  const sx = ((e.clientX - box.left) / box.width) * 500, sy = ((e.clientY - box.top) / box.height) * 470;
+  return snap(grid, ((sx - OX) / SQ) * grid.xStep, ((OY - sy) / SQ) * grid.yStep);
 }
-function hover(e) {
-  const p = G.problem, h = $('hover');
-  if (!p || !p.grid || !h) return;
-  const q = mapPoint(e), g = p.grid;
-  h.innerHTML = `<path d="M${sx(g, q.x)} ${MAP.y0} V${sy(g, q.y)} H${MAP.x0}" stroke="#1f63c9" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
-    <circle cx="${sx(g, q.x)}" cy="${sy(g, q.y)}" r="5" fill="#1f63c9"/>
-    <rect x="${sx(g, q.x) + 10}" y="${sy(g, q.y) - 34}" width="${16 + pair(q.x, q.y).length * 10}" height="26" rx="6" fill="#fff" stroke="#1f63c9" stroke-width="2"/>
-    ${text(pair(q.x, q.y), sx(g, q.x) + 18, sy(g, q.y) - 15, 16, '#1f63c9', 'start', MONO)}`;
+$('map').addEventListener('pointerdown', (e) => {
+  if (busy()) return;
+  const q = mapPoint(e);
+  if (W.phase === 'stake') { W.cur = q; toggleStake(); }
+  else if (W.phase === 'drop') setPointer(W.round.backward ? q.x : q.y);
+});
+
+/* ================================================================== */
+/* The rule card, the logbook and the dials                            */
+/* ================================================================== */
+function renderSide() {
+  const p = W.round, S = W.shown, mine = ruleFromDials(DIALS.m[W.mi], W.b);
+  $('ruleHead').textContent = p.type === 'rule' ? 'YOUR RULE' : 'THE RULE';
+  $('ruleText').textContent = p.type === 'rule' ? ruleText(mine, p.X, p.Y) : p.type === 'drop' ? 'read it from the map' : p.hidden ? `${p.Y} = ? ? ?` : ruleText(p.rule, p.X, p.Y);
+  $('ruleText').classList.toggle('quiet', p.type === 'drop');
+  $('ruleKey').textContent = `${p.X} = ${p.xName} · ${p.Y} = ${p.yName}`;
+  $('logX').textContent = p.X; $('logY').textContent = p.Y;
+  $('logMine').classList.toggle('hidden', !S.mine);
+  let rows;
+  if (p.type === 'stake') rows = p.rows.map((r) => [fmt(r.x), p.fixed.includes(r) || (S.rows && S.rows[r.x]) ? fmt(r.y) : '?']);
+  else if (p.type === 'drop') rows = [p.backward ? [S.guide ? fmt(p.ask.x) : `? (you: ${fmt(W.pv)})`, fmt(p.ask.y)] : [fmt(p.ask.x), S.guide ? fmt(p.ask.y) : `? (you: ${fmt(W.pv)})`]];
+  else rows = p.rows.map((r) => [fmt(r.x), fmt(r.y), S.mine && S.mine[r.x] !== undefined ? fmt(S.mine[r.x]) : '']);
+  $('logRows').innerHTML = rows.map((c) => `<tr><td>${esc(c[0])}</td><td>${esc(c[1])}</td>${S.mine ? `<td class="${c[2] === '' ? '' : c[2] === c[1] ? 'yes' : 'no'}">${esc(c[2])}</td>` : ''}</tr>`).join('');
+  $('dials').classList.toggle('hidden', p.type !== 'rule');
+  $('dialM').textContent = `× ${fmt(DIALS.m[W.mi])}`; $('dialB').textContent = W.b < 0 ? `− ${fmt(-W.b)}` : `+ ${fmt(W.b)}`;
+}
+$('dials').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; b.blur(); turnDial(b.dataset.dial, Number(b.dataset.by)); });
+
+/* ================================================================== */
+/* Stake: stakes on the map, then the scout walks the trail            */
+/* ================================================================== */
+function moveCursor(dx, dy) {
+  const { grid } = W.round;
+  if (W.phase !== 'stake' || busy()) return;
+  W.cur = snap(grid, W.cur.x + dx * grid.xStep, W.cur.y + dy * grid.yStep);
+  draw();
+}
+function toggleStake() {
+  const p = W.round, q = W.cur;
+  if (W.phase !== 'stake' || busy()) return;
+  if (p.fixed.some((f) => near(f.x, q.x) && near(f.y, q.y))) return;
+  const at = W.stakes.findIndex((s) => near(s.x, q.x) && near(s.y, q.y));
+  if (at >= 0) W.stakes.splice(at, 1);
+  else if (W.stakes.length >= p.want.length) return showLine('All your stakes are on the map. Tap one to pick it up first.', true);
+  else W.stakes.push({ x: q.x, y: q.y });
+  hubAudio.playStep(); showLine(''); W.shown = {}; draw();
+}
+function goStake() {
+  const p = W.round, res = checkStakes(p, W.stakes);
+  if (res.nudge) return showLine(res.message, true);
+  const stops = [...p.rows].sort((a, c) => a.x - c.x), from = Math.min(0, stops[0].x), to = stops[stops.length - 1].x;
+  W.shown = { rows: {}, walked: from };
+  walk({ from, to, seconds: 0.3 + 0.32 * stops.length, step: (x) => {
+    W.shown.walked = x;
+    for (const r of stops) if (r.x <= x + 1e-6 && !W.shown.rows[r.x]) { W.shown.rows[r.x] = true; hubAudio.playStep(); renderSide(); }
+  } }, () => {
+    W.shown.judged = true; W.shown.scout = null; draw();
+    if (res.ok) { for (let k = 0; k < p.want.length; k++) arcade.good(10); hubAudio.playCoinClink(); showLine(res.message); return rest(1.3); }
+    miss(res, { answer: stakeAnswer(p), retry: () => { W.phase = 'stake'; W.shown = {}; renderSide(); renderCtl(); draw(); },
+      show: () => { W.stakes = p.want.map((r) => ({ x: r.x, y: r.y })); draw(); } });
+  });
+}
+/** The scout walks the round's rule from x = from to x = to. step(x) is called as it goes. */
+function walk({ from, to, seconds, step, rule = W.round.rule, mine = false }, done) {
+  W.phase = 'run'; W.anim = { from, to, seconds, t: 0, step, rule, mine, done };
+  hubAudio.playCartridgeLaunch(); renderCtl();
+}
+function updateRun(dt) {
+  const A = W.anim;
+  A.t += dt;
+  const u = Math.min(1, A.t / A.seconds), x = A.from + (A.to - A.from) * u;
+  W.shown[A.mine ? 'runner' : 'scout'] = { x, y: run(A.rule, x) };
+  A.step(x);
+  draw();
+  if (u < 1) return;
+  W.anim = null;
+  A.done();
 }
 
 /* ================================================================== */
-/* Controls                                                            */
+/* Drop: read the map with a pointer on an axis                        */
 /* ================================================================== */
-const box = (k) => `<input id="r_${k}" class="rbox" value="${esc(G.vals[k])}" inputmode="decimal" maxlength="7" placeholder="?" autocomplete="off">`;
-function shapeHtml(form, X, Y, live = false) {
-  const b = (k) => (live ? box(k) : '<span class="sq">□</span>');
-  return { times: `${Y} = ${b('m')}${X}`, plus: `${Y} = ${X} + ${b('b')}`, line: `${Y} = ${b('m')}${X} + ${b('b')}`, minus: `${Y} = ${b('m')}${X} − ${b('b')}` }[form];
+function setPointer(v) {
+  const p = W.round, { grid } = p;
+  if (W.phase !== 'drop' || busy()) return;
+  const step = p.backward ? grid.xStep : grid.yStep, max = p.backward ? grid.xMax : grid.yMax;
+  v = Math.min(max, Math.max(0, Math.round(v / step) * step));
+  if (near(v, W.pv)) return;
+  W.pv = v; hubAudio.playStep(); showLine(''); renderSide(); draw();
 }
-function choices(list) {
-  UI.controls.innerHTML = list.map((t, i) => `<button type="button" class="choice" data-choice="${i}" ${G.tried.includes(i) ? 'disabled' : ''}><b>${i + 1}</b>${t}</button>`).join('')
-    + `<div class="help-line">Click an answer or press <kbd>1</kbd>–<kbd>${list.length}</kbd>.</div>`;
-  UI.controls.querySelectorAll('[data-choice]').forEach((b) => b.addEventListener('click', () => choose(Number(b.dataset.choice))));
-}
-function renderControls() {
-  const p = G.problem;
-  if (p.type === 'plot') {
-    UI.controls.innerHTML = `
-      <div class="label px">YOUR POINTS</div>
-      <div class="chips">${G.pts.length ? G.pts.map((q) => `<span class="chip">${pair(q.x, q.y)}</span>`).join('') : '<span class="empty">tap the map to plot</span>'}</div>
-      <div class="row-btns"><button type="button" id="clearPts" class="px">CLEAR</button><button type="button" id="checkBtn" class="go px">CHECK THE TRAIL (ENTER)</button></div>
-      <div id="helpLine" class="help-line">Tap a crossing, or move the blue ring with <kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd> and press <kbd>space</kbd>.</div>`;
-    $('clearPts').addEventListener('click', () => { if (!G.locked) { G.pts = []; G.bad = null; renderControls(); draw(); } });
-    $('checkBtn').addEventListener('click', submitPlot);
-    return;
-  }
-  if (p.type === 'rule') {
-    UI.controls.innerHTML = `
-      <div class="label px">1. PICK THE RULE'S SHAPE (↑ ↓)</div>
-      <div class="shapes">${SHAPES.map((f) => `<button type="button" class="shape ${G.form === f ? 'on' : ''}" data-shape="${f}">${shapeHtml(f, esc(p.X), esc(p.Y))}</button>`).join('')}</div>
-      <div class="label px">2. FILL IN THE NUMBERS</div>
-      <div class="rule-row">${G.form ? shapeHtml(G.form, esc(p.X), esc(p.Y), true) : '<span class="empty">pick a shape first</span>'}</div>
-      <button type="button" id="checkBtn" class="apply px">TEST THE RULE (ENTER)</button>
-      <div id="helpLine" class="help-line">Your rule is drawn on the map in blue so you can compare.</div>`;
-    UI.controls.querySelectorAll('[data-shape]').forEach((b) => b.addEventListener('click', () => pickShape(b.dataset.shape)));
-    UI.controls.querySelectorAll('.rbox').forEach((el) => el.addEventListener('input', () => { G.vals[el.id.slice(2)] = el.value; }));
-    $('checkBtn').addEventListener('click', submitRule);
-    focusFirst();
-    return;
-  }
-  if (p.type === 'read' || p.type === 'goal') {
-    const who = p.type === 'goal' ? `${esc(p.X)} =` : `${esc(p.backward ? p.X : p.Y)} =`;
-    UI.controls.innerHTML = `
-      <div class="label px">${p.type === 'goal' ? 'HOW MANY?' : 'READ IT OFF THE MAP'}</div>
-      <label class="rule-row">${who} <input id="ans" class="rbox wide" inputmode="decimal" maxlength="9" placeholder="?" autocomplete="off"></label>
-      <button type="button" id="checkBtn" class="apply px">CHECK (ENTER)</button>
-      <div id="helpLine" class="help-line">Type a number and press <kbd>Enter</kbd>.</div>`;
-    $('checkBtn').addEventListener('click', submitNumber);
-    focusFirst();
-    return;
-  }
-  if (p.type === 'odd') {
-    UI.controls.innerHTML = `<div class="trio">${[['rule', 'THE RULE'], ['table', 'THE LOGBOOK'], ['map', 'THE MAP']].map(([w, t], i) => `<button type="button" class="px" data-odd="${w}" ${G.tried.includes(w) ? 'disabled' : ''}><b>${i + 1}</b>${t}</button>`).join('')}</div>
-      <div class="help-line">Click the one that's wrong, or press <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>.</div>`;
-    UI.controls.querySelectorAll('[data-odd]').forEach((b) => b.addEventListener('click', () => chooseOdd(b.dataset.odd)));
-    return;
-  }
-  if (p.type === 'offpoint') return choices(p.pts.map((q, i) => `Marker ${'ABCD'[i]}`));
-  return choices(p.options.map((o) => (p.type === 'mary' ? `<span class="mono">${esc(o.text)}</span>` : esc(o.text))));
-}
-function focusFirst() {
-  const el = [...UI.controls.querySelectorAll('input')].find((i) => !i.value) || UI.controls.querySelector('input');
-  if (el && UI.briefing.classList.contains('hidden')) el.focus({ preventScroll: true });
+function goDrop() {
+  const p = W.round, res = checkDrop(p, W.pv), ends = trailEnds(p.rule);
+  W.shown = { cleared: true };
+  walk({ from: ends[0].x, to: p.ask.x, seconds: 0.9, step: () => {} }, () => {
+    W.shown.guide = true; renderSide(); draw();
+    if (res.ok) { arcade.good(15); hubAudio.playCoinClink(); showLine(res.message); return rest(1.3); }
+    W.phase = 'hold';
+    arcade.bad(res.key, 25);
+    if (W.phase === 'idle') return;
+    // The scout has shown the answer, so there is no second try: another reading of the same kind comes next.
+    stopFor(`${res.message} ${dropAnswer(p)}`, 'NEXT (ENTER)', () => {
+      if (!p.backup) W.rounds.splice(W.ri + 1, 0, { ...genDrop(Math.random, undefined, { backward: p.backward }), backup: true });
+      endRound();
+    });
+    renderCtl();
+  });
 }
 
 /* ================================================================== */
-/* Answers                                                             */
+/* Rule: set the dials, then race the map's trail                      */
 /* ================================================================== */
-function togglePoint(q) {
-  if (G.locked) return;
-  G.bad = null;
-  const same = G.pts.findIndex((v) => near(v.x, q.x) && near(v.y, q.y));
-  if (same >= 0) { G.pts.splice(same, 1); hubAudio.playTone(330, 'triangle', 0.08, 0.05); }
-  else {
-    G.pts = G.pts.filter((v) => !near(v.x, q.x));         // one point per input: a new one replaces the old
-    G.pts.push(q); G.pts.sort((a, b) => a.x - b.x);
-    hubAudio.playTone(520 + G.pts.length * 80, 'triangle', 0.1, 0.07);
-  }
-  renderControls(); draw();
+function turnDial(which, by) {
+  if (W.phase !== 'rule' || busy()) return;
+  if (which === 'm') W.mi = Math.min(DIALS.m.length - 1, Math.max(0, W.mi + by));
+  else W.b = Math.min(DIALS.b.hi, Math.max(DIALS.b.lo, W.b + by));
+  hubAudio.playStep(); showLine(''); W.shown = {}; renderSide(); draw();
 }
-function tapMap(e) { if (!G.locked && !G.done) togglePoint(mapPoint(e)); }
-function submitPlot() {
-  const p = G.problem;
-  if (G.locked || p.type !== 'plot') return;
-  if (!G.pts.length) return nudge('Plot your points on the map first.');
-  const res = checkPlot(p, G.pts);
-  if (res.nudge) return nudge(res.message);
-  if (res.correct) { G.done = true; draw(); return win(res); }
-  G.bad = res.point || null; draw();
-  miss(res, { lock: true, delay: 1800, retry: () => { G.bad = null; draw(); } });
-}
-function pickShape(f) {
-  if (G.locked) return;
-  G.form = f; G.guess = null;
-  hubAudio.playSelect();
-  renderControls(); draw();
-}
-function submitRule() {
-  const p = G.problem;
-  if (G.locked || p.type !== 'rule') return;
-  if (!G.form) return nudge('Pick the rule\'s shape first.');
-  const guess = { form: G.form };
-  for (const k of needs(G.form)) { const v = parseNumber(G.vals[k]); if (v !== null) guess[k] = v; }
-  const res = checkRule(p, guess);
-  if (res.nudge) return nudge(res.message);
-  G.guess = res.guess;
-  if (res.correct) { G.done = true; draw(); return win(res); }
-  draw();
-  miss(res, { lock: true, delay: 1800, retry: () => { renderControls(); draw(); } });
-}
-function submitNumber() {
-  const p = G.problem;
-  if (G.locked || (p.type !== 'read' && p.type !== 'goal')) return;
-  const raw = $('ans').value;
-  const res = p.type === 'goal' ? checkGoal(p, raw) : checkRead(p, raw);
-  if (res.nudge) return nudge(res.message);
-  if (res.correct) { G.done = true; draw(); return win(res); }
-  miss(res, { lock: true, delay: 1800, retry: () => { $('ans').value = ''; focusFirst(); } });
-}
-function choose(i) {
-  const p = G.problem;
-  if (G.locked || G.tried.includes(i)) return;
-  const res = p.type === 'offpoint' ? checkOffPoint(p, i) : p.type === 'mary' ? checkMary(p, i) : checkMeaning(p, i);
-  UI.controls.querySelector(`[data-choice="${i}"]`)?.classList.add(res.correct ? 'right' : 'wrong');
-  if (res.correct) { G.done = true; draw(); return win(res); }
-  G.tried.push(i);
-  draw();
-  miss(res, { lock: true, delay: 1600, retry: () => renderControls() });
-}
-function chooseOdd(w) {
-  const p = G.problem;
-  if (G.locked || p.type !== 'odd' || G.tried.includes(w)) return;
-  G.chosen = w;
-  const res = checkOdd(p, w);
-  if (res.correct) { draw(); G.done = true; return win(res); }
-  G.tried.push(w);
-  draw();
-  miss(res, { lock: true, delay: 1600, retry: () => { G.chosen = null; renderControls(); draw(); } });
-}
-function nudge(t) {
-  const h = $('helpLine');
-  if (h) h.innerHTML = `<span class="warn">${esc(t)}</span>`;
-  else showFeedback(true, t);
-  hubAudio.playTone(220, 'square', 0.12, 0.05);
+function goRule() {
+  const p = W.round, res = checkRule(p, DIALS.m[W.mi], W.b), { grid } = p;
+  W.shown = { ghost: { rule: res.mine, to: 0 }, mine: {} };
+  walk({ from: 0, to: grid.xMax, seconds: 1.4, rule: res.mine, mine: true, step: (x) => {
+    W.shown.ghost.to = x;
+    for (const r of p.rows) if (r.x <= x + 1e-6 && W.shown.mine[r.x] === undefined) { W.shown.mine[r.x] = run(res.mine, r.x); hubAudio.playStep(); renderSide(); }
+  } }, () => {
+    W.shown.runner = null; draw();
+    if (res.ok) { arcade.good(15); hubAudio.playCoinClink(); showLine(res.message); return rest(1.4); }
+    miss(res, { answer: ruleAnswer(p), retry: () => { W.phase = 'rule'; W.shown = {}; renderSide(); renderCtl(); draw(); },
+      show: () => { const d = dialsOf(p.rule); W.mi = DIALS.m.indexOf(d.m); W.b = d.b; W.shown = { ghost: { rule: p.rule, to: grid.xMax } }; renderSide(); draw(); } });
+  });
 }
 
 /* ================================================================== */
-/* Keys and start-up                                                   */
+/* The clock, keys, sign and the bottom bar                            */
 /* ================================================================== */
+function update(dt) {
+  if (W.phase === 'idle' || busy()) return;
+  if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
+  if (W.phase === 'run') updateRun(dt);
+}
+const GO = { stake: goStake, drop: goDrop, rule: goRule };
+function go() { if (!busy() && GO[W.phase]) GO[W.phase](); }
+const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
 function onKey(e) {
-  const key = e.key, p = G.problem;
-  if (p.type === 'plot') {
-    const move = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[key];
-    if (move) { e.preventDefault(); G.cursor.i = Math.max(0, Math.min(10, G.cursor.i + move[0])); G.cursor.j = Math.max(0, Math.min(10, G.cursor.j + move[1])); return draw(); }
-    if (key === ' ') { e.preventDefault(); return togglePoint({ x: G.cursor.i * p.grid.xStep, y: Math.round(G.cursor.j * p.grid.yStep * 100) / 100 }); }
-    if (key === 'Enter') { e.preventDefault(); return submitPlot(); }
-    return;
-  }
-  if (p.type === 'rule') {
-    if (key === 'ArrowUp' || key === 'ArrowDown') {
-      e.preventDefault();
-      const step = key === 'ArrowDown' ? 1 : -1;
-      const now = SHAPES.indexOf(G.form);
-      return pickShape(SHAPES[now < 0 ? (step > 0 ? 0 : SHAPES.length - 1) : (now + step + SHAPES.length) % SHAPES.length]);
-    }
-    if (key === 'Enter') { e.preventDefault(); return submitRule(); }
-    return;
-  }
-  if (p.type === 'read' || p.type === 'goal') { if (key === 'Enter') { e.preventDefault(); submitNumber(); } return; }
-  const n = Number(key);
-  if (p.type === 'odd') { if (n >= 1 && n <= 3) chooseOdd(['rule', 'table', 'map'][n - 1]); return; }
-  const count = p.type === 'offpoint' ? p.pts.length : p.options.length;
-  if (n >= 1 && n <= count) choose(n - 1);
+  const k = e.key;
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else go(); return; }
+  if (W.frozen) return;
+  if (k === ' ' && W.phase === 'stake') { e.preventDefault(); toggleStake(); return; }
+  const a = ARROWS[k];
+  if (!a) return;
+  e.preventDefault();
+  const jump = e.shiftKey ? 5 : 1, { grid } = W.round;
+  if (W.phase === 'stake') moveCursor(a[0] * jump, a[1] * jump);
+  else if (W.phase === 'drop') { const d = W.round.backward ? a[0] * grid.xStep : a[1] * grid.yStep; if (d) setPointer(W.pv + d * jump); }
+  else if (W.phase === 'rule') { if (a[0]) turnDial('m', a[0]); else turnDial('b', a[1] * jump); }
+}
+$('goBtn').addEventListener('click', (e) => { e.currentTarget.blur(); go(); });
+$('resumeBtn').addEventListener('click', (e) => { e.currentTarget.blur(); resume(); });
+
+function renderSign(isNew = false) {
+  const p = W.round, at = `${W.ri + 1}/${W.rounds.length}`;
+  let small = `TRAIL ${at} · RULE TO MAP`, text = 'PUT A STAKE ON THE MAP FOR EVERY ROW OF THE LOGBOOK';
+  if (p.fix) { small = `TRAIL ${at} · CHECK THE MAP`; text = 'ONE STAKE IS OFF THE TRAIL. PICK IT UP AND MOVE IT'; }
+  else if (p.hidden) { small = `TRAIL ${at} · THE RULE IS BURIED`; text = 'CARRY THE TRAIL ON FROM THE TWO GRAY STAKES'; }
+  else if (p.type === 'drop') {
+    small = `TRAIL ${at} · ${p.rocks ? 'THE REST IS BURIED' : 'READ THE MAP'}`;
+    text = p.backward ? `THE TRAIL REACHES ${p.Y} = ${fmt(p.given)}. SLIDE THE POINTER TO THAT ${p.X}` : `WHEN ${p.X} = ${fmt(p.given)}, HOW HIGH IS THE TRAIL? SLIDE THE POINTER`;
+  } else if (p.type === 'rule') { small = `TRAIL ${at} · MAP TO RULE`; text = 'SET THE RULE THAT MAKES THIS TRAIL'; }
+  $('signSmall').textContent = small;
+  $('signText').textContent = text;
+  if (isNew) { const s = $('sign'); s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); }
+}
+function renderCtl() {
+  const ph = W.phase;
+  const label = { stake: 'SEND THE SCOUT (ENTER)', drop: 'SEND THE SCOUT (ENTER)', rule: 'RACE THE MAP (ENTER)' }[ph];
+  $('goBtn').classList.toggle('hidden', !label);
+  $('goBtn').textContent = label || '';
+  $('tip').textContent = { stake: 'Tap a crossing to put a stake there (tap it again to pick it up). Arrows move, Space stakes.',
+    drop: W.round && W.round.backward ? 'Tap the map, or ← → to slide the pointer.' : 'Tap the map, or ↑ ↓ to slide the pointer.',
+    rule: '← → the TIMES dial · ↑ ↓ the PLUS dial' }[ph] || '';
+  $('waveTag').textContent = W.rounds.length ? `ROUND ${W.ri + 1}/${W.rounds.length}` : '';
 }
 
-function init() {
-  // a sample behind the briefing: d = 4t
-  const g = { xStep: 1, yStep: 4, xMax: 10, yMax: 40 };
-  const p = { X: 't', Y: 'd', xName: 'time (hours)', yName: 'distance (miles)', type: 'read' };
-  UI.scene.innerHTML = sky() + mapSvg(p, g, { line: { form: 'times', m: 4 }, markers: [1, 2, 3].map((x) => ({ x, y: 4 * x, fill: '#8f3f22' })) })
-    + plaque('d = 4t') + logbook([1, 2, 3].map((x) => ({ x: fmt(x), y: fmt(4 * x) })));
+let last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  update(dt * W.speed);
+  requestAnimationFrame(frame);
 }
-
-init();
+requestAnimationFrame(frame);
