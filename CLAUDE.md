@@ -61,8 +61,11 @@ docs/lessons.md                    lesson lists from the textbook database
   GAUGE (dependent) that really runs; the student wires it and cranks it (`genWire`), plugs in the factors that would move
   a gauge as they roll past (`genBelt`), predicts up, down or same (`genWay`), finds the machine wired backwards (`genSpot`),
   builds one from a tag bank (`genBuild`) and names a mystery gauge by choosing which cranks to test (`genMystery`).
-  Proposed order for reworking the
-  remaining games (most quiz-like first): 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
+  4-6 Ride Gate is rebuilt too (`gate.js`, HTML): riders carry numbers up to a gate; the student is the gate (`genKeep` /
+  `checkRider`), then writes the rule from tiles and the gate runs exactly that rule on a line of riders (`genWrite` /
+  `checkWritten` / `gateRun`), including signs that say who is kept out, number-first rules and a worn-off sign where the
+  student picks test riders. Proposed order for reworking the
+  remaining games (most quiz-like first): 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
   Rework one game at a time, each with a plan the owner approves.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the

@@ -1,9 +1,8 @@
 // Tests for Ride Gate's math (gate.js). Run with:  node towns/topic-4-equation-valley/games/4-6-ride-gate/test_ride_gate_math.js
 import assert from 'node:assert/strict';
 import {
-  seeded, fmt, ruleText, flipped, complement, passes, SYMS, genSignRule, genSign, genRider, genLine, genReadLine, genOtherSide, genTwoLetters,
-  genWhoIsRight, genCalc, genRecord, genNotAllowed, genZone, genBackup, ZONES, readTiles, tilesText,
-  checkWritten, checkRider, checkLine, checkPick, workedSolution,
+  seeded, SYMS, fmt, ruleText, flipped, complement, passes, riderText, genSignRule, genRiders, genKeep, genRush, checkRider,
+  genWrite, testRider, readTiles, tilesText, answerText, checkWritten, gateRun, consequence, ZONES, genZone,
 } from './gate.js';
 
 let passed = 0;
@@ -12,141 +11,122 @@ const RUNS = 3000;
 const rnd = seeded(20261114);
 const noJunk = (s) => typeof s === 'string' && s.length > 0 && !/undefined|NaN|null|Infinity|\[object/.test(s);
 // "h ≥ 42" or "42 ≤ h" -> tiles
-const tilesOf = (text, letters) => text.split(' ').map((w) => (SYMS.includes(w) ? { t: 'sym', v: w } : letters.includes(w) ? { t: 'var', v: w } : { t: 'num', v: Number(w) }));
+const tilesOf = (text) => text.split(' ').map((w) => (SYMS.includes(w) ? { t: 'sym', v: w } : /^[a-z]$/.test(w) ? { t: 'var', v: w } : { t: 'num', v: Number(w) }));
+const FOUR = ['<', '≤', '>', '≥'];
 
 test('who passes each rule, especially the boundary', () => {
-  const r = (sym) => ({ letter: 'h', sym, n: 42 });
+  const r = (sym) => ({ letter: 'h', sym, n: 42, unit: 'in' });
   assert.deepEqual([41, 42, 43].map((v) => passes(r('≥'), v)), [false, true, true]);
   assert.deepEqual([41, 42, 43].map((v) => passes(r('>'), v)), [false, false, true]);
   assert.deepEqual([41, 42, 43].map((v) => passes(r('≤'), v)), [true, true, false]);
   assert.deepEqual([41, 42, 43].map((v) => passes(r('<'), v)), [true, false, false]);
   assert.deepEqual([41, 42, 43].map((v) => passes(r('≠'), v)), [true, false, true]);
-  assert.ok(passes({ letter: 's', sym: '>', n: 19.7 }, 19.8) && !passes({ letter: 's', sym: '>', n: 19.7 }, 19.7));
-  assert.equal(ruleText(r('≥')), 'h ≥ 42');
-  assert.equal(flipped(r('≥')), '42 ≤ h');
-  assert.equal(complement(r('<')).sym, '≥', 'everyone not under 42 is 42 or more');
-  assert.equal(fmt(7.5, true), '$7.50');
+  assert.ok(passes({ letter: 's', sym: '<', n: 19.7 }, 19.6) && !passes({ letter: 's', sym: '<', n: 19.7 }, 19.7));
+  assert.equal(ruleText(r('≥')), 'h ≥ 42'); assert.equal(flipped(r('≥')), '42 ≤ h'); assert.equal(complement(r('<')).sym, '≥', 'everyone not under 42 is 42 or more');
+  assert.equal(riderText(r('≥'), 42), '42 in'); assert.equal(riderText({ unit: '$' }, 120), '$120'); assert.equal(riderText({ unit: 'ride' }, 7), 'ride 7');
+  assert.equal(riderText({ unit: 'people' }, 1), '1 person'); assert.equal(riderText({ unit: 'sec' }, 19.7), '19.7 sec'); assert.equal(fmt(19.700000001), '19.7');
 });
 
-test(`signs: ${RUNS} generated; the sentence really means the rule`, () => {
-  const words = { '≥': /AT LEAST|NO LESS THAN|AND OLDER/, '≤': /UP TO|NO MORE THAN|AT MOST|OR LESS/, '>': /TALLER THAN|OLDER THAN|LONGER THAN|FASTER THAN/, '<': /UNDER|YOUNGER THAN|SHORTER THAN|BELOW|LESS THAN/, '≠': /CLOSED|NOT RIDE/ };
+test(`signs: ${RUNS} of them, every symbol, and the wording matches the symbol`, () => {
+  const seen = new Set();
   for (let i = 0; i < RUNS; i++) {
-    const r = genSignRule(rnd);
-    assert.ok(noJunk(r.sign) && r.sign.includes(String(r.n)));
-    assert.match(r.sign, words[r.sym], `${r.sign} -> ${ruleText(r)}`);
+    const r = genSignRule(rnd); seen.add(r.sym);
+    assert.ok(noJunk(r.sign) && r.sign.includes(String(r.n)) && noJunk(r.what) && noJunk(r.unit) && Number.isInteger(r.n));
+    if (/AT LEAST|NO LESS THAN|MINIMUM|AND UP|OR MORE/.test(r.sign)) assert.equal(r.sym, '≥', r.sign);
+    if (/AT MOST|NO MORE THAN|UP TO|MAXIMUM|OR LESS|AND UNDER|NO OLDER/.test(r.sign)) assert.equal(r.sym, '≤', r.sign);
+    if (/TALLER THAN|OLDER THAN|MORE THAN|^OVER/.test(r.sign) && !/NO /.test(r.sign)) assert.equal(r.sym, '>', r.sign);
+    if (/SHORTER THAN|YOUNGER THAN|FEWER THAN|LESS THAN|^UNDER/.test(r.sign) && !/NO /.test(r.sign)) assert.equal(r.sym, '<', r.sign);
+    if (/CLOSED|EXCEPT/.test(r.sign)) assert.equal(r.sym, '≠', r.sign);
   }
+  assert.equal(seen.size, 5);
 });
 
-test('writing a rule: both orders count; each mistake has its own hint', () => {
-  const p = { type: 'write', rule: { letter: 'h', sym: '≥', n: 42 } };
-  for (const f of ['h ≥ 42', '42 ≤ h']) assert.ok(checkWritten(p, tilesOf(f, ['h'])).correct, f);
-  assert.equal(checkWritten(p, tilesOf('h > 42', ['h'])).key, 'boundary', 'at least written as >');
-  assert.equal(checkWritten(p, tilesOf('h ≤ 42', ['h'])).key, 'direction');
-  assert.equal(checkWritten(p, tilesOf('42 ≥ h', ['h'])).key, 'flipped_order', 'number first but the symbol not turned');
-  assert.equal(checkWritten(p, tilesOf('h ≠ 42', ['h'])).key, 'not_equal');
-  assert.equal(checkWritten(p, tilesOf('h ≥ 24', ['h'])).key, 'wrong_number');
-  assert.ok(checkWritten(p, tilesOf('h ≥', ['h'])).nudge, 'unfinished: a reminder, not a miss');
-  const under = { type: 'write', rule: { letter: 'a', sym: '<', n: 8 } };
-  assert.equal(checkWritten(under, tilesOf('a ≤ 8', ['a'])).key, 'boundary', '"under 8" written as ≤ 8');
-  const not = { type: 'write', rule: { letter: 'r', sym: '≠', n: 4 } };
-  assert.ok(checkWritten(not, tilesOf('4 ≠ r', ['r'])).correct);
-  assert.equal(checkWritten(not, tilesOf('r < 4', ['r'])).key, 'not_equal');
-  for (const t of ['h > 42', 'h ≤ 42', '42 ≥ h', 'h ≠ 42']) assert.ok(noJunk(checkWritten(p, tilesOf(t, ['h'])).message));
-});
-
-test('the other side, two letters, and calculating the boundary', () => {
-  for (let i = 0; i < 500; i++) {
-    const o = genOtherSide(rnd);
-    assert.ok(checkWritten(o, tilesOf(ruleText(o.rule), [o.rule.letter])).correct);
-    assert.equal(checkWritten(o, tilesOf(ruleText(o.shown), [o.rule.letter])).key, 'other_side', 'writing the sign\'s own rule is caught');
-    for (let v = o.shown.n - 3; v <= o.shown.n + 3; v++) assert.notEqual(passes(o.shown, v), passes(o.rule, v), 'every value is on exactly one side');
-    const two = genTwoLetters(rnd);
-    const L = [two.rule.letter, two.rule.other];
-    assert.ok(checkWritten(two, tilesOf(ruleText(two.rule), L)).correct);
-    assert.ok(checkWritten(two, tilesOf(`${two.rule.other} ${{ '>': '<', '<': '>' }[two.rule.sym]} ${two.rule.letter}`, L)).correct, 'g < m is the same as m > g');
-    assert.equal(checkWritten(two, tilesOf(`${two.rule.letter} ${{ '>': '<', '<': '>' }[two.rule.sym]} ${two.rule.other}`, L)).key, 'direction');
-    const c = genCalc(rnd);
-    assert.ok(c.tiles.includes(c.rule.n) && c.tiles.length === 3);
-    assert.ok(checkWritten(c, tilesOf(ruleText(c.rule), [c.rule.letter])).correct);
-    const decoy = c.tiles.find((v) => v !== c.rule.n);
-    assert.equal(checkWritten(c, tilesOf(`${c.rule.letter} ${c.rule.sym} ${decoy}`, [c.rule.letter])).key, 'calc_first');
-    assert.ok(/at least|holds/.test(c.ask) && noJunk(c.ask));
-  }
-  const rec = genRecord(seeded(1));
-  assert.equal(rec.rule.sym, '>');
-  assert.equal(checkWritten(rec, tilesOf(`s ≥ ${rec.rule.n}`, ['s'])).key, 'boundary', 'tying the record does not beat it');
-  const na = genNotAllowed(seeded(2));
-  assert.equal(checkWritten(na, tilesOf(`p ≤ ${na.rule.n}`, ['p'])).key, 'other_side');
-});
-
-test(`riders: ${RUNS} decisions; boundary riders are common and explained`, () => {
-  let boundary = 0;
+test('riders: the edge itself and one either side are always in the line', () => {
   for (let i = 0; i < RUNS; i++) {
-    const p = genRider(rnd);
-    assert.ok(['h', 'a', 'r'].includes(p.rule.letter), 'rider signs are about the rider');
-    const ok = passes(p.rule, p.v);
-    assert.ok(checkRider(p, ok).correct && !checkRider(p, !ok).correct);
-    if (p.v === p.rule.n) { boundary++; assert.equal(checkRider(p, !ok).key, 'boundary_rider'); }
-    assert.ok(noJunk(checkRider(p, !ok).message));
-  }
-  assert.ok(boundary > RUNS * 0.2, `boundary riders: ${boundary}`);
-});
-
-test('number lines: build and read', () => {
-  const r = { letter: 'a', sym: '≥', n: 8 };
-  assert.ok(checkLine(r, { at: 8, closed: true, dir: 'right' }).correct);
-  assert.equal(checkLine(r, { at: 7, closed: true, dir: 'right' }).key, 'line_number');
-  assert.equal(checkLine(r, { at: 8, closed: false, dir: 'right' }).key, 'line_circle');
-  assert.equal(checkLine(r, { at: 8, closed: true, dir: 'left' }).key, 'line_direction');
-  assert.ok(checkLine({ letter: 'h', sym: '<', n: 40 }, { at: 40, closed: false, dir: 'left' }).correct);
-  for (let i = 0; i < 500; i++) {
-    const p = genReadLine(rnd);
-    assert.equal(p.options.length, 4);
-    assert.equal(new Set(p.options.map((o) => o.text)).size, 4);
-    assert.equal(p.options.filter((o) => o.ok).length, 1);
-    p.options.forEach((o, j) => { const res = checkPick(p, j); assert.equal(res.correct, Boolean(o.ok)); assert.ok(noJunk(res.message)); });
-    assert.notEqual(genLine(rnd).rule.sym, '≠', 'no ≠ on a number line');
+    const rule = i % 5 === 0 ? genWrite(rnd, null, 'record').rule : genSignRule(rnd), step = Number.isInteger(rule.n) ? 1 : 0.1, riders = genRiders(rnd, rule, 6);
+    assert.equal(riders.length, 6);
+    for (const want of [rule.n, rule.n - step, rule.n + step]) assert.ok(riders.some((v) => Math.abs(v - want) < 1e-9), `${ruleText(rule)}: ${want} is in the line (${riders})`);
+    assert.ok(riders.every((v) => v > 0 && noJunk(riderText(rule, v))));
+    assert.ok(riders.some((v) => passes(rule, v)) && riders.some((v) => !passes(rule, v)), 'some get in and some do not');
   }
 });
 
-test('who is right: Elias and Nina', () => {
-  const counts = { both: 0, elias: 0, nina: 0 };
-  for (let i = 0; i < 1000; i++) {
-    const p = genWhoIsRight(rnd);
-    counts[p.mode]++;
-    const sameRule = (t) => {                          // does the text mean the sign's rule? test values around the boundary
-      const [a, s, b] = t.split(' ');
-      const rule = a === p.rule.letter ? { letter: a, sym: s, n: Number(b) } : { letter: b, sym: { '<': '>', '>': '<', '≤': '≥', '≥': '≤' }[s], n: Number(a) };
-      return [-2, -1, 0, 1, 2].every((d) => passes(rule, p.rule.n + d) === passes(p.rule, p.rule.n + d));
-    };
-    const answer = sameRule(p.elias) && sameRule(p.nina) ? 0 : sameRule(p.elias) ? 1 : sameRule(p.nina) ? 2 : 3;
-    assert.ok(p.options[answer].ok, `${p.elias} / ${p.nina} (${p.mode})`);
-    p.options.forEach((o, j) => assert.equal(checkPick(p, j).correct, Boolean(o.ok)));
-  }
-  assert.ok(counts.both > 0 && counts.elias > 0 && counts.nina > 0);
-});
-
-test('zones: right kinds, worked solutions and backups for everything', () => {
-  assert.equal(ZONES.length, 5);
-  for (let r = 0; r < 200; r++) {
-    const zones = ZONES.map((_, z) => genZone(rnd, z));
-    assert.ok(zones[0].every((p) => p.type === 'write') && new Set(zones[0].map((p) => p.rule.sym)).size === 5, 'all five symbols in zone 1');
-    assert.ok(zones[1].every((p) => p.type === 'rider') && zones[1].length >= 8);
-    assert.ok(zones[2].every((p) => p.type === 'line' || p.type === 'readline'));
-    assert.ok(zones[3].some((p) => p.other) && zones[3].some((p) => p.two) && zones[3].some((p) => p.type === 'pick'));
-    assert.ok(zones[4].some((p) => p.calc) && zones[4].some((p) => p.type === 'rider') && zones[4].at(-1).v === zones[4].at(-1).rule.n, 'the boss ends on a boundary rider');
-    for (const p of zones.flat()) {
-      const lines = workedSolution(p);
-      assert.ok(lines.length >= 2 && lines.every(noJunk), `${p.type}: ${lines.join(' | ')}`);
-      const b = genBackup(rnd, p);
-      assert.equal(b.type, p.type);
-      assert.equal(Boolean(b.two), Boolean(p.two));
-      assert.equal(Boolean(b.calc), Boolean(p.calc));
-      if (p.type === 'write' && !p.two) assert.ok(checkWritten(p, tilesOf(ruleText(p.rule), [p.rule.letter])).correct);
+test('gatekeeper: every rider, both choices', () => {
+  for (let i = 0; i < RUNS; i++) {
+    const p = i % 4 === 0 ? genRush(rnd) : genKeep(rnd, SYMS[i % 5]);
+    assert.equal(p.type, 'keep'); assert.equal(p.riders.length, p.rush ? 9 : 6); assert.ok(p.seconds > 0);
+    if (p.rush) assert.equal(new Set(p.riders.map((r) => r.rule)).size, 3, 'the sign changes twice');
+    for (const { rule, v } of p.riders) {
+      const ok = passes(rule, v), good = checkRider(rule, v, ok), bad = checkRider(rule, v, !ok);
+      assert.ok(good.ok); assert.ok(!bad.ok && noJunk(bad.message) && bad.message.includes(ruleText(rule)));
+      assert.equal(bad.key, v === rule.n ? 'boundary_rider' : 'rider_wrong');
     }
   }
-  assert.equal(tilesText(tilesOf('42 ≤ h', ['h'])), '42 ≤ h');
-  assert.equal(readTiles(tilesOf('h ≥', ['h'])), null);
+  const r = { letter: 'h', sym: '>', n: 42, unit: 'in' };
+  assert.ok(/does NOT include 42/.test(checkRider(r, 42, true).message)); assert.ok(/includes 42/.test(checkRider({ ...r, sym: '≥' }, 42, false).message));
+  assert.ok(/EXCEPT 7/.test(checkRider({ letter: 'r', sym: '≠', n: 7, unit: 'ride' }, 7, true).message));
+});
+
+test('writing a rule: either order is right, and each mistake is named', () => {
+  const p = { mode: null, rule: { letter: 'h', sym: '≥', n: 42, unit: 'in' }, work: '', riders: [40, 41, 42, 43, 47, 42] };
+  const c = (text, q = p) => checkWritten(q, tilesOf(text));
+  assert.ok(c('h ≥ 42').ok && c('42 ≤ h').ok); assert.deepEqual(c('42 ≤ h').student.sym, '≥');
+  assert.equal(c('h > 42').key, 'boundary'); assert.equal(c('42 < h').key, 'boundary');
+  assert.equal(c('h ≤ 42').key, 'direction'); assert.equal(c('h < 42').key, 'direction'); assert.ok(/h is less than 42/.test(c('h < 42').message));
+  assert.equal(c('42 ≥ h').key, 'flipped_order'); assert.equal(c('h ≠ 42').key, 'not_equal');
+  assert.equal(checkWritten(p, [{ t: 'var', v: 'h' }, null, { t: 'num', v: 42 }]).nudge, true); assert.equal(c('h ≥ h').nudge, true); assert.equal(c('42 ≥ 42').nudge, true);
+  for (const wrong of ['h > 42', 'h ≤ 42', 'h < 42', 'h ≠ 42', '42 ≥ h']) assert.ok(!c(wrong).message.includes('h ≥ 42') && !c(wrong).message.includes('42 ≤ h'), `${wrong}: the message does not give the answer away`);
+  const ne = { ...p, rule: { letter: 'r', sym: '≠', n: 7, unit: 'ride' } };
+  assert.ok(c('r ≠ 7', ne).ok && c('7 ≠ r', ne).ok); assert.equal(c('r > 7', ne).key, 'not_equal');
+  const other = { ...p, mode: 'other' };                     // "no riders under 42 inches"
+  assert.equal(c('h < 42', other).key, 'other_side'); assert.equal(c('h > 42', other).key, 'boundary'); assert.ok(c('h ≥ 42', other).ok);
+  const mirror = { ...p, mode: 'mirror' };
+  assert.equal(c('h ≥ 42', mirror).nudge, true); assert.ok(c('42 ≤ h', mirror).ok); assert.equal(c('42 ≥ h', mirror).key, 'flipped_order');
+  assert.equal(answerText(mirror), 'The rule, number first: 42 ≤ h.'); assert.equal(answerText(p), 'The rule: h ≥ 42 (or 42 ≤ h).');
+  const rec = { ...p, mode: 'record', rule: { letter: 's', sym: '<', n: 19.7, unit: 'sec' } };
+  assert.ok(c('s < 19.7', rec).ok); assert.ok(/FEWER seconds/.test(c('s > 19.7', rec).message));
+  assert.equal(tilesText(tilesOf('42 ≤ h')), '42 ≤ h'); assert.equal(readTiles([]), null);
+});
+
+test('the gate runs exactly what was written, and a wrong rule always shows on a rider', () => {
+  for (let i = 0; i < RUNS; i++) {
+    const mode = [null, 'other', 'mirror', 'hidden', 'calc', 'record'][i % 6], sym = mode === null ? SYMS[i % 5] : FOUR[i % 4], p = genWrite(rnd, sym, mode, mode === 'calc' ? i % 2 : null), r = p.rule;
+    assert.ok(noJunk(p.sign) && p.riders.length === 6 && p.tiles[0].t === 'var' && p.tiles[0].v === r.letter && p.tiles.some((t) => t.t === 'num' && t.v === r.n) && noJunk(answerText(p)));
+    const right = checkWritten(p, tilesOf(flipped(r))); assert.ok(right.ok, `${p.sign} <- ${flipped(r)}`);
+    assert.equal(gateRun(p, right.student).wrong, -1);
+    if (mode !== 'mirror') assert.ok(checkWritten(p, tilesOf(ruleText(r))).ok);
+    for (const s of SYMS) {
+      if (s === r.sym) continue;
+      const res = checkWritten(p, tilesOf(`${fmt(r.n)} ${{ '<': '>', '>': '<', '≤': '≥', '≥': '≤', '≠': '≠' }[s]} ${r.letter}`));
+      assert.ok(!res.ok && res.student && res.student.sym === s && noJunk(res.message) && noJunk(res.key));
+      const run = gateRun(p, res.student); assert.ok(run.wrong >= 0, `${ruleText(r)} written as ${s}: some rider shows the mistake`);
+      assert.ok(noJunk(consequence(p, run.rows[run.wrong])) && run.rows[run.wrong].opens !== run.rows[run.wrong].should);
+    }
+    if (mode === 'calc') {
+      assert.equal(p.tiles.length, 4); assert.ok(noJunk(p.work));
+      const decoy = p.tiles.find((t) => t.t === 'num' && t.v !== r.n), res = checkWritten(p, [p.tiles[0], { t: 'sym', v: r.sym }, decoy]);
+      assert.ok(res.key === 'calc_first' && res.student === null && res.message.includes(p.work));
+    }
+    if (mode === 'record') { assert.equal(r.sym, '<'); assert.ok(!Number.isInteger(r.n) || r.n > 15); }
+    if (mode === 'other') assert.ok(/^NO|NOT FOR/.test(p.sign));
+    if (mode === 'hidden') {
+      assert.ok(/▒/.test(p.sign) && p.sign.includes(String(r.n)) && p.tests === 3 && p.range.lo >= 1 && p.range.lo < r.n - 1 && p.range.hi > r.n + 1, 'the edge and both sides can be tested');
+      assert.deepEqual([r.n - 1, r.n, r.n + 1].map((v) => testRider(p, v)), [r.n - 1, r.n, r.n + 1].map((v) => passes(r, v)));
+      const sig = (s) => [-1, 0, 1].map((d) => passes({ ...r, sym: s }, r.n + d)).join(); assert.equal(new Set(SYMS.map(sig)).size, 5, 'three tests tell all five symbols apart');
+    }
+  }
+});
+
+test('zones', () => {
+  assert.equal(ZONES.length, 5);
+  for (let i = 0; i < 300; i++) {
+    const z = [0, 1, 2, 3, 4].map((k) => genZone(rnd, k));
+    assert.ok(z[0].length === 3 && z[0].every((r) => r.type === 'keep' && !r.rush) && z[0].some((r) => r.riders[0].rule.sym === '≠'));
+    assert.ok(z[1].length === 6 && z[1].every((r) => r.type === 'write' && r.mode === null)); assert.equal(new Set(z[1].map((r) => r.rule.sym)).size, 5);
+    assert.deepEqual(z[2].map((r) => r.mode), ['other', 'mirror', 'other', 'mirror', 'other', 'mirror']);
+    assert.ok(z[3].length === 4 && z[3].every((r) => r.mode === 'hidden')); assert.equal(new Set(z[3].map((r) => r.rule.sym)).size, 4);
+    assert.deepEqual(z[4].map((r) => r.mode || r.type), ['calc', 'record', 'hidden', 'calc', 'keep']); assert.ok(z[4][4].rush && z[4][0].rule.letter !== z[4][3].rule.letter);
+  }
 });
 
 console.log(`\n${passed} tests passed`);

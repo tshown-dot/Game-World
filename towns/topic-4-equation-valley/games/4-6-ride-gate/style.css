@@ -1,47 +1,86 @@
-/* Ride Gate (Lesson 4-6): the gate scene, riders, the number line and tiles. Shared looks are in shared/game/game.css. */
-.pop-in { animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: center; }
-@keyframes popIn { from { transform: scale(0.3); opacity: 0; } }
-.walk-up { animation: walkUp 0.5s ease-out; }
-@keyframes walkUp { from { transform: translateX(120px); opacity: 0; } }
-.go-in { animation: goIn 0.8s ease-in forwards; }
-@keyframes goIn { to { transform: translateX(-260px); opacity: 0; } }
-.go-away { animation: goAway 0.8s ease-in forwards; }
-@keyframes goAway { 0% { transform: translateX(0); } 20% { transform: translateX(-10px); } 40% { transform: translateX(10px); } 100% { transform: translateX(260px); opacity: 0; } }
-.bar-up { transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: 0% 50%; }
-.bar-up.open { transform: rotate(-70deg); }
-.tick-hit { cursor: pointer; }
-.tick-hit:hover rect { fill: rgba(255, 210, 63, 0.35); }
+/* Ride Gate (Lesson 4-6): the ride's sign, the lane with its gate and riders, and the rule tiles. Shared looks are in shared/game/game.css. */
+#app.arcade { grid-template-columns: 1fr; background: #2a2440; }
+#app.arcade .hud { grid-column: 1; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; font-weight: 900; }
+.stage { background: linear-gradient(#5aa9d6 0%, #9fd4e8 100%); }
+.play { position: absolute; inset: 0 0 66px 0; overflow: hidden; }
 
-/* ---- the equation strip under the gearbox ---- */
-.eq-strip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; min-width: 440px; width: max-content; max-width: 94%;
-  background: #fff4d6; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 6px 16px; text-align: center; }
-.eq-line { font-family: ui-monospace, 'Courier New', monospace; font-size: 23px; font-weight: 900; color: var(--ink); white-space: nowrap; line-height: 1.35; }
-.eq-line.small { font-size: 17px; color: #5e5640; white-space: normal; }
-.eq-strip .you { color: #1f63c9; background: #dbe9ff; border-radius: 6px; padding: 0 2px; }
-.eq-strip .good { color: #1f8a4c; } .eq-strip .bad { color: #d6283a; }
-.prompt .story { display: block; font-size: 15px; font-weight: 800; background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 7px 10px; margin-top: 6px; }
+/* ---- the instruction sign ---- */
+.sign { position: absolute; z-index: 2; top: 8px; left: 50%; transform: translateX(-50%); min-width: 420px; max-width: 1040px; text-align: center; white-space: nowrap;
+  background: #fff8e1; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 7px 22px 9px; pointer-events: none; }
+.sign small { display: block; font-size: 8px; color: #8a6d3b; margin-bottom: 6px; }
+#signText { font-family: ui-monospace, 'Courier New', monospace; font-size: 19px; font-weight: 900; color: var(--ink); }
+.sign.new { animation: signPop 0.4s ease-out; }
+@keyframes signPop { from { transform: translateX(-50%) scale(1.1); background: var(--gold); } to { transform: translateX(-50%) scale(1); } }
+#app.arcade .boss-bar { left: auto; right: 12px; top: 10px; transform: none; width: 130px; }
 
-/* ---- writing equations with tiles ---- */
-.rail { min-height: 54px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 5px 8px; border: 3px dashed #8a6d3b; border-radius: 12px; background: #fff; }
-.rail.filled { border-style: solid; border-color: var(--ink); }
-.rail.drop-target { background: #fff3c4; box-shadow: 0 0 0 4px var(--gold); }
-.rail .empty { color: #a99a74; font-size: 13px; font-weight: 800; }
-.done-eq { font-family: ui-monospace, monospace; font-size: 18px; font-weight: 900; color: #1f6b3e; background: #d9f7e3; border: 3px solid var(--ink); border-radius: 10px; padding: 5px 10px; }
-.tiles { display: flex; flex-wrap: wrap; gap: 8px; }
-.tile { min-width: 52px; height: 46px; padding: 0 10px; border: 3px solid var(--ink); border-radius: 10px; font-family: ui-monospace, 'Courier New', monospace;
-  font-size: 22px; font-weight: 900; box-shadow: 0 4px 0 var(--ink); touch-action: none; position: relative; background: #fff; color: var(--ink); }
-.tile.num { background: #6b6f80; color: #fff; }
-.tile.var { background: #3a8ef0; color: #fff; }
-.tile.eqs { background: var(--gold); }
-.tile small { position: absolute; top: 1px; right: 4px; font-size: 8px; font-family: 'Press Start 2P', monospace; opacity: 0.75; }
-.tile:disabled { opacity: 0.25; box-shadow: none; }
-.tile.chip { min-width: 40px; height: 38px; font-size: 19px; box-shadow: 0 2px 0 var(--ink); padding: 0 8px; }
-.row-btns { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 8px; }
-.row-btns button { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 10px; box-shadow: 0 4px 0 var(--ink); }
-.row-btns .go { background: var(--red); color: #fff; }
+/* ---- what went wrong. It sits at the bottom, so the sign and the gate stay in view ---- */
+.callout { position: absolute; z-index: 6; bottom: 72px; left: 50%; transform: translateX(-50%); width: 940px; background: #ffe3cc; border: 4px solid var(--ink); border-radius: 14px;
+  box-shadow: 0 5px 0 var(--ink); padding: 8px 14px; font-size: 16px; font-weight: 800; line-height: 1.3; text-align: center; }
+.callout button { margin-top: 6px; height: 36px; padding: 0 16px; border: 3px solid var(--ink); border-radius: 10px; background: var(--gold); font-size: 10px; }
 
-/* ---- number line controls ---- */
-.line-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.line-btns button { height: 52px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; font-size: 11px; box-shadow: 0 4px 0 var(--ink); }
-.line-btns button.on { background: var(--gold); }
-.rider-btns .stamp { height: 84px; font-size: 13px; }
+/* ---- the bar along the bottom ---- */
+.ctl { position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 14px;
+  background: var(--night); border-top: 4px solid var(--ink); }
+.cbtn { height: 46px; padding: 0 14px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 #000; font-size: 10px; font-weight: 900; color: var(--ink); }
+.cbtn.go { background: var(--red); color: #fff; min-width: 260px; }
+.tip { color: #fff; font-size: 15px; font-weight: 800; }
+.wave-tag { color: var(--gold); font-size: 9px; min-width: 100px; text-align: right; }
+
+/* ---- the ride's own sign ---- */
+.board { position: absolute; left: 50%; top: 80px; transform: translateX(-50%); width: 1100px; min-height: 74px; padding: 10px 18px 8px; text-align: center; background: #8f4f2a; border: 5px solid var(--ink); border-radius: 12px;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.35), inset 0 0 0 4px #b56a3a; }
+#boardText { font-size: 23px; font-weight: 900; line-height: 1.2; color: #fff3c4; letter-spacing: 0.5px; }
+.board.long #boardText { font-size: 19px; letter-spacing: 0; }
+.board small { display: block; margin-top: 4px; font: 900 15px ui-monospace, 'Courier New', monospace; color: #ffd9a8; }
+.board.new { animation: boardPop 0.45s ease-out; }
+@keyframes boardPop { from { transform: translateX(-50%) scale(1.08); background: #d98a2b; } to { transform: translateX(-50%) scale(1); } }
+
+/* ---- the lane ---- */
+.lane { position: absolute; left: 40px; right: 40px; top: 170px; height: 140px; border-bottom: 14px solid #6b8f4e; background: linear-gradient(transparent 60%, rgba(255,255,255,0.25) 100%); }
+.gate { position: absolute; left: 66%; bottom: 0; width: 14px; height: 104px; background: var(--ink); border-radius: 6px 6px 0 0; }
+.gate i { position: absolute; left: -92px; top: 30px; width: 100px; height: 14px; border: 3px solid var(--ink); border-radius: 7px; background: repeating-linear-gradient(90deg, var(--red) 0 16px, #fff 16px 32px); transform-origin: 96px 7px; transition: transform 0.2s ease-out; }
+.gate.open i { transform: rotate(78deg); }
+.lamp { position: absolute; left: 66%; bottom: 108px; width: 26px; height: 26px; margin-left: -6px; border: 4px solid var(--ink); border-radius: 50%; background: #cfd6e2; }
+.lamp.fine { background: #5fe08a; }
+.lamp.alarm { background: #ff4d4d; box-shadow: 0 0 0 0 rgba(255,77,77,0.9); animation: alarm 0.5s ease-out 3; }
+@keyframes alarm { to { box-shadow: 0 0 0 26px rgba(255,77,77,0); } }
+.rider { position: absolute; bottom: 0; width: 112px; margin-left: -56px; text-align: center; transition: transform 0.3s ease-in, opacity 0.3s; will-change: left; }
+.rider.in, .rider.out { transition: left 0.3s ease-out, transform 0.3s ease-in, opacity 0.3s; }
+.rider i { display: block; width: 30px; height: 30px; margin: 0 auto -4px; border: 4px solid var(--ink); border-radius: 50%; background: #ffd9a8; }
+.rider span { display: block; padding: 6px 2px; border: 4px solid var(--ink); border-radius: 12px 12px 4px 4px; background: #fff; font: 900 15px ui-monospace, 'Courier New', monospace; line-height: 20px; color: var(--ink); white-space: nowrap; }
+.rider.in { transform: scale(0.72); transform-origin: bottom center; }
+.rider.in span { background: #9df0b4; }
+.rider.out { transform: scale(0.8); transform-origin: bottom center; opacity: 0.8; }
+.rider.out span { background: #ffb3b3; }
+.rider.wrong span { box-shadow: 0 0 0 5px #ff4d4d; }
+
+/* ---- under the lane: test notes, buttons, the rule and its tiles ---- */
+.notes { position: absolute; left: 0; right: 0; top: 330px; display: flex; justify-content: center; gap: 10px; min-height: 30px; }
+.note { padding: 3px 12px; border: 3px solid var(--ink); border-radius: 10px; font: 900 15px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.note.yes { background: #9df0b4; } .note.no { background: #ffb3b3; }
+.work { position: absolute; left: 0; right: 0; top: 366px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.kbtn { width: 300px; height: 62px; margin: 0 10px; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 6px 0 var(--ink); font-size: 20px; font-weight: 900; color: var(--ink); }
+.work:has(.kbtn) { flex-direction: row; justify-content: center; top: 350px; }
+.kbtn.in { background: #9df0b4; } .kbtn.out { background: #ffb3b3; }
+.tdial { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border: 4px solid var(--ink); border-radius: 14px; background: #dfe7ea; color: var(--ink); }
+.tdial .px { font-size: 9px; margin-right: 6px; }
+.tdial button { width: 52px; height: 46px; border: 3px solid var(--ink); border-radius: 10px; background: #fff; font-size: 18px; font-weight: 900; }
+.tdial .val { min-width: 150px; height: 46px; border: 3px solid var(--ink); border-radius: 10px; background: #fff3c4; font: 900 24px ui-monospace, 'Courier New', monospace; line-height: 40px; text-align: center; }
+.rule-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border: 4px solid var(--ink); border-radius: 14px; background: #1d1433; }
+.slot { min-width: 110px; height: 56px; padding: 0 10px; border: 4px dashed #c9a35a; border-radius: 12px; background: #3a2f5c; font: 900 30px ui-monospace, 'Courier New', monospace; color: #fff3c4; }
+.slot.full { border-style: solid; background: var(--gold); color: var(--ink); }
+.slot.op { min-width: 70px; }
+.tile-row { display: flex; align-items: center; gap: 14px; }
+.tile { position: relative; min-width: 96px; height: 56px; padding: 0 14px; border: 4px solid var(--ink); border-radius: 14px; background: var(--gold); box-shadow: 0 5px 0 var(--ink); font: 900 26px ui-monospace, 'Courier New', monospace; color: var(--ink); }
+.tile b { position: absolute; left: -10px; top: -12px; width: 26px; height: 26px; border: 2px solid #fff; border-radius: 50%; background: var(--ink); color: #fff; font: 900 13px ui-monospace, monospace; line-height: 22px; }
+.tile.used { visibility: hidden; }
+.symkeys { display: flex; gap: 6px; margin-left: 22px; }
+.symkeys button { width: 56px; height: 56px; border: 4px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 5px 0 var(--ink); font: 900 28px ui-monospace, monospace; color: var(--ink); }
+.symkeys button.on { background: #9fd4e8; }
+.gline { position: absolute; left: 0; right: 0; top: 524px; text-align: center; font-size: 17px; font-weight: 900; line-height: 24px; min-height: 24px; color: #14532d; }
+.gline.off { color: #8f2020; }
+
+.hint-card { width: 640px; }
+.hint-text { font-size: 17px; font-weight: 800; line-height: 1.45; margin: 12px 0 14px; }
+.hint-text .mono { display: block; margin: 8px 0; font-size: 19px; }

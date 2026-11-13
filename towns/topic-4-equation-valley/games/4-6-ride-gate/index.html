@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -23,12 +23,12 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, the crowd gets angry">
-      <div class="px hud-label">LINE</div>
+    <div class="hud-meter" id="meterBox" title="Every mistake makes the line grumble. When this fills, a pass is lost">
+      <div class="px hud-label">GRUMBLE</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
     <div class="hud-crates">
-      <div class="px hud-label">PATIENCE</div>
+      <div class="px hud-label">PASSES</div>
       <div id="lives" class="crates"></div>
     </div>
     <div class="hud-score">
@@ -42,21 +42,31 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The ride gate"></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play">
+      <div id="board" class="board"><div id="boardText"></div><small id="boardSmall"></small></div>
+      <div id="lane" class="lane"><div id="lamp" class="lamp"></div><div id="gate" class="gate"><i></i></div><div id="riders"></div></div>
+      <div id="notes" class="notes"></div>
+      <div id="work" class="work"></div>
+      <div id="gline" class="gline"></div>
+    </div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">OPENING DAY</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <div id="tip" class="tip"></div>
+      <button type="button" id="goBtn" class="cbtn go px hidden"></button>
+      <button type="button" id="skipBtn" class="cbtn px hidden">WRITE THE RULE</button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -70,41 +80,48 @@
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. THE GATE RULE</div>
-          <p>Every ride has a sign. Turn it into an <b>inequality</b>: one rule that fits many riders.</p>
-          <p class="mono">"AT LEAST 42 INCHES"<br>h ≥ 42 &nbsp;or&nbsp; 42 ≤ h</p></div>
-        <div class="brief-col"><div class="px col-h">2. RUN THE GATE</div>
-          <p>Riders walk up. Put their value in the rule: <b>true</b> lets them in. Watch the <b>boundary</b>: does 42 itself count?</p>
-          <p class="mono">&lt; ≤ &gt; ≥ ≠</p></div>
+        <div class="brief-col"><div class="px col-h">1. YOU ARE THE GATE</div>
+          <p>Every ride has a sign. Riders walk up carrying a number. <b>Let in</b> the ones the sign allows and <b>turn away</b> the rest. Watch the rider who is <b>exactly</b> on the edge!</p></div>
+        <div class="brief-col"><div class="px col-h">2. PROGRAM THE GATE</div>
+          <p>Then write the sign as a rule and the gate does <b>exactly</b> what you wrote.</p>
+          <p class="mono">at least 42 inches : h ≥ 42</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>The crowd's <b>PATIENCE</b> drains while you work, and mistakes drain it faster. Run out three times and the ride shuts down. Survive Opening Day to win!</p></div>
+          <p>Every mistake makes the line <b>GRUMBLE</b>. When it fills, you lose a pass. Lose all <b>3 passes</b> and the gate closes. Get through Opening Day to win!</p></div>
       </div>
-      <div class="brief-keys">Drag or tap tiles · <kbd>1</kbd>–<kbd>5</kbd> symbols · <kbd>Enter</kbd> build / check · <kbd>←</kbd> turn away · <kbd>→</kbd> let in · number line: <kbd>←</kbd> <kbd>→</kbd> move, <kbd>space</kbd> circle, <kbd>&lt;</kbd> <kbd>&gt;</kbd> arrow · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>↑</kbd> let in · <kbd>↓</kbd> turn away · <kbd>1</kbd> <kbd>2</kbd> tiles · <kbd>&lt;</kbd> <kbd>&gt;</kbd> symbols (press again for ≤ ≥) · <kbd>=</kbd> for ≠ · <kbd>Enter</kbd> run · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
         <button type="button" id="startBtn" class="btn btn-go"><span class="px">🎢 OPEN THE GATE (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no angry crowds</small></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no grumble · riders wait</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">GATE TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">
-      <div class="px big-title">RIDE SHUT DOWN!</div>
-      <p id="failText">The crowd ran out of patience three times.</p>
+      <div class="px big-title">GATE CLOSED!</div>
+      <p id="failText">All 3 passes are gone.</p>
       <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
     </div>
   </div>
 
   <div id="report" class="overlay hidden">
     <div class="card report">
-      <div class="px big-title">GATEKEEPER REPORT</div>
+      <div class="px big-title">GATE REPORT</div>
       <div id="reportStars" class="report-stars"></div>
       <div id="reportStats" class="report-stats"></div>
       <div id="reportZones" class="report-zones"></div>

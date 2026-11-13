@@ -30,7 +30,7 @@ export const STAGES = [
   }),
   stage(6, 'Ride Gate', 'Understand and Write Inequalities', { x: 1200, y: 585 }, {
     built: true, building: 'ride_gate', url: './games/4-6-ride-gate/index.html',
-    description: 'Opening day at the canyon roller coaster! Turn each ride sign into a gate rule (an inequality), let the right riders through, set the rule on a number line, and keep the crowd happy through Opening Day.',
+    description: 'Riders walk up to the gate, each carrying a number. First you are the gate: read the sign and let them in or turn them away. Then write the sign as an inequality and watch the gate do exactly what you wrote. Find the rule behind a worn-off sign, and get through Opening Day.',
   }),
   stage(7, 'Force Field', 'Solve Inequalities', { x: 1240, y: 400 }, {
     built: true, building: 'force_field', url: './games/4-7-force-field/index.html',
