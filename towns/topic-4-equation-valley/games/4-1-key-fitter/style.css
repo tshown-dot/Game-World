@@ -32,7 +32,10 @@
 /* ---- locks on the belt ---- */
 .lock { cursor: pointer; }
 .lock .eq { font: 900 26px ui-monospace, 'Courier New', monospace; fill: #1c2230; text-anchor: middle; }
-.lock .eq.long { font-size: 17px; }
+.lock .eq.long { font-size: 19px; } .lock .eq.xlong { font-size: 15px; }
+.big .eq.xlong { font-size: 30px; }
+.belt-start { position: absolute; z-index: 4; left: 50%; top: 150px; transform: translateX(-50%); height: 64px; padding: 0 30px; border: 4px solid var(--ink); border-radius: 16px; background: var(--red); color: #fff; box-shadow: 0 6px 0 var(--ink); font-size: 15px; animation: beltPulse 1.1s ease-in-out infinite; }
+@keyframes beltPulse { 50% { background: #ff7a7f; box-shadow: 0 6px 0 var(--ink), 0 0 0 8px rgba(255, 209, 102, 0.55); } }
 .lock .num { font: 900 13px ui-monospace, 'Courier New', monospace; fill: #fff; text-anchor: middle; }
 .lock .body { fill: #c9d1e0; stroke: #1c2230; stroke-width: 4; }
 .lock .shackle { fill: none; stroke: #8892a6; stroke-width: 13; stroke-linecap: round; }

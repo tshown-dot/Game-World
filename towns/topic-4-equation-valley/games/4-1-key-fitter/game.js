@@ -13,7 +13,9 @@ import { createArcade } from '../../../../shared/game/arcadeShell.js';
 import { ZONES, genZone, lockText, substitute, checkTap, checkTry, checkForge, parseNumber, fmt, r2 } from './keys.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const BELT_Y = 330, EXIT_X = 150, GAP = 350, SPEED = 115;   // the belt: where locks ride, where they leave, spacing, pixels a second
+const BELT_Y = 330, EXIT_X = 150, SPEED = 100;   // the belt: where locks ride, where they leave, pixels a second
+const EVERY = [5, 5, 5.5, 4, 4], PRACTICE_EVERY = 8;   // seconds between one lock and the next, zone by zone
+const FIRST_X = 1236;                             // where the first lock waits until the belt is started
 const L = 110, WD = 1146, LINE_Y = 520, PICK_Y = 452, LOCK_Y = 290;   // the key strip and the big lock
 const BOSS = ZONES.length - 1;
 const $ = (id) => document.getElementById(id);
@@ -22,7 +24,7 @@ const near = (a, b) => Math.abs(a - b) < 1e-7;
 
 // Everything about the round being played.
 const W = {
-  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, belt, pick (ring or mystery), forge, gap
+  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, ready (a belt waiting to be started), belt, pick (ring or mystery), forge, gap
   items: [], beltMiss: 0,                           // belt: one item per lock { lock, n, x, state, el }
   pick: 0, pickEl: null, fly: null, tries: 0, marks: [],
   op: '+', gapLeft: 0, frozen: false, wrongEl: null, afterResume: null, speed: 1,
@@ -79,9 +81,10 @@ function startRound(i) {
   if (G.zone === BOSS) arcade.setBossProgress((i / W.rounds.length) * 100);
   $('forge').classList.add('hidden');
   if (round.type === 'belt') {
-    W.phase = 'belt';
+    W.phase = 'ready';                               // nothing moves until the student starts the belt
     drawBelt();
-    W.items = round.locks.map((lock, n) => ({ lock, n, x: 1366 + 170 + n * GAP, state: 'roll', el: null }));
+    const gap = SPEED * (EVERY[G.zone] || 5);
+    W.items = round.locks.map((lock, n) => ({ lock, n, x: FIRST_X + n * gap, state: 'roll', el: null }));
     for (const it of W.items) { it.el = beltLockEl(it); place(it); }
   } else if (round.type === 'forge') {
     W.phase = 'forge'; W.op = round.ops ? round.ops[0] : '+';
@@ -114,7 +117,7 @@ function update(dt) {
   if (W.phase === 'idle' || W.frozen || arcade.paused()) return;
   if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
   if (W.phase === 'belt') {
-    const speed = SPEED * (G.practice ? 0.6 : 1);
+    const speed = SPEED * (G.practice ? (EVERY[G.zone] || 5) / PRACTICE_EVERY : 1);
     for (const it of W.items) {
       if (it.state !== 'roll') continue;
       it.x -= speed * dt;
@@ -129,6 +132,10 @@ function update(dt) {
     W.fly.el.setAttribute('transform', `translate(${W.fly.x} ${W.fly.y})`);
     if (W.fly.y <= LOCK_Y + 70) resolveTry();
   }
+}
+function startBelt() {
+  if (W.phase !== 'ready' || W.frozen || arcade.paused()) return;
+  W.phase = 'belt'; hubAudio.playCartridgeLaunch(); renderSign(); renderCtl();
 }
 /** The student tried the key in a belt lock (tapped), or let the lock roll out. */
 function judge(it, tapped) {
@@ -167,7 +174,7 @@ function resume() {
   if (then) then();
 }
 function tapLock(it) {
-  if (W.phase !== 'belt' || W.frozen || arcade.paused() || !it || it.state !== 'roll' || it.x > 1366 - 156) return;   // only once the whole lock is on screen
+  if (W.phase !== 'belt' || W.frozen || arcade.paused() || !it || it.state !== 'roll' || it.x > 1366 - 122) return;   // only once the whole lock is on screen
   judge(it, true);
 }
 
@@ -273,7 +280,7 @@ function forge() {
 /* ================================================================== */
 function onKey(e) {
   const k = e.key;
-  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else if (W.phase === 'pick') tryPick(); else if (W.phase === 'forge') forge(); return; }
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else if (W.phase === 'ready') startBelt(); else if (W.phase === 'pick') tryPick(); else if (W.phase === 'forge') forge(); return; }
   if (W.frozen) return;
   if (W.phase === 'belt' && /^[1-9]$/.test(k)) tapLock(W.items[Number(k) - 1]);
   if (W.phase === 'pick' && (k === 'ArrowLeft' || k === 'ArrowRight')) { e.preventDefault(); setPick(W.pick + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 5 : 1) * strip().step); }
@@ -287,6 +294,7 @@ press('stepL', () => setPick(W.pick - strip().step));
 press('stepR', () => setPick(W.pick + strip().step));
 press('goBtn', () => (W.phase === 'forge' ? forge() : tryPick()));
 press('resumeBtn', resume);
+press('beltStart', startBelt);
 for (const b of $('forgeOps').querySelectorAll('button')) b.addEventListener('click', () => { setOp(b.dataset.op); $('fa').focus(); });
 for (const id of ['fa', 'fc']) $(id).addEventListener('input', (e) => { e.target.value = e.target.value.replace(/[^0-9.]/g, ''); });
 
@@ -337,8 +345,8 @@ function beltLockEl(it) {
   const text = lockText(it.lock);
   const g = document.createElementNS(NS, 'g');
   g.setAttribute('class', 'lock');
-  g.innerHTML = `<g class="lock-in"><path class="shackle" d="M-44 -50 v-24 a44 44 0 0 1 88 0 v24"/><rect class="body" x="-150" y="-50" width="300" height="100" rx="16"/>
-    <text class="eq ${text.length > 16 ? 'long' : ''}" y="10">${text}</text><circle cx="-150" cy="-50" r="15" fill="#2b1b2e" stroke="#fff" stroke-width="2"/><text class="num" x="-150" y="-45">${it.n + 1}</text></g>`;
+  g.innerHTML = `<g class="lock-in"><path class="shackle" d="M-34 -40 v-20 a34 34 0 0 1 68 0 v20"/><rect class="body" x="-116" y="-40" width="232" height="80" rx="14"/>
+    <text class="eq ${text.length > 16 ? 'xlong' : text.length > 12 ? 'long' : ''}" y="9">${text}</text><circle cx="-116" cy="-40" r="14" fill="#2b1b2e" stroke="#fff" stroke-width="2"/><text class="num" x="-116" y="-35">${it.n + 1}</text></g>`;
   g.addEventListener('pointerdown', (e) => { e.stopPropagation(); tapLock(it); });
   $('gLocks').appendChild(g);
   return g;
@@ -375,7 +383,7 @@ function drawForge() {
 function renderSign(isNew = false) {
   const r = W.round, n = W.rounds.length;
   let small = '', text = '', story = false;
-  if (r.type === 'belt') { small = `BELT ${W.ri + 1}/${n} · LET THE OTHERS ROLL OUT`; text = 'TAP EVERY LOCK YOUR KEY OPENS'; }
+  if (r.type === 'belt') { small = `BELT ${W.ri + 1}/${n} · LET THE OTHERS ROLL OUT`; text = W.phase === 'ready' ? 'LOOK AT YOUR KEY, THEN START THE BELT' : 'TAP EVERY LOCK YOUR KEY OPENS'; }
   if (r.type === 'ring' || r.type === 'mystery') {
     const left = r.tries - W.tries, tests = left - 1;
     small = r.story || (r.type === 'mystery' ? 'MYSTERY LOCK: EACH TEST KEY SHOWS WHAT THE LOCK MAKES OF IT' : 'YOUR TURN: SLIDE A KEY ALONG THE STRIP AND TRY IT');
@@ -394,7 +402,8 @@ function renderCtl() {
   $('goBtn').classList.toggle('hidden', !(pick || forgeOn));
   $('goBtn').textContent = forgeOn ? 'FORGE IT (ENTER)' : W.fly ? 'TRYING...' : 'TRY THIS KEY (ENTER)';
   $('goBtn').disabled = pick && Boolean(W.fly);
-  $('tip').textContent = p === 'belt' ? 'Tap a lock, or press its number, to try your key in it.' : forgeOn ? 'Pick + − × ÷ and type two numbers.' : '';
+  $('beltStart').classList.toggle('hidden', p !== 'ready');
+  $('tip').textContent = p === 'ready' ? 'The locks wait until you start the belt.' : p === 'belt' ? 'Tap a lock, or press its number, to try your key in it.' : forgeOn ? 'Pick + − × ÷ and type two numbers.' : '';
   $('waveTag').textContent = W.rounds.length ? `${W.round.type === 'belt' ? 'BELT' : 'LOCK'} ${W.ri + 1}/${W.rounds.length}` : '';
 }
 

@@ -14,9 +14,11 @@ const st=(p)=>p.evaluate(()=>{ const f=window.__keyfitter, W=f.W, G=f.G, r=W.rou
     strip:r.strip, order:r.order, maxTries:r.tries, solution:r.lock&&r.lock.solution, ops:r.ops, story:r.story, kinds:(r.locks||[]).map(l=>l.kind),
     hint:vis('hint'), report:vis('report'), fail:vis('fail'), callout:vis('callout'), banner:vis('banner'), sign:document.getElementById('signText').textContent, mistakes:{...G.mistakes} }; });
 const speed=(p,x)=>p.evaluate((v)=>{ window.__keyfitter.W.speed=v; },x);
-async function ready(p){ await p.waitForFunction(()=>{ const W=window.__keyfitter.W, hid=(id)=>document.getElementById(id).classList.contains('hidden'); return !hid('report') || (['belt','pick','forge'].includes(W.phase) && hid('banner')); },null,{timeout:30000}); }
+async function ready(p){ await p.waitForFunction(()=>{ const W=window.__keyfitter.W, hid=(id)=>document.getElementById(id).classList.contains('hidden'); return !hid('report') || (['ready','belt','pick','forge'].includes(W.phase) && hid('banner')); },null,{timeout:30000}); await startBelt(p); }
+// A belt waits for the student to start it: by Enter one time, by its button the next.
+let starts=0; async function startBelt(p){ if(await p.evaluate(()=>window.__keyfitter.W.phase!=='ready')) return; if(starts++%2===0) await p.keyboard.press('Enter'); else await p.click('#beltStart'); await p.waitForFunction(()=>window.__keyfitter.W.phase==='belt'); }
 async function nextRound(p,s){ await p.waitForFunction(([z,r])=>{ const f=window.__keyfitter, W=f.W, hid=(id)=>document.getElementById(id).classList.contains('hidden');
-  return !hid('report') || ((f.G.zone!==z || W.ri!==r) && ['belt','pick','forge'].includes(W.phase) && hid('banner')); },[s.zone,s.ri],{timeout:60000}); }
+  return !hid('report') || ((f.G.zone!==z || W.ri!==r) && ['ready','belt','pick','forge'].includes(W.phase) && hid('banner')); },[s.zone,s.ri],{timeout:60000}); await startBelt(p); }
 async function frozen(p){ await p.waitForFunction(()=>window.__keyfitter.W.frozen,null,{timeout:30000}); }
 const used={ tapKey:0, tapClick:0, pickKeys:0, pickDrag:0, pickButtons:0 };
 const onBelt=(i)=>i.state==='roll' && i.x<1200 && i.x>200;
@@ -98,8 +100,13 @@ async function open(p,{zone=0,practice=false,fast=5}={}){
   ok(res && res.bossDefeated && !res.practiceMode && res.total>=60 && res.stars===3,'result for the town: boss beaten, '+res.total+' decisions, '+res.stars+' stars');
   await p.screenshot({path:OUT+'/8_report.png'});
 
-  console.log('\n[3] The belt: a jammed lock, and an open one that got away');
-  await open(p); let s=await st(p);
+  console.log('\n[3] The belt: it waits to be started, a jammed lock, and an open one that got away');
+  await p.goto(URL,{waitUntil:'load'}); await p.keyboard.press('Enter'); await p.waitForFunction(()=>window.__keyfitter.W.phase==='ready' && document.getElementById('banner').classList.contains('hidden'),null,{timeout:30000});
+  let s=await st(p); const xs0=s.items.map(i=>i.x).join(); await p.waitForTimeout(700); await p.keyboard.press('1'); s=await st(p);
+  ok(await p.isVisible('#beltStart') && xs0===s.items.map(i=>i.x).join() && s.bad===0 && s.good===0 && s.items[0].x<1366-116 && /START THE BELT/.test(s.sign),'the belt stands still, first lock in view, until it is started: '+s.sign); await p.screenshot({path:OUT+'/3_ready.png'});
+  const gaps=s.items.slice(1).map((i,k)=>i.x-s.items[k].x); ok(gaps.every(g=>g===500),'locks are 5 seconds apart in zone 1 ('+gaps[0]+' px at 100 px a second)');
+  await p.click('#beltStart'); await p.waitForTimeout(500); s=await st(p); ok(s.phase==='belt' && !(await p.isVisible('#beltStart')) && s.items[0].x<1236,'START THE BELT sets it rolling');
+  await speed(p,5);
   let trap=await findTrap(p);
   await p.keyboard.press(String(trap.n+1)); await frozen(p); s=await st(p); let msg=await p.textContent('#calloutText');
   ok(s.bad===1 && s.meter<=25 && s.meter>=19 && Object.keys(s.mistakes).join()===trap.trap,'a key that does not fit jams the lock and raises the alarm ('+trap.trap+')');
@@ -108,7 +115,8 @@ async function open(p,{zone=0,practice=false,fast=5}={}){
   ok(x0===(await st(p)).items.filter(i=>i.state==='roll').map(i=>i.x).join(),'the belt waits while the message is up');
   await p.keyboard.press('Enter');
   // now tap nothing: every lock the key opens gets away
-  let missed=0; for(let guard=0;guard<40;guard++){ await p.waitForFunction(()=>{ const W=window.__keyfitter.W; return W.frozen || !document.getElementById('hint').classList.contains('hidden') || !document.getElementById('fail').classList.contains('hidden'); },null,{timeout:60000});
+  let missed=0; for(let guard=0;guard<40;guard++){ await p.waitForFunction(()=>{ const W=window.__keyfitter.W; return W.frozen || W.phase==='ready' || !document.getElementById('hint').classList.contains('hidden') || !document.getElementById('fail').classList.contains('hidden'); },null,{timeout:60000});
+    if((await st(p)).phase==='ready'){ await startBelt(p); continue; }
     if(await p.isVisible('#hint')||await p.isVisible('#fail')) break; msg=await p.textContent('#calloutText'); if(/Your key opened that one/.test(msg)) missed++; await p.keyboard.press('Enter'); }
   ok(missed>=1 && /Your key opened that one: .* = /.test(msg),'letting an opening lock roll out is explained: '+msg.slice(0,90));
   ok(await p.isVisible('#hint') && /put your key in for the letter/.test(await p.textContent('#hintText')),'the same mistake twice opens the hint card'); await p.screenshot({path:OUT+'/3b_hint.png'});
