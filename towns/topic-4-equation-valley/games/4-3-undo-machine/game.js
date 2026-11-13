@@ -1,469 +1,320 @@
-// Undo Machine (Lesson 4-3): screen, controls and game flow. The math lives in undo.js.
+// Undo Machine (Lesson 4-3: Write and Solve Addition and Subtraction Equations): the screen and the controls.
+// The math is in undo.js. The number-line track is shared/game/track.js. The shared parts of an action game
+// (briefing, top bar, boilers, hint card, report) are in shared/game/arcadeShell.js.
 //
-// Each problem moves through steps (G.phase):
-//   write    build the equation from the story with tiles        (story, taken and multi problems)
-//   combine  add the known parts first (143 + 295)               (multi only, typed)
-//   undo     build the opposite block and drop it in the machine  (undo, story, multi)
-//   typed    type the answer                                      (taken only: the letter is what was taken away)
-//   sort     is this crate a match for the target?                (sorting chute)
-import {
-  ZONES, OP_SIGN, fmt, parseNumber, exprText, eqText, runForward, combined, tilesText, checkLine,
-  genZone, genBackup, checkWritten, checkUndo, checkCombine, checkTaken, checkSort, workedSolution,
-} from './undo.js';
-import { hubAudio } from '../../../../shared/audio.js';
-import { createGame } from '../../../../shared/game/gameShell.js';
-import { dragOrTap, inside } from '../../../../shared/game/drag.js';
+// A zone is a list of ROUNDS:
+//   run    an equation is one run of the cart: the student sets the start (or the push), launches, and watches
+//          whether the cart stops on the flag. A mystery run gives free test carts first.
+//   build  write the equation for a story from tiles; the next round runs it
+// All timing goes through update(), so the action stops cleanly whenever a banner, hint, help screen or mistake
+// message is showing.
+import { createArcade } from '../../../../shared/game/arcadeShell.js';
+import { createTrack } from '../../../../shared/game/track.js';
+import { ZONES, genZone, eqText, startOf, pushesOf, landOf, checkRun, checkBuild } from './undo.js';
 
-const SKILL_TIPS = {
-  did_not_undo: 'Undo a step with its OPPOSITE: undo + with −, and − with +.',
-  wrong_op: 'Match the story: "more" or "added" means +, "gave away" or "dropped" means −.',
-  wrong_amount: 'Undo exactly the machine\'s step, the same amount.',
-  used_total: 'Undo the step the machine does, not the total it puts out.',
-  fewer_trap: '"5 fewer than p" means p − 5. Start with the letter.',
-  order: 'Order matters in subtraction. Start with the amount you began with.',
-  wrong_numbers: 'The total goes alone on one side of the equation.',
-  combine_error: 'Combine the parts you know before you undo.',
-  skipped_combine: 'Combine the parts you know before you undo.',
-  added_both: 'When the letter is taken away, it is the GAP between the start and what is left.',
-  copied_number: 'The answer is the missing amount, not a number from the story.',
-  check_fails: 'Check your answer by putting it back in.',
-  same_numbers: 'Same numbers does not mean the same solution. Solve each one.',
-  number_shows: 'A number showing in an equation is not its solution. Solve it.',
-  missed_match: 'Different numbers can still have the same solution.',
-  sort_solve_first: 'Solve both equations before you compare them.',
-};
-
-const shell = createGame({
-  zones: ZONES, makeZone: genZone, makeBackup: genBackup, workedSolution, showProblem,
-  seconds: [40, 60, 45, 40, 70],                       // pressure: seconds until a boiler bursts, per zone
-  meterFloor: 8, wrongBump: 30, rightRelief: 30, pauseOnBanner: true,
-  lifeLostText: (left) => (left > 0 ? 'A BOILER BURST!' : 'LAST BOILER GONE!'),
-  bossHitText: 'FIXED!', winDelay: (p) => (p.type === 'sort' ? 1100 : 1600),
-  skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. That machine runs like new!',
-  lettersAreInput: () => G.phase === 'write', onKey, testName: '__undo',
-});
-const { G, UI, $, win, miss, showFeedback } = shell;
-Object.assign(G, { phase: null, work: null, rail: [], used: [], typed: '', sel: { op: null, amount: '', armed: false } });
-
-/* ================================================================== */
-/* Drawing the machine                                                 */
-/* ================================================================== */
-const K = '#1d1433';
-const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
+const BOSS = ZONES.length - 1;
+const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const track = createTrack($('track'));
 
-function backdrop() {
-  return `
-    <path d="M0 200 L70 170 L130 190 L190 160 L240 185 L240 520 L0 520 Z" fill="#d98a52" ${O}/>
-    <path d="M800 190 L730 165 L680 185 L620 160 L560 190 L560 520 L800 520 Z" fill="#d98a52" ${O}/>
-    <path d="M0 300 L240 292 M0 360 L245 356 M800 300 L560 292 M800 362 L556 356" stroke="#b5683a" stroke-width="5"/>
-    <rect x="0" y="392" width="800" height="128" fill="#a9512b"/>
-    <path d="M0 392 H800" stroke="${K}" stroke-width="3"/>
-    <rect x="60" y="372" width="680" height="16" rx="8" fill="#4a3a52" ${O}/>
-    ${[100, 180, 260, 340, 420, 500, 580, 660].map((x) => `<circle cx="${x}" cy="380" r="5" fill="#8b90a3" stroke="${K}" stroke-width="2"/>`).join('')}`;
-}
-function crate(x, text, { color = '#c4935a', textColor = K, cls = '', label = '' } = {}) {
-  const w = Math.max(84, 26 + String(text).length * 17);
-  return `<g transform="translate(${x} 300)"><g class="${cls}">
-    <rect x="${-w / 2}" y="0" width="${w}" height="70" rx="6" fill="${color}" ${O}/>
-    <path d="M${-w / 2 + 6} 8 H${w / 2 - 6} M${-w / 2 + 6} 62 H${w / 2 - 6}" stroke="rgba(0,0,0,0.25)" stroke-width="3"/>
-    <text x="0" y="46" text-anchor="middle" font-size="30" font-weight="900" fill="${textColor}" font-family="ui-monospace, monospace">${esc(text)}</text></g>
-    ${label ? `<text x="0" y="-12" text-anchor="middle" font-size="13" font-weight="900" fill="${K}" font-family="ui-monospace, monospace">${label}</text>` : ''}</g>`;
-}
-/**
- * The machine scene.
- *   label    what the machine does ("n + 7"), shown on its sign
- *   inBox    the crate on the left { text, color, cls }      outBox  the crate on the right
- *   slot     a block sitting in the undo slot ("− 7"), or null
- *   spin     gears turning: 'fwd' | 'back' | null
- */
-function drawMachine({ label, inBox, outBox, slot = null, spin = null, steam = false, signColor = '#fff4d6' }) {
-  const L = String(label);
-  const fs = L.length > 16 ? 22 : L.length > 11 ? 28 : 34;
-  UI.scene.innerHTML = `${backdrop()}
-    ${inBox ? crate(130, inBox.text, inBox) : ''}
-    ${outBox ? crate(670, outBox.text, outBox) : ''}
-    <g id="machine">
-      <path d="M200 330 H252 M548 330 H600" stroke="${K}" stroke-width="16"/><path d="M200 330 H252 M548 330 H600" stroke="#8b90a3" stroke-width="10"/>
-      <path class="machine-body" d="M345 100 L455 100 L430 150 L370 150 Z" fill="#ffd23f" ${O}/>
-      <text x="400" y="126" text-anchor="middle" font-size="12" font-weight="900" fill="${K}" font-family="'Press Start 2P', monospace">UNDO</text>
-      <rect class="machine-body" x="250" y="150" width="300" height="220" rx="18" fill="#8b90a3" ${O}/>
-      <rect x="268" y="170" width="264" height="80" rx="10" fill="${signColor}" ${O}/>
-      <text x="400" y="${222 + (34 - fs) / 3}" text-anchor="middle" font-size="${fs}" font-weight="900" fill="${K}" font-family="ui-monospace, monospace">${esc(L)}</text>
-      <g transform="translate(310 312)"><g class="${spin ? `spin ${spin === 'back' ? 'back' : ''}` : ''}"><circle r="30" fill="#6b6f80" ${O}/>
-        ${[0, 45, 90, 135].map((a) => `<rect x="-5" y="-38" width="10" height="76" rx="3" fill="#6b6f80" ${O} transform="rotate(${a})"/>`).join('')}<circle r="12" fill="#ffd23f" ${O}/></g></g>
-      <g transform="translate(490 312)"><g class="${spin ? `spin ${spin === 'back' ? '' : 'back'}` : ''}"><circle r="22" fill="#6b6f80" ${O}/>
-        ${[0, 60, 120].map((a) => `<rect x="-4" y="-29" width="8" height="58" rx="3" fill="#6b6f80" ${O} transform="rotate(${a})"/>`).join('')}<circle r="9" fill="#ffd23f" ${O}/></g></g>
-      <text x="400" y="352" text-anchor="middle" font-size="16" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${spin === 'back' ? '◀ ◀ BACKWARD' : spin === 'fwd' ? 'CHECK ▶ ▶' : ''}</text>
-      ${slot ? `<g class="slot-drop"><rect x="352" y="64" width="96" height="40" rx="8" fill="#3a8ef0" ${O}/><text x="400" y="92" text-anchor="middle" font-size="22" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${esc(slot)}</text></g>` : ''}
-      ${steam ? [520, 540].map((x, i) => `<circle class="steam" style="animation-delay:${i * 0.5}s" cx="${x}" cy="140" r="12" fill="#fff" opacity="0.8"/>`).join('') : ''}
-    </g>
-    <text x="130" y="398" text-anchor="middle" font-size="12" font-weight="900" fill="#fff" font-family="'Press Start 2P', monospace">IN</text>
-    <text x="670" y="398" text-anchor="middle" font-size="12" font-weight="900" fill="#fff" font-family="'Press Start 2P', monospace">OUT</text>`;
-}
-const HIDDEN = (letter) => ({ text: letter, color: '#3a8ef0', textColor: '#fff' });
+// Everything about the round being played.
+const W = {
+  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, set, run, hold, build, gap
+  v: 0,                                             // the student's number: where the cart starts, or how far it is pushed
+  testsLeft: 0, tests: [], fuseLeft: 0, shownFuse: -1,
+  anim: null, holdLeft: 0, tries: 0,
+  slots: [null, null, null], op: null,              // build: which tile is in each space, and the operation
+  gapLeft: 0, frozen: false, afterResume: null, speed: 1,
+};
+let cart = null, pushLab = null, flag = null;
 
-/** The machine as the current step stands, before the student acts. */
-function showState() {
-  const p = G.problem;
-  if (G.phase === 'sort') return drawSort();
-  const w = G.work;
-  if (G.phase === 'write') {
-    const built = G.rail.length ? tilesText(G.rail) : '? ? ?';
-    drawMachine({ label: built, inBox: HIDDEN(w.letter), outBox: { text: '?' } });
-    strip([`<span class="small">Read the story. Build its equation with the tiles.</span>`]);
-    return;
-  }
-  drawMachine({ label: exprText(w), inBox: HIDDEN(w.letter), outBox: { text: fmt(w.c) }, steam: G.zone === 4 && G.phase !== 'undo' });
-  const lines = [eqText(w)];
-  if (p.type === 'multi' && G.phase === 'undo') lines.unshift(`<span class="small">${eqText(p.eq)}</span>`);
-  strip(lines);
-}
-
-function strip(lines) {
-  const el = $('eqStrip');
-  if (!el) return;
-  el.classList.remove('hidden');
-  el.innerHTML = lines.map((l) => `<div class="eq-line ${l.startsWith('<span class="small">') ? 'small' : ''}">${l.replace(/^<span class="small">(.*)<\/span>$/, '$1')}</div>`).join('');
-}
-
-/* ---- the sorting chute ---- */
-function drawSort(result = null) {
-  const c = G.problem;
-  const t = c.target;
-  const text = eqText(c.eq);
-  const w = Math.max(220, 40 + text.length * 17);
-  const move = result === null ? 'chute-in' : result ? 'to-right' : 'to-left';
-  UI.scene.innerHTML = `${backdrop()}
-    <rect x="250" y="20" width="300" height="70" rx="12" fill="#fff4d6" ${O}/>
-    <text x="400" y="46" text-anchor="middle" font-size="12" font-weight="900" fill="#8f3f22" font-family="'Press Start 2P', monospace">TARGET</text>
-    <text x="400" y="78" text-anchor="middle" font-size="26" font-weight="900" fill="${K}" font-family="ui-monospace, monospace">${esc(eqText(t))}</text>
-    <path d="M360 90 L360 230 M440 90 L440 230" stroke="${K}" stroke-width="4"/>
-    <g transform="translate(190 410)"><path d="M-110 -40 L110 -40 L95 60 L-95 60 Z" fill="#e5484d" ${O}/><text x="0" y="16" text-anchor="middle" font-size="13" font-weight="900" fill="#fff" font-family="'Press Start 2P', monospace">◀ NOT A</text><text x="0" y="38" text-anchor="middle" font-size="13" font-weight="900" fill="#fff" font-family="'Press Start 2P', monospace">MATCH</text></g>
-    <g transform="translate(610 410)"><path d="M-110 -40 L110 -40 L95 60 L-95 60 Z" fill="#2fbf71" ${O}/><text x="0" y="26" text-anchor="middle" font-size="14" font-weight="900" fill="#fff" font-family="'Press Start 2P', monospace">MATCH ▶</text></g>
-    <g transform="translate(400 260)"><g class="${move}">
-      <rect x="${-w / 2}" y="-36" width="${w}" height="72" rx="8" fill="#c4935a" ${O}/>
-      <text x="0" y="12" text-anchor="middle" font-size="28" font-weight="900" fill="${K}" font-family="ui-monospace, monospace">${esc(text)}</text></g></g>`;
-  strip([`<span class="small">Same solution as ${esc(eqText(t))}?</span>`]);
-}
-
-/* ================================================================== */
-/* Problems                                                            */
-/* ================================================================== */
-const TAGS = {
-  write: 'STEP 1 · WRITE THE EQUATION', combine: 'STEP 2 · COMBINE WHAT YOU KNOW', undo: 'RUN IT BACKWARD',
-  typed: 'STEP 2 · FIND THE MISSING AMOUNT', sort: 'SORT THE CRATE',
+const HINTS = {
+  did_not_undo: 'Work BACKWARD from the flag.<span class="mono">x + 7 = 23 : the cart ends at 23 after +7, so it starts at 23 − 7</span>Adding is undone by subtracting, and subtracting by adding.',
+  started_on_flag: 'The flag is the END of the run. The machine still pushes the cart, so it has to start somewhere else.<span class="mono">start + push = flag</span>',
+  used_the_number: 'Read the equation as a run.<span class="mono">x + 7 = 23 : start at x, pushed 7, stops at 23</span>The 7 is the push. The letter is where the cart starts.',
+  used_total: 'The push is how FAR the cart travels, not where it stops.<span class="mono">9 + x = 23 : from 9 to 23 is 23 − 9</span>',
+  off: 'Check it before you launch: put your number into the equation and work out the side.<span class="mono">x + 7 = 23 : is your number plus 7 exactly 23?</span>',
+  combine: 'Two pushes in a row make one bigger push.<span class="mono">x + 3 + 4 = 20 : pushed 7 in all, so x = 20 − 7</span>',
+  mystery: 'One test cart is enough: where did it start, and where did it stop?<span class="mono">from 12 to 19 : the machine adds 7</span>Then work backward from the flag.',
+  story_order: 'Say your equation as a sentence. Does it tell the story?<span class="mono">start, then what changed, equals what you end with</span>',
+};
+const TIPS = {
+  did_not_undo: 'Solve x + 7 = 23 by subtracting 7; solve x − 5 = 12 by adding 5.',
+  started_on_flag: 'In start + change = total, the total is not the starting amount.',
+  used_the_number: 'The number added to the variable is the change, not the variable\'s value.',
+  used_total: 'In 9 + x = 23, x is the difference between 9 and 23.',
+  off: 'Check a solution by substituting it back into the equation.',
+  combine: 'Combine the numbers first: x + 3 + 4 is x + 7.',
+  mystery: 'Compare an input and its output to find what was added or taken away.',
+  story_order: 'Write the story in order: start, change, result.',
 };
 
-/** The shell has set G.problem, G.attempts and G.isBackup; set up this game's own steps. */
-function showProblem(p) {
-  Object.assign(G, { rail: [], used: [], typed: '', work: p.eq });
-  enterPhase(p.type === 'sort' ? 'sort' : p.type === 'undo' ? 'undo' : 'write');
-}
-function enterPhase(phase) {
-  G.phase = phase;
-  G.sel = { op: null, amount: '', armed: false };
-  G.typed = '';
-  UI.taskTag.textContent = `${TAGS[phase]}${G.isBackup ? ' · BACKUP' : ''}`;
-  renderPrompt();
-  renderControls();
-  showState();
-}
+const arcade = createArcade({
+  zones: ZONES, startZone, stopZone, onKey, hints: HINTS, skillTips: TIPS, testName: '__undo',
+  perfectText: 'Every cart on the flag: no mistakes to sharpen!',
+  lifeLostText: (left) => (left > 0 ? `A BOILER BURST! ${left} LEFT` : 'MACHINE DOWN'),
+});
+const { G, hubAudio } = arcade;
+if (window.__undo) window.__undo.W = W;
+const busy = () => W.frozen || arcade.paused();
 
-function renderPrompt() {
-  const p = G.problem, w = G.work;
-  const story = p.story ? `<span class="story">${esc(p.story)}</span>` : '';
-  let html;
-  switch (G.phase) {
-    case 'write': html = `Turn the story into a machine.${story}`; break;
-    case 'combine': html = `Jammed! Two parts are known. Combine them first.<span class="eq">${eqText(p.eq)}</span>`; break;
-    case 'typed': html = `${w.letter} is the amount TAKEN AWAY. What is ${w.letter}?<span class="eq">${eqText(w)}</span>`; break;
-    case 'sort': html = `Does this crate have the <b>same solution</b> as the target?<span class="eq">Target: ${eqText(p.target)}</span>`; break;
-    default: html = `${p.type === 'undo' ? 'The machine took in a hidden crate.' : 'Now run it backward.'} Build the opposite block and drop it in to find <b>${w.letter}</b>.<span class="eq">${eqText(w)}</span>`;
+/* ================================================================== */
+/* Zones and rounds                                                    */
+/* ================================================================== */
+function startZone(z) {
+  W.rounds = genZone(Math.random, z);
+  startRound(0);
+}
+function stopZone() {
+  Object.assign(W, { phase: 'idle', frozen: false, afterResume: null, anim: null });
+  $('callout').classList.add('hidden');
+}
+function startRound(i) {
+  const round = W.rounds[i];
+  Object.assign(W, { ri: i, round, tries: 0, anim: null, frozen: false, afterResume: null, slots: [null, null, null], op: null, tests: [] });
+  if (G.zone === BOSS) arcade.setBossProgress((i / W.rounds.length) * 100);
+  $('eqBox').classList.remove('ok'); showLine('');
+  if (round.type === 'build') beginBuild(); else beginRun();
+  renderSign(true); renderCtl();
+}
+function rest(seconds) { W.phase = 'gap'; W.gapLeft = seconds; renderCtl(); }
+function endRound() { rest(0.9); }
+function nextRound() {
+  if (W.ri + 1 < W.rounds.length) return startRound(W.ri + 1);
+  W.phase = 'idle';
+  if (G.zone === BOSS) arcade.setBossProgress(100);
+  arcade.zoneCleared();
+}
+function stopFor(message, button, then) {
+  W.frozen = true; W.afterResume = then;
+  $('calloutText').textContent = message;
+  $('resumeBtn').textContent = button;
+  $('callout').classList.remove('hidden');
+}
+function resume() {
+  if (!W.frozen || arcade.paused()) return;
+  W.frozen = false;
+  $('callout').classList.add('hidden');
+  const then = W.afterResume;
+  W.afterResume = null;
+  if (then) then();
+}
+function showLine(text, off = false) { $('eqLine').textContent = text; $('eqLine').classList.toggle('off', off); }
+
+/* ================================================================== */
+/* A run: set it up, launch, watch                                     */
+/* ================================================================== */
+function beginRun() {
+  const r = W.round, { lo, hi } = r.axis, mid = Math.round((lo + hi) / 2);
+  W.phase = 'set';
+  W.v = r.unknown === 'push' ? 1 : mid === r.x ? mid + 3 : mid;      // never start on the answer
+  W.testsLeft = r.tests || 0; W.fuseLeft = r.fuse; W.shownFuse = -1;
+  $('story').textContent = r.story ? W.rounds[W.ri - 1].story : '';
+  $('eq').textContent = eqText(r);
+  $('eq').classList.remove('hidden'); $('slots').classList.add('hidden'); $('tiles').classList.add('hidden');
+  $('track').classList.remove('hidden');
+  $('pushDial').classList.toggle('hidden', r.unknown !== 'push');
+  track.draw(r.axis);
+  track.layer.innerHTML = '<div class="flagpole"></div><div class="flagcloth"></div><div class="pushlab"></div><div class="ghost hidden"></div><div class="cart"></div><div class="tests"></div>';
+  flag = track.layer.querySelector('.flagcloth'); cart = track.layer.querySelector('.cart'); pushLab = track.layer.querySelector('.pushlab');
+  track.layer.querySelector('.flagpole').style.left = `${track.X(r.c)}px`;
+  flag.style.left = `${track.X(r.c)}px`; flag.textContent = r.c;
+  cart.classList.toggle('fixed', r.unknown === 'push');
+  drawCart();
+}
+function pushText(r) {
+  if (r.kind === 'start_plus') return `+ ${r.a} ▶`;
+  if (r.kind === 'start_minus') return `◀ − ${r.a}`;
+  if (r.kind === 'two') return `+ ${r.a}, then + ${r.b} ▶`;
+  if (r.kind === 'push_plus') return `+ ${r.letter} ▶`;
+  if (r.kind === 'push_minus') return `◀ − ${r.letter}`;
+  return '? ?';
+}
+/** at: where the cart is drawn (while it runs). Otherwise it sits at its start. */
+function drawCart(at = null) {
+  const r = W.round, pos = at === null ? startOf(r, W.v) : at;
+  cart.style.left = `${track.X(track.clamp(pos))}px`;
+  cart.textContent = at !== null ? Math.round(at) : r.unknown === 'start' ? `${r.letter} = ${W.v}` : r.s;
+  pushLab.style.left = cart.style.left; pushLab.textContent = pushText(r);
+  $('dialLab').textContent = `PUSH ${r.kind === 'push_minus' ? 'BACK' : 'FORWARD'}`;
+  $('dialVal').textContent = `${r.letter} = ${W.v}`;
+  track.layer.querySelector('.tests').textContent = W.tests.join('     ');
+}
+const canSet = () => W.phase === 'set' && !busy();
+function setV(v) {
+  if (!canSet()) return;
+  const { lo, hi } = W.round.axis;
+  v = Math.round(Math.min(hi, Math.max(lo, v)));
+  if (v === W.v) return;
+  W.v = v; hubAudio.playStep(); drawCart();
+}
+function launch() {
+  if (!canSet()) return;
+  const r = W.round, pts = [startOf(r, W.v)];
+  for (const p of pushesOf(r, W.v)) pts.push(pts[pts.length - 1] + p);
+  W.phase = 'run'; W.anim = { pts, i: 0, t: 0 };
+  const ghost = track.layer.querySelector('.ghost');            // a mark where the cart started, so the whole run can be seen
+  ghost.style.left = `${track.X(track.clamp(pts[0]))}px`; ghost.textContent = pts[0]; ghost.classList.remove('hidden');
+  cart.classList.remove('bad', 'good');
+  hubAudio.playCartridgeLaunch(); renderCtl();
+}
+function updateRun(dt) {
+  const A = W.anim;
+  A.t += dt;
+  const u = Math.min(1, A.t / 0.9), ease = u * u * (3 - 2 * u), from = A.pts[A.i], to = A.pts[A.i + 1];
+  drawCart(from + (to - from) * ease);
+  if (A.t < 1.1) return;                             // a short stop at the end of each push
+  A.i += 1; A.t = 0;
+  if (A.i >= A.pts.length - 1) landed();
+}
+function landed() {
+  const r = W.round, land = landOf(r, W.v);
+  W.anim = null;
+  if (W.testsLeft > 0) {                             // a free test cart: it leaves a note, no score
+    W.testsLeft -= 1;
+    W.tests.push(`${W.v} → ${land}`);
+    hubAudio.playSelect();
+    drawCart(land);
+    W.phase = 'hold'; W.holdLeft = 0.8;
+    renderSign(); return;
   }
-  UI.prompt.innerHTML = html;
+  const res = checkRun(r, W.v);
+  showLine(res.message.split('. ')[0], !res.ok);
+  if (res.ok) {
+    arcade.good(15); hubAudio.playCoinClink();
+    cart.classList.add('good'); flag.classList.add('ok'); $('eqBox').classList.add('ok');
+    return rest(1.3);
+  }
+  W.tries += 1;
+  cart.classList.add('bad');
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;                    // that was the last boiler: the zone has stopped
+  const moveOn = W.tries >= 2;
+  stopFor(res.message + (moveOn ? ` The answer: ${r.letter} = ${r.x}.` : ''), moveOn ? 'NEXT (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? endRound : backToSet);
+}
+function backToSet() {
+  W.phase = 'set'; W.fuseLeft = W.round.fuse; W.shownFuse = -1;
+  cart.classList.remove('bad');
+  track.layer.querySelector('.ghost').classList.add('hidden');
+  showLine(''); drawCart(); renderCtl();
 }
 
 /* ================================================================== */
-/* Controls                                                            */
+/* Write it: build the equation for a story                            */
 /* ================================================================== */
-function renderControls() {
-  const p = G.problem;
-  if (G.phase === 'sort') {
-    UI.controls.innerHTML = `<div class="stamps"><button type="button" class="stamp no px" data-sort="0">◀ NOT A MATCH</button><button type="button" class="stamp yes px" data-sort="1">MATCH ▶</button></div>
-      <div class="help-line">Solve the crate in your head, then sort it. Keys: <kbd>←</kbd> <kbd>→</kbd></div>`;
-    UI.controls.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => answerSort(b.dataset.sort === '1')));
-    return;
-  }
-  if (G.phase === 'write') {
-    const nums = p.tiles.map((v, i) => `<button type="button" class="tile num" data-tile="num" data-i="${i}" ${G.used.includes(i) ? 'disabled' : ''}>${fmt(v)}<small>${i + 1}</small></button>`).join('');
-    const varUsed = G.rail.some((t) => t.t === 'var');
-    UI.controls.innerHTML = `
-      <div class="label px">YOUR EQUATION</div>
-      <div id="rail" class="rail ${G.rail.length ? 'filled' : ''}">${G.rail.length ? G.rail.map((t) => `<span class="tile chip ${t.t === 'num' ? 'num' : t.t === 'var' ? 'var' : t.t === 'eq' ? 'eqs' : ''}">${t.t === 'num' ? fmt(t.v) : t.t === 'var' ? t.v : t.t === 'eq' ? '=' : OP_SIGN[t.v]}</span>`).join('') : '<span class="empty">Drag or tap tiles to build it here</span>'}</div>
-      <div class="label px">TILES</div>
-      <div class="tiles">${nums}
-        <button type="button" class="tile var" data-tile="var" ${varUsed ? 'disabled' : ''}>${p.eq.letter}</button>
-        <button type="button" class="tile" data-tile="+">+</button><button type="button" class="tile" data-tile="-">−</button>
-        <button type="button" class="tile eqs" data-tile="eq">=</button></div>
-      <div class="row-btns"><button type="button" id="undoTile" class="px">⌫ BACK</button><button type="button" id="clearRail" class="px">CLEAR</button>
-        <button type="button" id="buildBtn" class="go px">BUILD IT (ENTER)</button></div>
-      <div id="helpLine" class="help-line">Keys: <kbd>1</kbd>–<kbd>${p.tiles.length}</kbd> numbers · <kbd>${p.eq.letter}</kbd> · <kbd>+</kbd> <kbd>−</kbd> <kbd>=</kbd></div>`;
-    UI.controls.querySelectorAll('[data-tile]').forEach((b) => b.addEventListener('pointerdown', (e) => startDrag(e, 'tile')));
-    $('undoTile').addEventListener('click', removeTile);
-    $('clearRail').addEventListener('click', () => { if (!G.locked) { G.rail = []; G.used = []; renderControls(); showState(); } });
-    $('buildBtn').addEventListener('click', submitWritten);
-    return;
-  }
-  if (G.phase === 'combine' || G.phase === 'typed') {
-    UI.controls.innerHTML = `
-      <div class="label px">${G.phase === 'combine' ? `${fmt(p.eq.a)} + ${fmt(p.eq.b)} = ?` : `${G.work.letter} = ?`}</div>
-      <div id="typed" class="typed">${G.typed || '?'}</div>
-      <div class="pad six">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, '.'].map((d) => `<button type="button" data-digit="${d}">${d}</button>`).join('')}<button type="button" data-digit="back">⌫</button></div>
-      <button type="button" id="checkBtn" class="apply px">CHECK (ENTER)</button>`;
-    UI.controls.querySelectorAll('[data-digit]').forEach((b) => b.addEventListener('click', () => typeKey(String(b.dataset.digit))));
-    $('checkBtn').addEventListener('click', submitTyped);
-    return;
-  }
-  // undo: build a block and drop it in the machine
-  UI.controls.innerHTML = `
-    <div class="label px">1. OPPOSITE STEP</div>
-    <div class="op-row two">${['+', '-'].map((op) => `<button type="button" class="op-btn ${G.sel.op === op ? 'on' : ''}" data-op="${op}">${OP_SIGN[op]}<small>${op === '+' ? 'add' : 'subtract'}</small></button>`).join('')}</div>
-    <div class="label px">2. HOW MUCH?</div>
-    <div class="pad six">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0, '.'].map((d) => `<button type="button" data-digit="${d}">${d}</button>`).join('')}<button type="button" data-digit="back">⌫</button></div>
-    <div class="label px">3. DRAG YOUR BLOCK INTO THE MACHINE</div>
-    <div class="tray"><button type="button" id="block" class="block"></button></div>
-    <div id="helpLine" class="help-line"></div>`;
-  UI.controls.querySelectorAll('[data-op]').forEach((b) => b.addEventListener('click', () => pickOp(b.dataset.op)));
-  UI.controls.querySelectorAll('[data-digit]').forEach((b) => b.addEventListener('click', () => typeKey(String(b.dataset.digit))));
-  $('block').addEventListener('pointerdown', (e) => startDrag(e, 'block'));
-  refreshBlock();
+const OP_TEXT = { '+': '+', '-': '−' };
+function beginBuild() {
+  const p = W.round;
+  W.phase = 'build';
+  $('story').textContent = p.story;
+  $('eq').classList.add('hidden'); $('track').classList.add('hidden'); $('pushDial').classList.add('hidden');
+  const slot = (k, cls = '') => `<button type="button" class="slot ${cls}" data-slot="${k}"></button>`;
+  $('slots').innerHTML = `${slot(0)}${slot('op', 'op')}${slot(1)}<span>=</span>${slot(2)}`;
+  $('tiles').innerHTML = `${p.tiles.map((t, i) => `<button type="button" class="tile" data-tile="${t.id}"><b>${i + 1}</b>${esc(t.text)}</button>`).join('')}
+    <span class="opkeys">${Object.entries(OP_TEXT).map(([op, text]) => `<button type="button" data-op="${op}">${text}</button>`).join('')}</span>`;
+  $('slots').classList.remove('hidden'); $('tiles').classList.remove('hidden');
+  renderBuild();
 }
-
-/* ---- the undo block ---- */
-const blockAmount = () => parseNumber(G.sel.amount);
-const blockReady = () => G.sel.op && blockAmount() !== null && blockAmount() > 0;
-function refreshBlock() {
-  const b = $('block');
-  if (!b) return;
-  b.textContent = G.sel.op ? `${OP_SIGN[G.sel.op]} ${G.sel.amount || '?'}` : '? ?';
-  b.className = `block ${blockReady() ? 'ready' : 'empty'} ${G.sel.armed ? 'armed' : ''}`;
-  UI.controls.querySelectorAll('[data-op]').forEach((x) => x.classList.toggle('on', x.dataset.op === G.sel.op));
-  $('helpLine').innerHTML = G.sel.armed ? '<b>Now tap the machine.</b>' : 'Drag it into the machine, or tap it then tap the machine. <kbd>Enter</kbd> drops it.';
+$('tiles').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; b.blur(); if (b.dataset.tile) placeTile(b.dataset.tile); else setOp(b.dataset.op); });
+$('slots').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; b.blur(); clearSlot(b.dataset.slot); });
+const canBuild = () => W.phase === 'build' && !busy();
+function renderBuild() {
+  const p = W.round, text = (id) => (p.tiles.find((t) => t.id === id) || {}).text || '';
+  W.slots.forEach((id, k) => { const el = $('slots').querySelector(`[data-slot="${k}"]`); el.textContent = text(id); el.classList.toggle('full', Boolean(id)); });
+  const opEl = $('slots').querySelector('[data-slot="op"]'); opEl.textContent = W.op ? OP_TEXT[W.op] : ''; opEl.classList.toggle('full', Boolean(W.op));
+  for (const b of $('tiles').querySelectorAll('[data-tile]')) b.classList.toggle('used', W.slots.includes(b.dataset.tile));
 }
-function pickOp(op) {
-  if (G.locked || G.phase !== 'undo') return;
-  hubAudio.playSelect();
-  G.sel.op = op; G.sel.armed = false;
-  refreshBlock();
+function placeTile(id) {
+  if (!canBuild() || !id || W.slots.includes(id)) return;
+  const k = W.slots.indexOf(null);
+  if (k < 0) return;
+  W.slots[k] = id; hubAudio.playStep(); renderBuild();
 }
-function typeKey(d) {
-  if (G.locked) return;
-  if (G.phase === 'undo') {
-    if (d === 'back') { if (G.sel.amount) G.sel.amount = G.sel.amount.slice(0, -1); else G.sel.op = null; }
-    else if (G.sel.amount.length < 6 && !(d === '.' && G.sel.amount.includes('.'))) G.sel.amount = (G.sel.amount + d).replace(/^0+(?=\d)/, '');
-    G.sel.armed = false;
-    return refreshBlock();
-  }
-  if (G.phase === 'combine' || G.phase === 'typed') {
-    if (d === 'back') G.typed = G.typed.slice(0, -1);
-    else if (G.typed.length < 7 && !(d === '.' && G.typed.includes('.'))) G.typed += d;
-    $('typed').textContent = G.typed || '?';
-  }
-}
-function nudge(text) {
-  const h = $('helpLine');
-  if (h) h.innerHTML = `<span class="warn">${text}</span>`;
-  else showFeedback(true, text);
-  hubAudio.playTone(220, 'square', 0.12, 0.05);
-}
-
-/* ---- dragging: tiles onto the rail, the block into the machine (mouse, touch and trackpad) ---- */
-function startDrag(e, kind) {
-  if (G.locked) return;
-  const src = e.currentTarget;
-  if (src.disabled) return;
-  if (kind === 'block' && !blockReady()) return nudge(G.sel.op ? 'Type how much first.' : 'Build a block first: pick + or − and a number.');
-  if (kind === 'tile') {                               // a tile goes on the end of the equation, dragged or tapped
-    return dragOrTap(e, src, {
-      targetAt: (x, y) => (inside($('rail'), x, y) ? 'rail' : null), glow: (t) => $('rail')?.classList.toggle('drop-target', Boolean(t)),
-      onDrop: () => addTile(src), onTap: () => addTile(src), lift: false,
-    });
-  }
-  dragOrTap(e, src, {
-    targetAt: (x, y) => (inside(UI.scene, x, y) ? 'machine' : null), glow: (t) => $('machine')?.classList.toggle('drop-target', Boolean(t)),
-    onDrop: dropBlock, scene: UI.scene,
-    onTap: () => { G.sel.armed = !G.sel.armed; if (G.sel.armed) hubAudio.playSelect(); refreshBlock(); },
-  });
-}
-
-/* ---- write it ---- */
-function addTile(src) {
-  if (G.locked || G.phase !== 'write') return;
-  const kind = src.dataset.tile;
-  if (G.rail.length >= 9) return nudge('That row is full. Use ⌫ BACK or CLEAR.');
-  if (kind === 'num') {
-    const i = Number(src.dataset.i);
-    if (G.used.includes(i)) return;
-    G.used.push(i);
-    G.rail.push({ t: 'num', v: G.problem.tiles[i], i });
-  } else if (kind === 'var') {
-    if (G.rail.some((t) => t.t === 'var')) return;
-    G.rail.push({ t: 'var', v: G.problem.eq.letter });
-  } else if (kind === 'eq') G.rail.push({ t: 'eq' });
-  else G.rail.push({ t: 'op', v: kind });
-  hubAudio.playTone(440 + G.rail.length * 30, 'triangle', 0.08, 0.06);
-  renderControls();
-  showState();
-}
-function removeTile() {
-  if (G.locked || !G.rail.length) return;
-  const t = G.rail.pop();
-  if (t.t === 'num') G.used = G.used.filter((i) => i !== t.i);
-  renderControls();
-  showState();
-}
-function submitWritten() {
-  if (G.locked || G.phase !== 'write') return;
-  const p = G.problem;
-  const res = checkWritten(p, G.rail);
-  if (res.nudge) return nudge(res.message);
-  if (!res.correct) {
-    miss(res, { lock: true, delay: 1200, retry: () => { G.rail = []; G.used = []; renderControls(); showState(); } });
-    return;
-  }
-  hubAudio.playCoinClink();
-  showFeedback(true, res.message);
-  G.locked = true;
-  drawMachine({ label: exprText(p.eq), inBox: HIDDEN(p.eq.letter), outBox: { text: fmt(p.eq.c), cls: 'pop-in' } });
-  strip([eqText(p.eq)]);
-  setTimeout(() => {
-    G.locked = false;
-    UI.feedback.classList.add('hidden');
-    enterPhase(p.type === 'multi' ? 'combine' : p.type === 'taken' ? 'typed' : 'undo');
-  }, 1100);
-}
-
-/* ---- undo it ---- */
-function dropBlock() {
-  const p = G.problem, w = G.work;
-  if (G.locked || G.phase !== 'undo') return;
-  if (!blockReady()) return nudge(G.sel.op ? 'Type how much first.' : 'Build a block first: pick + or − and a number.');
-  const op = G.sel.op, n = blockAmount();
-  G.sel.armed = false;
-  G.locked = true;
-  const res = checkUndo(w, op, n);
-  const blk = `${OP_SIGN[op]} ${fmt(n)}`;
-  hubAudio.playTone(300, 'triangle', 0.15, 0.08);
-  // 1. the block drops in and the machine runs backward
-  drawMachine({ label: exprText(w), inBox: HIDDEN(w.letter), outBox: { text: fmt(w.c), cls: 'go-back' }, slot: blk, spin: 'back' });
-  const both = w.flipped
-    ? `${fmt(w.c)} <span class="you">${blk}</span> = ${esc(exprText(w))} <span class="you">${blk}</span>`
-    : `${esc(exprText(w))} <span class="you">${blk}</span> = ${fmt(w.c)} <span class="you">${blk}</span>`;
-  strip([eqText(w), both]);
-  // 2. the hidden crate comes out with a value
-  setTimeout(() => {
-    if (G.problem !== p) return;
-    drawMachine({ label: exprText(w), inBox: { text: fmt(res.value), color: '#3a8ef0', textColor: '#fff', cls: 'pop-in', label: `${w.letter} =` }, outBox: null, slot: blk });
-    strip([both, `${w.letter} = ${fmt(res.value)}`]);
-    hubAudio.playTone(520, 'triangle', 0.12, 0.08);
-  }, 800);
-  // 3. the check: put it back in and run forward
-  setTimeout(() => {
-    if (G.problem !== p) return;
-    const ok = res.correct;
-    drawMachine({ label: exprText(w), inBox: { text: fmt(res.value), color: '#3a8ef0', textColor: '#fff', cls: 'go-fwd' },
-      outBox: { text: fmt(res.back), color: ok ? '#2fbf71' : '#e5484d', textColor: '#fff', cls: 'pop-in', label: ok ? '✓ CHECK' : `✗ NEEDS ${fmt(w.c)}` }, spin: 'fwd' });
-    strip([`${w.letter} = ${fmt(res.value)}`, `<span class="${ok ? 'good' : 'bad'}">Check: ${esc(checkLine(w, res.value))}${ok ? ' ✓' : ' ✗'}</span>`]);
-    G.locked = false;
-    if (ok) win(res);
-    else miss(res, { lock: true, delay: 1200, retry: () => enterPhase('undo') });
-  }, 1700);
-}
-
-/* ---- typed answers ---- */
-function submitTyped() {
-  if (G.locked) return;
-  const p = G.problem;
-  if (G.phase === 'combine') {
-    const res = checkCombine(p.eq, G.typed);
-    if (res.nudge) return nudge(res.message);
-    if (!res.correct) return miss(res, { lock: true, delay: 1200, retry: () => { G.typed = ''; renderControls(); showState(); } });
-    hubAudio.playCoinClink();
-    showFeedback(true, res.message);
-    G.work = combined(p.eq);
-    G.locked = true;
-    drawMachine({ label: exprText(G.work), inBox: HIDDEN(G.work.letter), outBox: { text: fmt(G.work.c) }, spin: 'fwd', signColor: '#d9f7e3' });
-    strip([`<span class="small">${eqText(p.eq)}</span>`, eqText(G.work)]);
-    setTimeout(() => { G.locked = false; UI.feedback.classList.add('hidden'); enterPhase('undo'); }, 1300);
-    return;
-  }
-  if (G.phase === 'typed') {
-    const w = G.work;
-    const res = checkTaken(w, G.typed);
-    if (res.nudge) return nudge(res.message);
-    const ok = res.correct;
-    drawMachine({ label: exprText(w), inBox: { text: fmt(res.value), color: '#3a8ef0', textColor: '#fff', cls: 'go-fwd' },
-      outBox: { text: fmt(runForward(w, res.value)), color: ok ? '#2fbf71' : '#e5484d', textColor: '#fff', cls: 'pop-in', label: ok ? '✓ CHECK' : `✗ NEEDS ${fmt(w.c)}` }, spin: 'fwd' });
-    strip([`${w.letter} = ${fmt(res.value)}`, `<span class="${ok ? 'good' : 'bad'}">Check: ${esc(checkLine(w, res.value))}${ok ? ' ✓' : ' ✗'}</span>`]);
-    if (ok) win(res); else miss(res, { lock: true, delay: 1200, retry: () => { G.typed = ''; renderControls(); showState(); } });
-  }
-}
-
-/* ---- sorting ---- */
-function answerSort(saysMatch) {
-  if (G.locked || G.phase !== 'sort') return;
-  const res = checkSort(G.problem, saysMatch);
-  drawSort(saysMatch);
-  if (res.correct) return win(res);
-  miss(res, { oneShot: true, nextText: 'NEXT CRATE (ENTER)' });   // a sort is one decision: show the work, then the next crate
+function setOp(op) { if (!canBuild() || !OP_TEXT[op]) return; W.op = op; hubAudio.playStep(); renderBuild(); }
+function clearSlot(k) { if (!canBuild()) return; if (k === 'op') W.op = null; else W.slots[Number(k)] = null; renderBuild(); }
+function clearLast() { if (!canBuild()) return; for (let k = 2; k >= 0; k--) if (W.slots[k]) { W.slots[k] = null; break; } renderBuild(); }
+function sendEquation() {
+  if (!canBuild()) return;
+  const p = W.round, res = checkBuild(p, W.slots[0], W.op, W.slots[1], W.slots[2]);
+  if (res.nudge) return showLine(res.message, true);
+  if (res.correct) { arcade.good(15); hubAudio.playCoinClink(); showLine(res.message); $('eqBox').classList.add('ok'); return rest(1.4); }
+  W.tries += 1;
+  showLine('');
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;
+  const moveOn = W.tries >= 2;
+  stopFor(res.message + (moveOn ? ` One way to write it: ${eqText(p.run)}.` : ''), moveOn ? 'RUN THE CART (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? endRound : () => { W.slots = [null, null, null]; W.op = null; renderBuild(); });
 }
 
 /* ================================================================== */
-/* Keys and start-up                                                   */
+/* The clock, keys, sign and the bottom bar                            */
 /* ================================================================== */
-/** Keys while a problem is in play (the shell handles Enter on buttons, help, sound and the briefing). */
+function update(dt) {
+  if (W.phase === 'idle' || busy()) return;
+  if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
+  if (W.phase === 'hold') { W.holdLeft -= dt; if (W.holdLeft <= 0) { W.phase = 'set'; track.layer.querySelector('.ghost').classList.add('hidden'); drawCart(); renderCtl(); } return; }
+  if (W.phase === 'run') return updateRun(dt);
+  if (W.phase === 'set' && W.round.fuse && !G.practice && W.testsLeft === 0) {     // the machine fires by itself when the fuse runs out
+    W.fuseLeft -= dt;
+    if (W.fuseLeft <= 0) return launch();
+    if (Math.ceil(W.fuseLeft) !== W.shownFuse) renderCtl();
+  }
+}
+function go() { if (W.phase === 'set') launch(); else if (W.phase === 'build') sendEquation(); }
 function onKey(e) {
-  const key = e.key;
-  const p = G.problem;
-  if (G.phase === 'sort') {
-    if (key === 'ArrowLeft' || key === '1') { e.preventDefault(); answerSort(false); }
-    if (key === 'ArrowRight' || key === '2') { e.preventDefault(); answerSort(true); }
-    return;
+  const k = e.key;
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else go(); return; }
+  if (W.frozen) return;
+  if (W.phase === 'set' && (k === 'ArrowLeft' || k === 'ArrowRight')) { e.preventDefault(); setV(W.v + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)); }
+  if (W.phase === 'build') {
+    if (k === '+' || k === '-') { e.preventDefault(); setOp(k); }
+    else if (/^[1-3]$/.test(k)) placeTile((W.round.tiles[Number(k) - 1] || {}).id);
+    else if (k === 'Backspace') { e.preventDefault(); clearLast(); }
   }
-  if (G.phase === 'write') {
-    const n = Number(key);
-    const btn = (sel) => UI.controls.querySelector(sel);
-    if (n >= 1 && n <= p.tiles.length) return addTile(btn(`[data-tile="num"][data-i="${n - 1}"]`));
-    if (key.toLowerCase() === p.eq.letter) return addTile(btn('[data-tile="var"]'));
-    if (key === '+') return addTile(btn('[data-tile="+"]'));
-    if (key === '-') return addTile(btn('[data-tile="-"]'));
-    if (key === '=') return addTile(btn('[data-tile="eq"]'));
-    if (key === 'Backspace') { e.preventDefault(); return removeTile(); }
-    if (key === 'Enter') { e.preventDefault(); return submitWritten(); }
-    return;
+}
+$('goBtn').addEventListener('click', (e) => { e.currentTarget.blur(); go(); });
+$('resumeBtn').addEventListener('click', (e) => { e.currentTarget.blur(); resume(); });
+$('dialDown').addEventListener('click', (e) => { e.currentTarget.blur(); setV(W.v - 1); });
+$('dialUp').addEventListener('click', (e) => { e.currentTarget.blur(); setV(W.v + 1); });
+// Drag the cart along the track (when the letter is where it starts).
+let dragging = false;
+const canDrag = () => canSet() && W.round.unknown === 'start';
+$('track').addEventListener('pointerdown', (e) => { if (!canDrag()) return; dragging = true; $('track').setPointerCapture(e.pointerId); setV(track.valueAt(e.clientX)); });
+$('track').addEventListener('pointermove', (e) => { if (dragging && canDrag()) setV(track.valueAt(e.clientX)); });
+$('track').addEventListener('pointerup', () => { dragging = false; });
+$('track').addEventListener('pointercancel', () => { dragging = false; });
+
+function renderSign(isNew = false) {
+  const r = W.round, at = `${W.ri + 1}/${W.rounds.length}`;
+  let small = `CART ${at} · START + PUSH = FLAG`, text = r.unknown === 'push' ? 'SET THE PUSH SO THE CART STOPS ON THE FLAG' : 'PLACE THE CART SO IT STOPS ON THE FLAG';
+  if (r.type === 'build') { small = `STORY ${at}`; text = 'WRITE THE EQUATION FOR THIS STORY'; }
+  else if (r.kind === 'mystery') {
+    small = W.testsLeft > 0 ? `MYSTERY MACHINE · ${W.testsLeft} TEST CART${W.testsLeft === 1 ? '' : 'S'} LEFT` : 'MYSTERY MACHINE · THIS ONE COUNTS';
+    text = W.testsLeft > 0 ? 'SEND A TEST CART: WHAT DOES THE MACHINE DO?' : 'NOW PLACE THE CART TO STOP ON THE FLAG';
   }
-  if (G.phase === 'undo') {
-    if (key === '+') return pickOp('+');
-    if (key === '-') return pickOp('-');
-    if (/^[0-9.]$/.test(key)) return typeKey(key);
-    if (key === 'Backspace') { e.preventDefault(); return typeKey('back'); }
-    if (key === 'Enter') { e.preventDefault(); return dropBlock(); }
-    return;
-  }
-  if (/^[0-9.]$/.test(key)) return typeKey(key);
-  if (key === 'Backspace') { e.preventDefault(); return typeKey('back'); }
-  if (key === 'Enter') { e.preventDefault(); submitTyped(); }
+  $('signSmall').textContent = small;
+  $('signText').textContent = text;
+  if (isNew) { const s = $('sign'); s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); }
+}
+function renderCtl() {
+  const p = W.phase, r = W.round || {};
+  W.shownFuse = Math.ceil(W.fuseLeft);
+  const fuse = p === 'set' && r.fuse && !G.practice && W.testsLeft === 0 ? ` · ${Math.max(1, W.shownFuse)}` : '';
+  $('goBtn').classList.toggle('hidden', !(p === 'set' || p === 'build'));
+  $('goBtn').textContent = p === 'build' ? 'CHECK THE EQUATION (ENTER)' : W.testsLeft > 0 ? 'SEND A TEST CART (ENTER)' : `LAUNCH (ENTER)${fuse}`;
+  $('tip').textContent = p === 'build' ? 'Tap tiles to fill the spaces. Tap a space to empty it.'
+    : p === 'set' ? (r.unknown === 'push' ? '← → change the push (Shift jumps 10).' : '← → move the cart (Shift jumps 10), or drag it.') : '';
+  $('waveTag').textContent = W.rounds.length ? `ROUND ${W.ri + 1}/${W.rounds.length}` : '';
 }
 
-function init() {
-  const stripEl = document.createElement('div');
-  stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
-  $('stage').appendChild(stripEl);
-  // tap the block, then tap the machine
-  $('stage').addEventListener('click', (e) => { if (G.sel.armed && inside(UI.scene, e.clientX, e.clientY)) dropBlock(); });
-  // A sample machine behind the briefing.
-  drawMachine({ label: 'n + 7', inBox: HIDDEN('n'), outBox: { text: '25' } });
+let last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  update(dt * W.speed);
+  requestAnimationFrame(frame);
 }
-
-init();
+// Something to look at behind the briefing.
+$('eq').textContent = 'x + 7 = 23';
+track.draw({ lo: 0, hi: 30 });
+requestAnimationFrame(frame);

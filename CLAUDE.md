@@ -23,7 +23,7 @@ shared/                            code used by every town: progressStore.js (si
                                    cartridgeHarness.js (opens a game inside a town)
 shared/town/                       the shared town engine: townState.js (progress and unlock rules inside a
                                    town), townHub.js (map, walking, briefings, victory, My Progress), town.css
-shared/game/                       the shared game parts: arcadeShell.js (action games, see below), gameShell.js (zones, timer meter, 3 lives, scoring,
+shared/game/                       the shared game parts: arcadeShell.js (action games, see below), track.js (a number-line track), gameShell.js (zones, timer meter, 3 lives, scoring,
                                    feedback, worked solution + backup, report, town messages), drag.js (drag
                                    or tap a piece), game.css (top bar, side panel, controls, briefing, report)
 towns/<town-name>/index.html       a town map (one building per lesson)
@@ -52,8 +52,11 @@ docs/lessons.md                    lesson lists from the textbook database
   (`rune.js`, HTML): catch each output with a basket on a number line (`genCatch` / `checkCatch`), set the rule on dials and
   watch the machine run every row (`genDials` / `testRule`), pick the input for a target (`genBack`), and choose which inputs
   to test on a hidden rule (`genFeed` / `dialsFromFeed`). In a game's own CSS never reuse a class name from `shared/game/game.css`
-  (`.crate` is the life boxes in the top bar). Proposed order for reworking the
-  remaining games (most quiz-like first): 4-4, 4-3, 4-8, 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
+  (`.crate` is the life boxes in the top bar). 4-3 Undo Machine is rebuilt on a number-line track (`shared/game/track.js` +
+  `track.css`, to be reused by 4-4): an equation is one run of a cart, start + push = flag; the student sets the start or the
+  push and watches it land (`genRun` / `checkRun` in `undo.js`), writes an equation for a story from tiles (`genStory` /
+  `checkBuild`) and tests a mystery push (`genMystery`). Proposed order for reworking the
+  remaining games (most quiz-like first): 4-4, 4-8, 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
   Rework one game at a time, each with a plan the owner approves.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the

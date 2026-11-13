@@ -18,7 +18,7 @@ export const STAGES = [
   }),
   stage(3, 'Undo Machine', 'Write and Solve Addition and Subtraction Equations', { x: 570, y: 555 }, {
     built: true, building: 'undo_machine', url: './games/4-3-undo-machine/index.html',
-    description: 'A canyon ore machine swallows a hidden crate, does one step and pushes out a number. Write the machine as an equation, then run it backward with the opposite step to find what went in. Finish by fixing the Jammed Machine.',
+    description: 'The canyon ore machine pushes a cart along a numbered track, and it has to stop exactly on the flag. Work backward from the flag to set where the cart starts or how far it is pushed, write the equation for a story, and crack the Jammed Machine.',
   }),
   stage(4, 'Gear Shift', 'Write and Solve Multiplication and Division Equations', { x: 780, y: 600 }, {
     built: true, building: 'gear_shift', url: './games/4-4-gear-shift/index.html',
