@@ -312,6 +312,13 @@ export function genBelt(rnd, { kinds, count = 6, opens = 2, style = 'whole' } = 
  * What went wrong on the belt, or null when the student was right.
  *   tapped: they tried the key in this lock; otherwise they let it roll past.
  */
+/** Every lock on a belt needs a decision. action: 'fit' (try the key), 'reject', or 'none' (it reached the OUT box undecided). null = right. */
+export function checkLock(belt, lock, action) {
+  const s = substitute(lock, belt.value), fits = s.text.replace(/ = \S+$/, ' ✓');      // "11 − 5 = 6 ✓" rather than "11 − 5 = 6 = 6"
+  if (action === 'fit') return checkTap(belt, lock, true);
+  if (action === 'reject') return lock.opens ? { key: 'missed_open', message: `Your key opened that one: ${fits}. Put the key in for ${lock.x} and work out the side before you reject a lock.` } : null;
+  return { key: 'too_slow', message: lock.opens ? `Too slow. Your key opened that one: ${fits}.` : `Too slow. That one was a REJECT: ${s.text}.` };
+}
 export function checkTap(belt, lock, tapped) {
   if (tapped === lock.opens) return null;
   const v = fmt(belt.value, belt.money), s = substitute(lock, belt.value);

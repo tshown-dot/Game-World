@@ -10,12 +10,13 @@
 // All timing goes through update(), so the action stops cleanly whenever a banner, hint, help screen or mistake
 // message is showing.
 import { createArcade } from '../../../../shared/game/arcadeShell.js';
-import { ZONES, genZone, lockText, substitute, checkTap, checkTry, checkForge, parseNumber, fmt, r2 } from './keys.js';
+import { ZONES, genZone, lockText, substitute, checkLock, checkTry, checkForge, parseNumber, fmt, r2 } from './keys.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const BELT_Y = 330, EXIT_X = 150, SPEED = 100;   // the belt: where locks ride, where they leave, pixels a second
 const EVERY = [5, 5, 5.5, 4, 4], PRACTICE_EVERY = 8;   // seconds between one lock and the next, zone by zone
 const FIRST_X = 1236;                             // where the first lock waits until the belt is started
+const RUSH = 8;                                   // how much faster the belt runs while no undecided lock is in view
 const L = 110, WD = 1146, LINE_Y = 520, PICK_Y = 452, LOCK_Y = 290;   // the key strip and the big lock
 const BOSS = ZONES.length - 1;
 const $ = (id) => document.getElementById(id);
@@ -31,7 +32,8 @@ const W = {
 };
 
 const HINTS = {
-  missed_open: 'Before a lock rolls away, put your key in for the letter and work out that side.<span class="mono">key 7 : n + 8 = 15 → 7 + 8 = 15 ✓</span>If both sides match, the key is a solution: tap it.',
+  missed_open: 'Before you reject a lock, put your key in for the letter and work out that side.<span class="mono">key 7 : n + 8 = 15 → 7 + 8 = 15 ✓</span>If both sides match, the key is a solution: KEY FITS.',
+  too_slow: 'Every lock needs a decision before it reaches the OUT box: KEY FITS or REJECT. PRACTICE mode runs the belt slower.',
   near_miss: 'Close is not open. Both sides must be exactly equal.<span class="mono">key 7 : n + 8 = 16 → 15 ≠ 16</span>Work the side out all the way before you tap.',
   wrong_op: 'Read the operation in the lock, not the one you expect.<span class="mono">key 4 : 3n = 7 → 3 × 4 = 12, not 7</span>',
   answer_as_key: 'Seeing your number in the lock does not mean it fits. The key goes where the LETTER is.<span class="mono">key 7 : n + 3 = 7 → 7 + 3 = 10, not 7</span>',
@@ -44,6 +46,7 @@ const HINTS = {
 };
 const TIPS = {
   missed_open: 'A value is a solution when it makes both sides equal. Substitute before deciding.',
+  too_slow: 'Decide each equation: substitute the value, then say whether it is a solution.',
   near_miss: 'Both sides must be exactly equal, not close.',
   wrong_op: 'Read the operation in the equation carefully before substituting.',
   answer_as_key: 'The value replaces the variable, even when the same number appears elsewhere in the equation.',
@@ -117,12 +120,17 @@ function update(dt) {
   if (W.phase === 'idle' || W.frozen || arcade.paused()) return;
   if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
   if (W.phase === 'belt') {
-    const speed = SPEED * (G.practice ? (EVERY[G.zone] || 5) / PRACTICE_EVERY : 1);
+    // While no undecided lock is in view the belt hurries, so nobody waits at an empty belt.
+    W.settle = Math.max(0, (W.settle || 0) - dt);     // a moment for a decided lock to leave before the next one hurries in
+    const waiting = W.settle > 0 || W.items.some((it) => it.state === 'roll' && it.x <= FIRST_X);
+    const speed = waiting ? SPEED * (G.practice ? (EVERY[G.zone] || 5) / PRACTICE_EVERY : 1) : SPEED * RUSH;
+    const shift = waiting ? speed * dt : Math.min(speed * dt, frontX() - FIRST_X);
+    markFront();
     for (const it of W.items) {
       if (it.state !== 'roll') continue;
-      it.x -= speed * dt;
+      it.x -= shift;
       place(it);
-      if (it.x <= EXIT_X) { judge(it, false); if (W.phase !== 'belt' || W.frozen || arcade.paused()) return; }
+      if (it.x <= EXIT_X) { judge(it, 'none'); if (W.phase !== 'belt' || W.frozen || arcade.paused()) return; }
     }
     if (W.items.every((it) => it.state === 'done')) endRound(W.beltMiss === 0 ? 'CLEAN BELT! +20' : null);
     return;
@@ -137,22 +145,38 @@ function startBelt() {
   if (W.phase !== 'ready' || W.frozen || arcade.paused()) return;
   W.phase = 'belt'; hubAudio.playCartridgeLaunch(); renderSign(); renderCtl();
 }
-/** The student tried the key in a belt lock (tapped), or let the lock roll out. */
-function judge(it, tapped) {
-  const belt = W.round, res = checkTap(belt, it.lock, tapped), s = substitute(it.lock, belt.value);
+/** The lock at the gate: the undecided lock nearest the OUT box, once it is fully on screen. */
+const frontX = () => Math.min(...W.items.filter((it) => it.state === 'roll').map((it) => it.x), Infinity);
+function frontLock() {
+  const rolling = W.items.filter((it) => it.state === 'roll' && it.x <= 1366 - 122);
+  return rolling.length ? rolling.reduce((a, b) => (b.x < a.x ? b : a)) : null;
+}
+function markFront() { const f = frontLock(); for (const it of W.items) if (it.el) it.el.classList.toggle('front', it === f); }
+/** KEY FITS or REJECT, for the lock at the gate. */
+function decide(action) {
+  const it = frontLock();
+  if (W.phase !== 'belt' || W.frozen || arcade.paused() || !it) return;
+  judge(it, action);
+}
+/** The student decided a belt lock: 'fit' (tried the key), 'reject', or 'none' (it reached the OUT box undecided). */
+function judge(it, action) {
+  const tapped = action === 'fit';
+  const belt = W.round, res = checkLock(belt, it.lock, action), s = substitute(it.lock, belt.value);
   it.state = 'done';
   const eq = it.el.querySelector('.eq');
-  if (tapped || res) { eq.textContent = s.equal ? s.text.replace(/ = \S+$/, ' ✓') : s.text; eq.classList.toggle('long', eq.textContent.length > 16); }
+  eq.textContent = s.equal ? s.text.replace(/ = \S+$/, ' ✓') : s.text;
+  eq.classList.toggle('xlong', eq.textContent.length > 16); eq.classList.toggle('long', eq.textContent.length > 12 && eq.textContent.length <= 16);
+  it.el.classList.remove('front');
   if (!res) {
-    arcade.good(tapped ? 10 : 5);
-    if (tapped) hubAudio.playCoinClink();
+    arcade.good(10); W.settle = 0.8;
+    if (tapped) hubAudio.playCoinClink(); else hubAudio.playStep();
     it.el.classList.add(tapped ? 'open' : 'passed');
     const el = it.el; setTimeout(() => el.remove(), 950);
     return;
   }
   W.beltMiss += 1;
   it.el.classList.add('jam');
-  arcade.bad(res.key, 25);
+  arcade.bad(res.key, action === 'none' ? 15 : 25);
   if (W.phase === 'idle') return;                    // that was the last chance: the zone has stopped
   stopFor(res.message, it.el, 'CONTINUE (ENTER)', null);
 }
@@ -175,7 +199,7 @@ function resume() {
 }
 function tapLock(it) {
   if (W.phase !== 'belt' || W.frozen || arcade.paused() || !it || it.state !== 'roll' || it.x > 1366 - 122) return;   // only once the whole lock is on screen
-  judge(it, true);
+  judge(it, 'fit');
 }
 
 /* ---- ring and mystery: the student chooses the key ---- */
@@ -283,6 +307,7 @@ function onKey(e) {
   if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else if (W.phase === 'ready') startBelt(); else if (W.phase === 'pick') tryPick(); else if (W.phase === 'forge') forge(); return; }
   if (W.frozen) return;
   if (W.phase === 'belt' && /^[1-9]$/.test(k)) tapLock(W.items[Number(k) - 1]);
+  if (W.phase === 'belt' && (k === 'ArrowUp' || k === 'ArrowDown')) { e.preventDefault(); decide(k === 'ArrowUp' ? 'fit' : 'reject'); }
   if (W.phase === 'pick' && (k === 'ArrowLeft' || k === 'ArrowRight')) { e.preventDefault(); setPick(W.pick + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 5 : 1) * strip().step); }
   if (W.phase === 'forge') {
     const op = { '+': '+', '-': '-', '*': '×', x: '×', X: '×', '/': '÷' }[k];
@@ -295,6 +320,8 @@ press('stepR', () => setPick(W.pick + strip().step));
 press('goBtn', () => (W.phase === 'forge' ? forge() : tryPick()));
 press('resumeBtn', resume);
 press('beltStart', startBelt);
+press('fitBtn', () => decide('fit'));
+press('rejectBtn', () => decide('reject'));
 for (const b of $('forgeOps').querySelectorAll('button')) b.addEventListener('click', () => { setOp(b.dataset.op); $('fa').focus(); });
 for (const id of ['fa', 'fc']) $(id).addEventListener('input', (e) => { e.target.value = e.target.value.replace(/[^0-9.]/g, ''); });
 
@@ -383,7 +410,7 @@ function drawForge() {
 function renderSign(isNew = false) {
   const r = W.round, n = W.rounds.length;
   let small = '', text = '', story = false;
-  if (r.type === 'belt') { small = `BELT ${W.ri + 1}/${n} · LET THE OTHERS ROLL OUT`; text = W.phase === 'ready' ? 'LOOK AT YOUR KEY, THEN START THE BELT' : 'TAP EVERY LOCK YOUR KEY OPENS'; }
+  if (r.type === 'belt') { small = `BELT ${W.ri + 1}/${n} · KEY FITS OR REJECT`; text = W.phase === 'ready' ? 'LOOK AT YOUR KEY, THEN START THE BELT' : 'DOES YOUR KEY FIT? DECIDE EVERY LOCK'; }
   if (r.type === 'ring' || r.type === 'mystery') {
     const left = r.tries - W.tries, tests = left - 1;
     small = r.story || (r.type === 'mystery' ? 'MYSTERY LOCK: EACH TEST KEY SHOWS WHAT THE LOCK MAKES OF IT' : 'YOUR TURN: SLIDE A KEY ALONG THE STRIP AND TRY IT');
@@ -403,7 +430,8 @@ function renderCtl() {
   $('goBtn').textContent = forgeOn ? 'FORGE IT (ENTER)' : W.fly ? 'TRYING...' : 'TRY THIS KEY (ENTER)';
   $('goBtn').disabled = pick && Boolean(W.fly);
   $('beltStart').classList.toggle('hidden', p !== 'ready');
-  $('tip').textContent = p === 'ready' ? 'The locks wait until you start the belt.' : p === 'belt' ? 'Tap a lock, or press its number, to try your key in it.' : forgeOn ? 'Pick + − × ÷ and type two numbers.' : '';
+  $('fitBtn').classList.toggle('hidden', p !== 'belt'); $('rejectBtn').classList.toggle('hidden', p !== 'belt');
+  $('tip').textContent = p === 'ready' ? 'The locks wait until you start the belt.' : p === 'belt' ? 'Decide the glowing lock: ↑ key fits · ↓ reject. Tapping a lock tries your key in it.' : forgeOn ? 'Pick + − × ÷ and type two numbers.' : '';
   $('waveTag').textContent = W.rounds.length ? `${W.round.type === 'belt' ? 'BELT' : 'LOCK'} ${W.ri + 1}/${W.rounds.length}` : '';
 }
 

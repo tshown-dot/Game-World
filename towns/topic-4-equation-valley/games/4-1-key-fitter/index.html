@@ -51,6 +51,8 @@
       <div id="forgeNote" class="forge-note"></div>
     </div>
     <button type="button" id="beltStart" class="belt-start px hidden">▶ START THE BELT (ENTER)</button>
+    <button type="button" id="rejectBtn" class="belt-btn no px hidden">✗ REJECT (↓)</button>
+    <button type="button" id="fitBtn" class="belt-btn yes px hidden">✓ KEY FITS (↑)</button>
     <div id="callout" class="callout hidden">
       <div id="calloutText"></div>
       <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
@@ -78,12 +80,12 @@
         <div class="brief-col"><div class="px col-h">1. YOU HOLD A KEY</div>
           <p>Your key is a <b>number</b>. Every lock is an <b>equation</b>. The key opens a lock only if it makes the equation <b>true</b>.</p>
           <p class="mono">key 7 → n + 8 = 15 ✓</p></div>
-        <div class="brief-col"><div class="px col-h">2. TAP WHAT IT OPENS</div>
-          <p>Locks roll past. Put your key in for the letter and check both sides. <b>Tap every lock it opens</b> and let the rest roll by. Later you choose the keys, and forge a lock of your own.</p></div>
+        <div class="brief-col"><div class="px col-h">2. FITS, OR REJECT?</div>
+          <p>Locks roll past. Put your key in for the letter and check both sides. Call <b>KEY FITS</b> for every lock it opens and <b>REJECT</b> the rest. Later you choose the keys, and forge a lock of your own.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>A jammed lock, or an open one you let go, raises the <b>ALARM</b>. Fill it and a guard comes. Lose all <b>3 chances</b> and you're caught. Beat the Locksmith to win!</p></div>
+          <p>A wrong call, or a lock that reaches OUT undecided, raises the <b>ALARM</b>. Fill it and a guard comes. Lose all <b>3 chances</b> and you're caught. Beat the Locksmith to win!</p></div>
       </div>
-      <div class="brief-keys">Tap a lock or press its number <kbd>1</kbd>–<kbd>6</kbd> · <kbd>←</kbd> <kbd>→</kbd> slide a key · <kbd>Enter</kbd> try it · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>↑</kbd> key fits <kbd>↓</kbd> reject (or tap a lock to try the key) · <kbd>←</kbd> <kbd>→</kbd> slide a key · <kbd>Enter</kbd> try it · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>

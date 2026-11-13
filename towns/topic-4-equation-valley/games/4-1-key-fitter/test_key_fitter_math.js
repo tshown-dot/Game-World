@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   seeded, fmt, parseNumber, leftValue, lockText, substitute, genLock, genForge, checkForge,
-  genBelt, checkTap, genRing, genStoryRing, genMystery, checkTry, ZONES, genZone,
+  genBelt, checkTap, checkLock, genRing, genStoryRing, genMystery, checkTry, ZONES, genZone,
 } from './keys.js';
 
 let passed = 0;
@@ -41,6 +41,11 @@ test(`belts: ${RUNS} belts, the key opens exactly the locks it should`, () => {
       const res = checkTap(belt, lock, !lock.opens);
       assert.ok(noJunk(res.message) && noJunk(res.key), `${lockText(lock)}: ${res.message}`);
       if (lock.opens) assert.equal(res.key, 'missed_open'); else { assert.equal(res.key, lock.trap); traps.add(lock.trap); assert.ok(res.message.includes('≠'), 'a wrong tap shows both sides'); }
+      // every lock needs a decision: KEY FITS, REJECT, or it reaches the OUT box undecided
+      assert.equal(checkLock(belt, lock, lock.opens ? 'fit' : 'reject'), null, 'the right decision is never a mistake');
+      const wrong = checkLock(belt, lock, lock.opens ? 'reject' : 'fit'), slow = checkLock(belt, lock, 'none');
+      assert.equal(wrong.key, lock.opens ? 'missed_open' : lock.trap); assert.ok(noJunk(wrong.message));
+      assert.ok(slow.key === 'too_slow' && noJunk(slow.message) && slow.message.includes(lock.opens ? ' = ' : '≠') && /Too slow/.test(slow.message), slow.message);
     }
   }
   assert.deepEqual([...traps].sort(), ['answer_as_key', 'concatenation', 'near_miss', 'used_the_number', 'wrong_op']);

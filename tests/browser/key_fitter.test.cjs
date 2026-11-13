@@ -10,31 +10,41 @@ const near=(a,b)=>Math.abs(a-b)<1e-6;
 // What the game is showing right now (keys.js made the round, so it knows which locks open).
 const st=(p)=>p.evaluate(()=>{ const f=window.__keyfitter, W=f.W, G=f.G, r=W.round, vis=(id)=>!document.getElementById(id).classList.contains('hidden');
   return { zone:G.zone, lives:G.lives, meter:G.meter, good:G.good, bad:G.bad, score:G.score, phase:W.phase, ri:W.ri, n:W.rounds.length, type:r.type, value:r.value, money:r.money, decimal:r.decimal,
-    items:W.items.map(i=>({n:i.n,x:i.x,state:i.state,opens:i.lock.opens,trap:i.lock.trap})), frozen:W.frozen, pick:W.pick, tries:W.tries, marks:W.marks.map(m=>m.text),
+    items:W.items.map(i=>({n:i.n,x:i.x,state:i.state,opens:i.lock.opens,trap:i.lock.trap,front:!!(i.el&&i.el.classList.contains('front'))})), frozen:W.frozen, pick:W.pick, tries:W.tries, marks:W.marks.map(m=>m.text),
     strip:r.strip, order:r.order, maxTries:r.tries, solution:r.lock&&r.lock.solution, ops:r.ops, story:r.story, kinds:(r.locks||[]).map(l=>l.kind),
     hint:vis('hint'), report:vis('report'), fail:vis('fail'), callout:vis('callout'), banner:vis('banner'), sign:document.getElementById('signText').textContent, mistakes:{...G.mistakes} }; });
-const speed=(p,x)=>p.evaluate((v)=>{ window.__keyfitter.W.speed=v; },x);
+const speed=(p,x)=>{ RATE=x; return p.evaluate((v)=>{ window.__keyfitter.W.speed=v; },x); };
 async function ready(p){ await p.waitForFunction(()=>{ const W=window.__keyfitter.W, hid=(id)=>document.getElementById(id).classList.contains('hidden'); return !hid('report') || (['ready','belt','pick','forge'].includes(W.phase) && hid('banner')); },null,{timeout:30000}); await startBelt(p); }
 // A belt waits for the student to start it: by Enter one time, by its button the next.
 let starts=0; async function startBelt(p){ if(await p.evaluate(()=>window.__keyfitter.W.phase!=='ready')) return; if(starts++%2===0) await p.keyboard.press('Enter'); else await p.click('#beltStart'); await p.waitForFunction(()=>window.__keyfitter.W.phase==='belt'); }
 async function nextRound(p,s){ await p.waitForFunction(([z,r])=>{ const f=window.__keyfitter, W=f.W, hid=(id)=>document.getElementById(id).classList.contains('hidden');
   return !hid('report') || ((f.G.zone!==z || W.ri!==r) && ['ready','belt','pick','forge'].includes(W.phase) && hid('banner')); },[s.zone,s.ri],{timeout:60000}); await startBelt(p); }
 async function frozen(p){ await p.waitForFunction(()=>window.__keyfitter.W.frozen,null,{timeout:30000}); }
-const used={ tapKey:0, tapClick:0, pickKeys:0, pickDrag:0, pickButtons:0 };
+const used={ tapKey:0, tapClick:0, pickKeys:0, pickDrag:0, pickButtons:0, fitKey:0, fitBtn:0, rejectKey:0, rejectBtn:0 };
+// The test runs the belt sped up, so it stops the clock while it decides a lock (a student has about 5 seconds each).
+let RATE=1; const hold=(p)=>p.evaluate(()=>{ window.__keyfitter.W.speed=0; }), go=(p)=>p.evaluate((v)=>{ window.__keyfitter.W.speed=v; },RATE);
+const frontOf=(s)=>s.items.filter(i=>i.state==='roll'&&i.x<=1366-122).sort((a,b)=>a.x-b.x)[0]||null;
+/** Decide the lock at the gate. right: the right call, or the wrong one. Returns that lock (null: none in view). */
+async function decide(p,right=true){ await hold(p); const s=await st(p), f=frontOf(s); if(!f||s.phase!=='belt'||s.frozen){ await go(p); return null; }
+  const fit=right?f.opens:!f.opens;
+  if(fit){ const m=(used.fitKey+used.fitBtn+used.tapKey+used.tapClick)%4; if(m===0){ used.fitKey++; await p.keyboard.press('ArrowUp'); } else if(m===1){ used.fitBtn++; await p.click('#fitBtn'); } else await tap(p,f); }
+  else if((used.rejectKey+used.rejectBtn)%2===0){ used.rejectKey++; await p.keyboard.press('ArrowDown'); } else { used.rejectBtn++; await p.click('#rejectBtn'); }
+  await go(p); return f; }
 const onBelt=(i)=>i.state==='roll' && i.x<1200 && i.x>200;
 async function tap(p,i){
-  if((used.tapKey+used.tapClick)%2===0){ used.tapKey++; await p.keyboard.press(String(i.n+1)); }
+  if(used.tapKey<=used.tapClick){ used.tapKey++; await p.keyboard.press(String(i.n+1)); }
   else { used.tapClick++; const b=await p.evaluate((n)=>{ const r=window.__keyfitter.W.items[n].el.getBoundingClientRect(); return { x:r.x+r.width/2-60, y:r.y+r.height/2+10 }; },i.n); await p.mouse.click(b.x,b.y); }
 }
 /** Wait for a lock the key does NOT open to be on the belt, opening the right ones on the way. */
-async function findTrap(p){ const done=new Set();
-  for(let guard=0;guard<1500;guard++){ const s=await st(p); const trap=s.items.find(i=>!i.opens&&onBelt(i)); if(trap) return trap;
-    const t=s.items.find(i=>i.opens&&onBelt(i)&&!done.has(i.n)); if(t){ done.add(t.n); await p.keyboard.press(String(t.n+1)); } else await p.waitForTimeout(30); }
+async function findTrap(p){
+  for(let guard=0;guard<1500;guard++){ await hold(p); const s=await st(p), f=frontOf(s); if(s.phase!=='belt'||s.frozen){ await go(p); return null; }
+    if(f&&!f.opens) return f;                              // the clock stays stopped: the caller makes the wrong call, then calls go()
+    if(f){ await p.keyboard.press('ArrowUp'); } await go(p); await p.waitForTimeout(30); }
   return null; }
 /** Play a belt: tap every lock the key opens (or, with `wrong`, do nothing at all). */
-async function playBelt(p){ const done=new Set();
+async function playBelt(p){
   for(let guard=0;guard<1500;guard++){ const s=await st(p); if(s.phase!=='belt'||s.frozen||s.report) break;
-    const t=s.items.find(i=>i.opens && onBelt(i) && !done.has(i.n)); if(!t){ await p.waitForTimeout(30); continue; } done.add(t.n); await tap(p,t); } }
+    if(!(await decide(p))) await p.waitForTimeout(30); } }
 async function at(p,v,strip){ const b=await (await p.$('#scene')).boundingBox(); return { x:b.x+(110+(v-strip.lo)/(strip.hi-strip.lo)*1146)/1366*b.width, y:b.y+470/698*b.height }; }
 async function canPick(p){ await p.waitForFunction(()=>{ const W=window.__keyfitter.W; return W.phase==='pick' && W.pickEl && !W.fly && !W.frozen && document.getElementById('banner').classList.contains('hidden'); },null,{timeout:15000}); }
 let pickWay=0;
@@ -95,6 +105,7 @@ async function open(p,{zone=0,practice=false,fast=5}={}){
   ok(styles.has('whole')&&styles.has('decimal')&&styles.has('money'),'whole-number, decimal and money keys');
   ok(emptyBelts>=2,'some belts had no lock the key opens ('+emptyBelts+')');
   ok(used.tapKey>=3&&used.tapClick>=3,`locks tried by number key (${used.tapKey}) and by tapping (${used.tapClick})`);
+  ok(used.fitKey>=3&&used.fitBtn>=3&&used.rejectKey>=5&&used.rejectBtn>=5,`KEY FITS by ↑ (${used.fitKey}) and its button (${used.fitBtn}); REJECT by ↓ (${used.rejectKey}) and its button (${used.rejectBtn})`);
   ok(used.pickKeys>=1&&used.pickDrag>=1&&used.pickButtons>=1,`own key moved by keys (${used.pickKeys}), dragging (${used.pickDrag}) and the arrow buttons (${used.pickButtons})`);
   ok(end.bad===0 && end.lives===3,'right every time means no mistakes and no alarm ('+end.good+' right)');
   ok(res && res.bossDefeated && !res.practiceMode && res.total>=60 && res.stars===3,'result for the town: boss beaten, '+res.total+' decisions, '+res.stars+' stars');
@@ -106,20 +117,29 @@ async function open(p,{zone=0,practice=false,fast=5}={}){
   ok(await p.isVisible('#beltStart') && xs0===s.items.map(i=>i.x).join() && s.bad===0 && s.good===0 && s.items[0].x<1366-116 && /START THE BELT/.test(s.sign),'the belt stands still, first lock in view, until it is started: '+s.sign); await p.screenshot({path:OUT+'/3_ready.png'});
   const gaps=s.items.slice(1).map((i,k)=>i.x-s.items[k].x); ok(gaps.every(g=>g===500),'locks are 5 seconds apart in zone 1 ('+gaps[0]+' px at 100 px a second)');
   await p.click('#beltStart'); await p.waitForTimeout(500); s=await st(p); ok(s.phase==='belt' && !(await p.isVisible('#beltStart')) && s.items[0].x<1236,'START THE BELT sets it rolling');
+  ok((await p.$$('#scene .lock.front')).length===1 && await p.isVisible('#fitBtn') && await p.isVisible('#rejectBtn'),'the lock at the gate glows, with KEY FITS and REJECT under the belt');
+  await speed(p,1); const first=await decide(p); await p.waitForTimeout(350); s=await st(p); const cls=await p.evaluate((n)=>window.__keyfitter.W.items[n].el.getAttribute('class'),first.n);
+  ok(s.good===1 && s.bad===0 && new RegExp(first.opens?'open':'passed').test(cls),(first.opens?'KEY FITS opens a lock the key fits':'REJECT drops a lock the key does not fit')+' ('+cls+')'); await p.screenshot({path:OUT+'/3a_decided.png'});
+  await p.waitForTimeout(1700); s=await st(p); ok(s.items[1].x<=1237 && s.items[1].x>1050,'with no lock left in view the belt hurries the next one in ('+Math.round(s.items[1].x)+')');
   await speed(p,5);
   let trap=await findTrap(p);
-  await p.keyboard.press(String(trap.n+1)); await frozen(p); s=await st(p); let msg=await p.textContent('#calloutText');
+  await p.keyboard.press(String(trap.n+1)); await go(p); await frozen(p); s=await st(p); let msg=await p.textContent('#calloutText');
   ok(s.bad===1 && s.meter<=25 && s.meter>=19 && Object.keys(s.mistakes).join()===trap.trap,'a key that does not fit jams the lock and raises the alarm ('+trap.trap+')');
   ok(msg.includes('≠') && (await p.$$('#scene .lock.jam')).length===1,'the lock shows both sides: '+msg.slice(0,100)); await p.screenshot({path:OUT+'/3_jam.png'});
   const x0=(await st(p)).items.filter(i=>i.state==='roll').map(i=>i.x).join(); await p.waitForTimeout(400);
   ok(x0===(await st(p)).items.filter(i=>i.state==='roll').map(i=>i.x).join(),'the belt waits while the message is up');
   await p.keyboard.press('Enter');
-  // now tap nothing: every lock the key opens gets away
-  let missed=0; for(let guard=0;guard<40;guard++){ await p.waitForFunction(()=>{ const W=window.__keyfitter.W; return W.frozen || W.phase==='ready' || !document.getElementById('hint').classList.contains('hidden') || !document.getElementById('fail').classList.contains('hidden'); },null,{timeout:60000});
+  // rejecting a lock the key does open
+  let opener=null; for(let g=0;g<60&&!opener;g++){ await hold(p); s=await st(p); if(s.phase==='ready'){ await go(p); await startBelt(p); continue; } const f=frontOf(s); if(f&&f.opens) opener=f; else { if(f) await p.keyboard.press('ArrowDown'); await go(p); await p.waitForTimeout(40); } }
+  const m0=(await st(p)).meter; await p.click('#rejectBtn'); await go(p); await frozen(p); s=await st(p); msg=await p.textContent('#calloutText');
+  ok(opener && s.mistakes.missed_open===1 && s.meter>m0 && /Your key opened that one: .* = /.test(msg),'rejecting a lock the key opens is explained: '+msg.slice(0,90)); await p.screenshot({path:OUT+'/3b_reject.png'});
+  await p.keyboard.press('Enter');
+  // now decide nothing: every lock that reaches the OUT box undecided is too slow
+  let slow=0; for(let guard=0;guard<40;guard++){ await p.waitForFunction(()=>{ const W=window.__keyfitter.W; return W.frozen || W.phase==='ready' || !document.getElementById('hint').classList.contains('hidden') || !document.getElementById('fail').classList.contains('hidden'); },null,{timeout:60000});
     if((await st(p)).phase==='ready'){ await startBelt(p); continue; }
-    if(await p.isVisible('#hint')||await p.isVisible('#fail')) break; msg=await p.textContent('#calloutText'); if(/Your key opened that one/.test(msg)) missed++; await p.keyboard.press('Enter'); }
-  ok(missed>=1 && /Your key opened that one: .* = /.test(msg),'letting an opening lock roll out is explained: '+msg.slice(0,90));
-  ok(await p.isVisible('#hint') && /put your key in for the letter/.test(await p.textContent('#hintText')),'the same mistake twice opens the hint card'); await p.screenshot({path:OUT+'/3b_hint.png'});
+    if(await p.isVisible('#hint')||await p.isVisible('#fail')) break; msg=await p.textContent('#calloutText'); if(/Too slow\. (Your key opened that one|That one was a REJECT): /.test(msg)) slow++; await p.keyboard.press('Enter'); }
+  s=await st(p); ok(slow===1 && s.mistakes.too_slow===2,'a lock that reaches OUT with no decision is too slow, whichever kind it was: '+msg.slice(0,90));
+  ok(await p.isVisible('#hint') && /Every lock needs a decision/.test(await p.textContent('#hintText')),'the same mistake twice opens the hint card'); await p.screenshot({path:OUT+'/3c_hint.png'});
 
   console.log('\n[4] Key Ring: test keys are free, the last try counts');
   await open(p,{zone:3}); s=await st(p); ok(s.type==='ring' && s.zone===3 && !near(s.pick,s.solution),'started at zone 4; the key does not start on the answer');
@@ -158,12 +178,12 @@ async function open(p,{zone=0,practice=false,fast=5}={}){
   const xa=(await st(p)).items[0].x; await p.waitForTimeout(1000); const moved=xa-(await st(p)).items[0].x;
   ok(moved>40 && moved<95,'the belt runs slower in practice ('+Math.round(moved)+' px in a second)');
   await speed(p,5); trap=await findTrap(p);
-  await p.keyboard.press(String(trap.n+1)); await frozen(p); s=await st(p); ok(s.meter===0 && s.lives===3 && s.bad===1,'a mistake is explained but raises no alarm');
+  await p.keyboard.press(String(trap.n+1)); await go(p); await frozen(p); s=await st(p); ok(s.meter===0 && s.lives===3 && s.bad===1,'a mistake is explained but raises no alarm');
 
   console.log('\n[7] Caught, then a fast retry');
   await open(p); await p.evaluate(()=>{ const G=window.__keyfitter.G; G.lives=1; G.meter=90; });
   trap=await findTrap(p);
-  await p.keyboard.press(String(trap.n+1)); await p.waitForSelector('#fail:not(.hidden)',{timeout:20000});
+  await p.keyboard.press(String(trap.n+1)); await go(p); await p.waitForSelector('#fail:not(.hidden)',{timeout:20000});
   ok(/CAUGHT/.test(await p.textContent('#fail')) && !(await p.isVisible('#callout')),'CAUGHT! appears'); await p.screenshot({path:OUT+'/9_fail.png'});
   const t0=Date.now(); await p.keyboard.press('Enter'); await ready(p);
   ok(Date.now()-t0<2000,'back in play in under 2 seconds ('+(Date.now()-t0)+' ms)');
