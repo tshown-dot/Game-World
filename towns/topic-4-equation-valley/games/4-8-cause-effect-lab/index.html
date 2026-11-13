@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -23,8 +23,8 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, the lab overloads">
-      <div class="px hud-label">POWER</div>
+    <div class="hud-meter" id="meterBox" title="Every mistake overloads the lab. When this fills, a fuse blows">
+      <div class="px hud-label">OVERLOAD</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
     <div class="hud-crates">
@@ -42,21 +42,57 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The experiment machine"></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play">
+      <div id="machine" class="machine">
+        <div id="crankBox" class="mbox">
+          <div class="px mhead">CRANK · INDEPENDENT</div>
+          <div class="msub">you change it</div>
+          <button type="button" id="crankSock" class="sock"></button>
+          <div id="wheel" class="wheel"><i></i></div>
+          <div id="crankRead" class="mread"></div>
+        </div>
+        <div id="wire" class="wire"><i></i></div>
+        <div id="gaugeBox" class="mbox">
+          <div class="px mhead">GAUGE · DEPENDENT</div>
+          <div class="msub">it responds</div>
+          <button type="button" id="gaugeSock" class="sock"></button>
+          <div class="gauge-row">
+            <div class="tube"><div id="gaugeFill" class="tube-fill"></div></div>
+            <div id="ways" class="ways hidden">
+              <button type="button" data-way="up">▲ UP</button>
+              <button type="button" data-way="same">● SAME</button>
+              <button type="button" data-way="down">▼ DOWN</button>
+            </div>
+          </div>
+          <div id="gaugeRead" class="mread"></div>
+        </div>
+        <div class="log">
+          <div class="px mhead">LAB NOTES</div>
+          <table><thead><tr><th id="logC"></th><th id="logE"></th></tr></thead><tbody id="logRows"></tbody></table>
+        </div>
+      </div>
+      <div id="spots" class="spots hidden"></div>
+      <div id="benchLine" class="bench-line"></div>
+      <div id="bench" class="bench"></div>
+    </div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">RUNAWAY EXPERIMENT</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <div id="tip" class="tip"></div>
+      <button type="button" id="goBtn" class="cbtn go px hidden"></button>
+      <button type="button" id="passBtn" class="cbtn px hidden">LET IT PASS (→)</button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -65,39 +101,46 @@
       <div class="brief-head">
         <div class="brief-icon">🧪</div>
         <div>
-          <div class="px brief-title">MISSION BRIEFING: CAUSE AND EFFECT LAB</div>
+          <div class="px brief-title">MISSION BRIEFING: CAUSE &amp; EFFECT LAB</div>
           <div class="brief-sub">Equation Valley · Lesson 4-8 · Understand Dependent and Independent Variables</div>
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. THE MACHINE</div>
-          <p>Every experiment has a <b>DIAL</b> and a <b>METER</b>. Turning the dial makes the meter move.</p>
-          <p class="mono">DIAL = cause = <b>independent</b><br>METER = effect = <b>dependent</b></p></div>
-        <div class="brief-col"><div class="px col-h">2. WIRE IT</div>
-          <p>Ask: which one changes <b>because of</b> the other? That one goes on the METER. Drag (or tap) each card into place.</p>
-          <p class="mono">money earned depends on<br>tickets sold</p></div>
+        <div class="brief-col"><div class="px col-h">1. CRANK AND GAUGE</div>
+          <p>The <b>CRANK</b> is the thing you change: the <b>independent</b> variable. The <b>GAUGE</b> responds: the <b>dependent</b> variable.</p>
+          <p class="mono">tickets sold → money earned</p></div>
+        <div class="brief-col"><div class="px col-h">2. WIRE IT, THEN CRANK</div>
+          <p>Put the right tag on the crank and turn it. Wired right, the gauge follows and the lab notes fill in. Wired <b>backwards</b>, the crank spins and nothing happens.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>The lab's <b>POWER</b> runs down while you work, and wrong wiring sparks. Blow all <b>3 fuses</b> and the lab shuts down. Tame the Runaway Experiment to win!</p></div>
+          <p>Every mistake raises the <b>OVERLOAD</b>. When it fills, a fuse blows. Lose all <b>3 fuses</b> and the lab shuts down. Tame the Runaway Experiment to win!</p></div>
       </div>
-      <div class="brief-keys">Drag or tap cards · <kbd>1</kbd>–<kbd>6</kbd> pick a card, then <kbd>←</kbd> DIAL or <kbd>→</kbd> METER · <kbd>↑</kbd> <kbd>↓</kbd> <kbd>space</kbd> predict · <kbd>Enter</kbd> check · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>1</kbd>-<kbd>6</kbd> or tap a tag · <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd> up, down, same · <kbd>Enter</kbd> crank · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
-        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🧪 START THE LAB (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no overloads</small></button>
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🧪 POWER UP THE LAB (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no overload · the belt waits</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">LAB TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">
       <div class="px big-title">LAB SHUT DOWN!</div>
-      <p id="failText">Three overloads: all the fuses blew.</p>
+      <p id="failText">All 3 fuses blew.</p>
       <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
     </div>
   </div>

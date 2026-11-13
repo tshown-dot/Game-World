@@ -38,7 +38,7 @@ export const STAGES = [
   }),
   stage(8, 'Cause and Effect Lab', 'Understand Dependent and Independent Variables', { x: 1030, y: 320 }, {
     built: true, building: 'cause_lab', url: './games/4-8-cause-effect-lab/index.html',
-    description: 'Run experiments in the canyon science lab. Put the cause (independent variable) on the DIAL and the effect (dependent variable) on the METER, hunt for factors, predict what the meter does, and tame the Runaway Experiment.',
+    description: 'The lab machine has a crank you turn and a gauge that responds. Put the right variable on the crank and watch the gauge follow, plug in every factor that would move it, predict which way it goes, and name a mystery gauge by choosing what to test.',
   }),
   stage(9, 'Rune Machine', 'Use Patterns to Write and Solve Equations', { x: 800, y: 290 }, {
     built: true, building: 'rune_machine', url: './games/4-9-rune-machine/index.html',

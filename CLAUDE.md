@@ -57,8 +57,12 @@ docs/lessons.md                    lesson lists from the textbook database
   push and watches it land (`genRun` / `checkRun` in `undo.js`), writes an equation for a story from tiles (`genStory` /
   `checkBuild`) and tests a mystery push (`genMystery`). 4-4 Gear Shift uses the same track for equal jumps: turns × teeth
   per turn = flag; the student sets the teeth, the turns or the flag and watches the gear count its turns (`genTrip` /
-  `checkTrip` in `gears.js`). Proposed order for reworking the
-  remaining games (most quiz-like first): 4-8, 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
+  `checkTrip` in `gears.js`). 4-8 Cause and Effect Lab is rebuilt too (`lab.js`, HTML): a machine with a CRANK (independent) and a
+  GAUGE (dependent) that really runs; the student wires it and cranks it (`genWire`), plugs in the factors that would move
+  a gauge as they roll past (`genBelt`), predicts up, down or same (`genWay`), finds the machine wired backwards (`genSpot`),
+  builds one from a tag bank (`genBuild`) and names a mystery gauge by choosing which cranks to test (`genMystery`).
+  Proposed order for reworking the
+  remaining games (most quiz-like first): 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
   Rework one game at a time, each with a plan the owner approves.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the

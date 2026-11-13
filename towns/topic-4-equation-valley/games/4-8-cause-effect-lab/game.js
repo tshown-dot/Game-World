@@ -1,331 +1,475 @@
-// Cause and Effect Lab (Lesson 4-8): the experiment machine and its controls. The content and checks live in lab.js;
-// zones, timer, lives, scoring and the report come from the shared game shell (shared/game/gameShell.js).
+// Cause and Effect Lab (Lesson 4-8: Understand Dependent and Independent Variables): the screen and the controls.
+// The content and checks are in lab.js. The shared parts of an action game (briefing, top bar, fuses, hint card,
+// report) are in shared/game/arcadeShell.js.
 //
-// Problem types: wire (put the cause on the DIAL and the effect on the METER), build (the same, from a bank of cards),
-// hunt (tap every factor that could change the meter), dial (up, down or same?), time (cause or effect?), pick (critique).
+// The machine has a CRANK (independent: the student changes it) and a GAUGE (dependent: it responds). The student
+// wires it and cranks it. Wired right, the gauge follows and the lab notes fill in; wired wrong, the crank spins
+// and the gauge stays dead. A zone is a list of ROUNDS (see lab.js): wire, belt, way, spot, build, mystery.
+// All timing goes through update(), so the action stops cleanly whenever a banner, hint, help screen or mistake
+// message is showing.
+import { createArcade } from '../../../../shared/game/arcadeShell.js';
 import {
-  ZONES, genZone, genBackup, checkWire, checkHunt, checkDial, checkTime, checkPick, checkBuild, workedSolution,
+  ZONES, HUNTS, genZone, fmt, level, checkWire, genBelt, checkBelt, beltAnswer, genWay, checkWay, checkSpot, spotAnswer,
+  checkBuild, buildAnswer, testCrank, checkMystery, mysteryAnswer,
 } from './lab.js';
-import { hubAudio } from '../../../../shared/audio.js';
-import { createGame } from '../../../../shared/game/gameShell.js';
-import { dragOrTap, inside } from '../../../../shared/game/drag.js';
 
-const SKILL_TIPS = {
-  swapped: 'Ask: which one changes BECAUSE of the other? That one is dependent (the effect).',
-  unrelated_factor: 'A factor only counts if changing it would change the effect.',
-  missed_factor: 'Look for every factor that could change the effect.',
-  more_is_more: 'More of a cause can mean LESS of the effect (faster speed, fewer hours).',
-  direction: 'Imagine more of the cause, then ask what happens to the effect.',
-  not_related: 'Some things don\'t affect each other at all.',
-  time_always_cause: 'Time can be independent OR dependent: ask what depends on what.',
-  either_one: 'Two amounts can change together, but only one is the cause.',
-};
-
-const shell = createGame({
-  zones: ZONES, makeZone: genZone, makeBackup: genBackup, workedSolution, showProblem,
-  seconds: [45, 55, 40, 45, 70],                       // power: seconds until the lab overloads, per zone
-  meterFloor: 8, wrongBump: 30, rightRelief: 25, pauseOnBanner: true,
-  lifeLostText: (left) => (left > 0 ? 'A FUSE BLEW!' : 'LAB SHUT DOWN!'),
-  onLifeLost: () => $('sparks')?.classList.remove('hidden'),
-  bossHitText: 'TAMED!', winDelay: () => 1700,
-  skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. Head scientist material!',
-  onKey, testName: '__lab',
-});
-const { G, UI, $, win, miss, showFeedback } = shell;
-Object.assign(G, { slots: { dial: null, meter: null }, armed: null, picked: new Set(), tried: [] });
-
-/* ================================================================== */
-/* Drawing the machine                                                 */
-/* ================================================================== */
-const K = '#1d1433';
-const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
+const BOSS = ZONES.length - 1;
+const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
-/** Wraps text into lines of about `n` characters, as SVG tspans. */
-function lines(text, x, y, n = 18, size = 16) {
-  const words = String(text).split(' ');
-  const out = [];
-  for (const w of words) { const last = out[out.length - 1]; if (last && `${last} ${w}`.length <= n) out[out.length - 1] = `${last} ${w}`; else out.push(w); }
-  const top = y - ((out.length - 1) * (size + 3)) / 2;
-  return out.map((l, i) => `<text x="${x}" y="${top + i * (size + 3)}" text-anchor="middle" font-size="${size}" font-weight="900" fill="${K}" font-family="Nunito, system-ui, sans-serif">${esc(l)}</text>`).join('');
-}
-function lab() {
-  return `<rect x="-300" y="-300" width="1400" height="1120" fill="#3c4a5e"/>
-    <rect x="-300" y="430" width="1400" height="400" fill="#2a3242"/><path d="M-300 430 H1100" stroke="${K}" stroke-width="3"/>
-    ${[400].map((x) => `<g transform="translate(${x} 380)"><rect x="-26" y="0" width="52" height="50" rx="6" fill="#8b90a3" ${O}/>
-      <path d="M-14 0 V-46 H14 V0" fill="#9fe6ff" opacity="0.6" ${O}/><circle class="bubble" cx="0" cy="-10" r="5" fill="#fff"/></g>`).join('')}`;
-}
-/**
- * The machine: a DIAL on the left, a METER on the right, joined by a wire.
- *   dialText / meterText   what is on each slot (or '' for empty)
- *   turn   'up' | 'down' | 'same' | null — animates the knob and needle
- */
-function drawMachine({ dialText = '', meterText = '', turn = null, title = 'EXPERIMENT', glowDial = false, glowMeter = false, wrong = false }) {
-  const angle = turn === 'up' ? 55 : turn === 'down' ? -55 : 0;
-  UI.scene.innerHTML = `${lab()}
-    <rect x="40" y="60" width="720" height="70" rx="12" fill="#fff4d6" ${O}/>
-    <text x="400" y="104" text-anchor="middle" font-size="20" font-weight="900" fill="#8f3f22" font-family="'Press Start 2P', monospace">${esc(title)}</text>
-    <path d="M290 300 C350 240 450 360 510 300" fill="none" stroke="${wrong ? '#e5484d' : '#ffd23f'}" stroke-width="10"/>
-    <g id="dialSlot" class="slot ${glowDial ? 'drop-target' : ''}" data-slot="dial">
-      <rect class="slot-box" x="70" y="160" width="260" height="290" rx="18" fill="#8b90a3" ${O}/>
-      <text x="200" y="190" text-anchor="middle" font-size="14" font-weight="900" fill="#fff" font-family="'Press Start 2P', monospace">DIAL</text>
-      <text x="200" y="210" text-anchor="middle" font-size="12" font-weight="900" fill="#e3e7f5" font-family="Nunito, sans-serif">independent · cause</text>
-      <circle cx="200" cy="300" r="62" fill="#6b6f80" ${O}/>
-      <g class="knob" style="transform: rotate(${turn === 'up' ? 160 : turn === 'down' ? 160 : turn === 'same' ? 160 : 0}deg)"><circle cx="200" cy="300" r="44" fill="#ffd23f" ${O}/><path d="M200 300 V262" stroke="${K}" stroke-width="7" stroke-linecap="round"/></g>
-      <rect x="86" y="372" width="228" height="66" rx="10" fill="#fff" ${O}/>
-      ${dialText ? lines(dialText, 200, 408, 22, 15) : `<text x="200" y="412" text-anchor="middle" font-size="14" fill="#8a8a8a" font-weight="900" font-family="Nunito, sans-serif">drop the cause here</text>`}
-    </g>
-    <g id="meterSlot" class="slot ${glowMeter ? 'drop-target' : ''}" data-slot="meter">
-      <rect class="slot-box" x="470" y="160" width="260" height="290" rx="18" fill="#8b90a3" ${O}/>
-      <text x="600" y="190" text-anchor="middle" font-size="14" font-weight="900" fill="#fff" font-family="'Press Start 2P', monospace">METER</text>
-      <text x="600" y="210" text-anchor="middle" font-size="12" font-weight="900" fill="#e3e7f5" font-family="Nunito, sans-serif">dependent · effect</text>
-      <path d="M520 320 A80 80 0 0 1 680 320 Z" fill="#fff4d6" ${O}/>
-      <path d="M535 318 A65 65 0 0 1 560 268" stroke="#e5484d" stroke-width="8" fill="none"/><path d="M640 268 A65 65 0 0 1 665 318" stroke="#2fbf71" stroke-width="8" fill="none"/>
-      <g class="needle" style="transform: rotate(${angle}deg)"><path d="M600 318 V250" stroke="${K}" stroke-width="6" stroke-linecap="round"/></g>
-      <circle cx="600" cy="318" r="10" fill="${K}"/>
-      <rect x="486" y="372" width="228" height="66" rx="10" fill="#fff" ${O}/>
-      ${meterText ? lines(meterText, 600, 408, 22, 15) : `<text x="600" y="412" text-anchor="middle" font-size="14" fill="#8a8a8a" font-weight="900" font-family="Nunito, sans-serif">drop the effect here</text>`}
-    </g>
-    <g id="sparks" class="${wrong ? '' : 'hidden'}">${[[380, 280], [420, 320]].map(([x, y], i) => `<circle class="spark" style="animation-delay:${i * 0.2}s" cx="${x}" cy="${y}" r="14" fill="#ffd23f"/>`).join('')}</g>`;
-  UI.scene.querySelectorAll('[data-slot]').forEach((g) => g.addEventListener('click', () => clickSlot(g.dataset.slot)));
-  // swing after the first paint so the knob and needle animate
-  if (turn) {
-    const knob = UI.scene.querySelector('.knob'), needle = UI.scene.querySelector('.needle');
-    knob.style.transform = 'rotate(0deg)'; needle.style.transform = 'rotate(0deg)';
-    void UI.scene.getBoundingClientRect();
-    knob.style.transform = 'rotate(160deg)';
-    needle.style.transform = `rotate(${turn === 'same' ? 0 : angle}deg)`;
-    if (turn === 'same') needle.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(6deg)' }, { transform: 'rotate(-6deg)' }, { transform: 'rotate(0deg)' }], { duration: 700 });
-  }
-}
-function strip(text) {
-  const el = $('eqStrip');
-  if (!el) return;
-  if (!text) { el.classList.add('hidden'); return; }
-  el.classList.remove('hidden');
-  el.innerHTML = `<div class="eq-line small">${text}</div>`;
-}
-const cardLabel = (c) => `${c.name}${c.letter ? ` (${c.letter})` : ''}`;
+// Everything about the round being played.
+const W = {
+  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, wire, belt, way, spot, build, test, name, run, hold, gap
+  crank: null, gauge: null,                         // wire and build: which tag is on the crank and on the gauge
+  way: null,                                        // which way: up, down or same
+  belt: { i: 0, x: 0, misses: 0, wait: 0 },         // belt: which tag is rolling, how far along, and a pause before the next
+  testsLeft: 0, tested: {},                         // mystery: free tests left, and what each crank did
+  anim: null, turn: 0, tries: 0, extraBelt: false,
+  gapLeft: 0, frozen: false, afterResume: null, speed: 1,
+};
+
+const HINTS = {
+  swapped: 'Ask: which one changes BECAUSE of the other?<span class="mono">tickets sold → money earned</span>You can sell more tickets. You cannot just "turn up" the money.',
+  time_always_cause: 'Time is not always the crank.<span class="mono">speed → hours the drive takes</span>If the question is HOW LONG something takes, time is the gauge.',
+  unrelated_factor: 'Test each tag in your head: if ONLY this changed, would the gauge change?<span class="mono">color of the plate → cost of a salad? No.</span>',
+  missed_factor: 'One gauge can have many cranks.<span class="mono">size, toppings, restaurant → cost of a salad</span>Plug in every one that would change it.',
+  more_is_more: 'More of the cause can mean LESS of the effect.<span class="mono">more kids sharing → fewer slices each</span>',
+  direction: 'Picture two readings before you crank.<span class="mono">1 hour → 30 pages, 2 hours → 60 pages</span>Did the gauge go up or down?',
+  not_related: 'Some things do not affect each other at all. Then there is no cause and no effect: the gauge stays put.',
+  fine_machine: 'Read each machine as a sentence.<span class="mono">The GAUGE depends on the CRANK.</span>The backwards machine makes a sentence that is not true.',
+  wrong_gauge: 'Use your test results. One crank moved the gauge.<span class="mono">What depends on THAT crank?</span>',
+};
+const TIPS = {
+  swapped: 'The dependent variable changes BECAUSE the independent variable changes.',
+  time_always_cause: 'Time can be independent or dependent: ask what depends on what.',
+  unrelated_factor: 'A factor only counts if changing it would change the result.',
+  missed_factor: 'One dependent variable can depend on several independent variables.',
+  more_is_more: 'When the independent variable goes up, the dependent variable can go down.',
+  direction: 'Use two rows of a table to see which way the dependent variable moves.',
+  not_related: 'Some quantities do not affect each other at all.',
+  fine_machine: 'Say it as a sentence: the dependent variable depends on the independent variable.',
+  wrong_gauge: 'To name the dependent variable, ask what changes because of the independent one.',
+};
+
+const arcade = createArcade({
+  zones: ZONES, startZone, stopZone, onKey, hints: HINTS, skillTips: TIPS, testName: '__lab',
+  perfectText: 'No mistakes to sharpen. Head scientist material!',
+  lifeLostText: (left) => (left > 0 ? `A FUSE BLEW! ${left} LEFT` : 'LAB SHUT DOWN'),
+});
+const { G, hubAudio } = arcade;
+if (window.__lab) window.__lab.W = W;
+const busy = () => W.frozen || arcade.paused();
 
 /* ================================================================== */
-/* Problems                                                            */
+/* Zones and rounds                                                    */
 /* ================================================================== */
-const TAGS = { wire: 'WIRE THE EXPERIMENT', build: 'BUILD YOUR OWN EXPERIMENT', hunt: 'FACTOR HUNT', dial: 'TURN THE DIAL', time: 'IS TIME THE CAUSE OR THE EFFECT?', pick: 'IS THE FRIEND RIGHT?' };
-function showProblem(p, isBackup) {
-  Object.assign(G, { slots: { dial: null, meter: null }, armed: null, picked: new Set(), tried: [] });
-  UI.taskTag.textContent = `${TAGS[p.type]}${isBackup ? ' · BACKUP' : ''}`;
-  renderPrompt();
-  renderControls();
-  showState();
+function startZone(z) {
+  W.rounds = genZone(Math.random, z);
+  W.extraBelt = false;
+  startRound(0);
 }
-function renderPrompt() {
-  const p = G.problem;
-  const box = (t) => `<span style="display:block;font-size:15px;background:#fff;border:3px solid var(--ink);border-radius:10px;padding:7px 10px;margin-top:6px">${esc(t)}</span>`;
-  const html = {
-    wire: `${p.story ? box(p.story) : ''}Which variable is the <b>cause</b> (DIAL) and which is the <b>effect</b> (METER)?`,
-    build: 'Design your own experiment: pick a <b>cause</b> for the DIAL and something it <b>changes</b> for the METER.',
-    hunt: `The METER shows <b>${esc(p.effect)}</b>. Tap every factor that could change it.`,
-    dial: 'Turn the DIAL up (more of the cause). What does the METER do?',
-    time: `Is <b>time</b> the cause (independent) or the effect (dependent)?${box(p.situation?.text || '')}`,
-    pick: box(p.ask || ''),
-  }[p.type];
-  UI.prompt.innerHTML = html;
+function stopZone() {
+  Object.assign(W, { phase: 'idle', frozen: false, afterResume: null, anim: null });
+  $('callout').classList.add('hidden');
 }
-function showState({ turn = null, wrong = false } = {}) {
-  const p = G.problem;
-  if (p.type === 'wire' || p.type === 'build') {
-    drawMachine({ title: p.type === 'build' ? 'YOUR EXPERIMENT' : 'WIRE IT UP', dialText: G.slots.dial !== null ? cardLabel(p.cards[G.slots.dial]) : '', meterText: G.slots.meter !== null ? cardLabel(p.cards[G.slots.meter]) : '', turn, wrong });
-    strip(G.armed !== null ? `<b>${esc(p.cards[G.armed].name)}</b>: tap the DIAL or the METER (or press ← / →).` : 'Ask: which one changes BECAUSE of the other?');
-  } else if (p.type === 'hunt') {
-    drawMachine({ title: 'FACTOR HUNT', dialText: 'which factors?', meterText: p.effect, turn, wrong });
-    strip('Would changing it change the meter? Then it is an independent variable.');
-  } else if (p.type === 'dial') {
-    drawMachine({ title: 'MORE OF THE CAUSE…', dialText: p.pair.cause.name, meterText: p.pair.effect.name, turn, wrong });
-    strip('');
-  } else if (p.type === 'time') {
-    drawMachine({ title: 'WHERE DOES TIME GO?', dialText: '?', meterText: '?', turn, wrong });
-    strip('');
-  } else {
-    drawMachine({ title: 'LAB REVIEW', dialText: `${p.pair.cause.name} (${p.pair.cause.letter})`, meterText: `${p.pair.effect.name} (${p.pair.effect.letter})`, turn, wrong });
-    strip('');
-  }
+const BEGIN = { wire: beginWire, belt: beginBelt, way: beginWay, spot: beginSpot, build: beginBuild, mystery: beginMystery };
+function startRound(i) {
+  const round = W.rounds[i];
+  Object.assign(W, { ri: i, round, tries: 0, anim: null, frozen: false, afterResume: null, crank: null, gauge: null, way: null, tested: {} });
+  if (G.zone === BOSS) arcade.setBossProgress((i / W.rounds.length) * 100);
+  $('machine').classList.toggle('hidden', round.type === 'spot');
+  $('spots').classList.toggle('hidden', round.type !== 'spot');
+  $('ways').classList.add('hidden');
+  $('bench').innerHTML = '';
+  showLine(''); clearMachine();
+  BEGIN[round.type](round);
+  renderSign(true); renderCtl();
+}
+function rest(seconds) { W.phase = 'gap'; W.gapLeft = seconds; renderCtl(); }
+function endRound() { rest(0.7); }
+function nextRound() {
+  if (W.ri + 1 < W.rounds.length) return startRound(W.ri + 1);
+  W.phase = 'idle';
+  if (G.zone === BOSS) arcade.setBossProgress(100);
+  arcade.zoneCleared();
+}
+function stopFor(message, button, then) {
+  W.frozen = true; W.afterResume = then;
+  $('calloutText').textContent = message;
+  $('resumeBtn').textContent = button;
+  $('callout').classList.remove('hidden');
+}
+function resume() {
+  if (!W.frozen || arcade.paused()) return;
+  W.frozen = false;
+  $('callout').classList.add('hidden');
+  const then = W.afterResume;
+  W.afterResume = null;
+  if (then) then();
+}
+function showLine(text, off = false) { $('benchLine').textContent = text; $('benchLine').classList.toggle('off', off); }
+/** A mistake the student can try again once. After the second miss the answer is given and the round moves on. */
+function miss(res, { answer, retry, show = endRound }) {
+  W.tries += 1;
+  W.phase = 'hold';
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;                    // that was the last fuse: the zone has stopped
+  const moveOn = W.tries >= 2;
+  stopFor(res.message + (moveOn ? ` ${answer}` : ''), moveOn ? 'NEXT (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? show : retry);
+  renderCtl();
 }
 
 /* ================================================================== */
-/* Controls                                                            */
+/* The machine: sockets, crank, gauge and the lab notes                */
 /* ================================================================== */
-function renderControls() {
-  const p = G.problem;
-  if (p.type === 'wire' || p.type === 'build') {
-    const placed = new Set([G.slots.dial, G.slots.meter]);
-    UI.controls.innerHTML = `
-      <div class="label px">VARIABLE CARDS · DRAG ONTO THE DIAL OR METER</div>
-      <div class="cards">${p.cards.map((c, i) => `<button type="button" class="vcard ${G.armed === i ? 'armed' : ''}" data-card="${i}" ${placed.has(i) ? 'disabled' : ''}><b>${i + 1}</b>${esc(c.name)}${c.letter ? ` <span class="letter">${esc(c.letter)}</span>` : ''}</button>`).join('')}</div>
-      <div class="row-btns" style="grid-template-columns:1fr 2fr"><button type="button" id="clearSlots" class="px">CLEAR</button><button type="button" id="checkBtn" class="go px">RUN IT (ENTER)</button></div>
-      <div id="helpLine" class="help-line">Drag a card, or tap it then tap a slot. Keys: <kbd>1</kbd>–<kbd>${p.cards.length}</kbd> then <kbd>←</kbd> DIAL / <kbd>→</kbd> METER.</div>`;
-    UI.controls.querySelectorAll('[data-card]').forEach((b) => b.addEventListener('pointerdown', (e) => {
-      if (G.locked || b.disabled) return;
-      const i = Number(b.dataset.card);
-      dragOrTap(e, b, {
-        targetAt: (x, y) => (inside($('dialSlot'), x, y) ? 'dial' : inside($('meterSlot'), x, y) ? 'meter' : null),
-        glow: (t) => { $('dialSlot')?.classList.toggle('drop-target', t === 'dial'); $('meterSlot')?.classList.toggle('drop-target', t === 'meter'); },
-        onDrop: (slot) => place(i, slot), onTap: () => arm(i), lift: true,
-      });
-    }));
-    $('clearSlots').addEventListener('click', () => { if (!G.locked) { G.slots = { dial: null, meter: null }; G.armed = null; renderControls(); showState(); } });
-    $('checkBtn').addEventListener('click', submitWire);
-    return;
-  }
-  if (p.type === 'hunt') {
-    UI.controls.innerHTML = `
-      <div class="label px">FACTORS · TAP ALL THAT COULD CHANGE IT</div>
-      <div class="cards">${p.cards.map((c, i) => `<button type="button" class="vcard ${G.picked.has(i) ? 'on' : ''}" data-hunt="${i}"><b>${i + 1}</b>${esc(c.name)}</button>`).join('')}</div>
-      <button type="button" id="checkBtn" class="apply px">CHECK (ENTER)</button>
-      <div id="helpLine" class="help-line">Tap again to un-pick. Keys: <kbd>1</kbd>–<kbd>6</kbd>, then <kbd>Enter</kbd>.</div>`;
-    UI.controls.querySelectorAll('[data-hunt]').forEach((b) => b.addEventListener('click', () => toggle(Number(b.dataset.hunt))));
-    $('checkBtn').addEventListener('click', submitHunt);
-    return;
-  }
-  if (p.type === 'dial') {
-    UI.controls.innerHTML = `<div class="pred"><button type="button" class="up px" data-pred="up">▲ GOES UP</button><button type="button" class="same px" data-pred="same">■ STAYS SAME</button><button type="button" class="down px" data-pred="down">▼ GOES DOWN</button></div>
-      <div class="help-line">Keys: <kbd>↑</kbd> up · <kbd>space</kbd> same · <kbd>↓</kbd> down</div>`;
-    UI.controls.querySelectorAll('[data-pred]').forEach((b) => b.addEventListener('click', () => answerDial(b.dataset.pred)));
-    return;
-  }
-  if (p.type === 'time') {
-    UI.controls.innerHTML = `<div class="stamps"><button type="button" class="stamp yes px" data-time="cause">◀ TIME IS THE CAUSE<br><small>independent</small></button><button type="button" class="stamp no px" data-time="effect">TIME IS THE EFFECT ▶<br><small>dependent</small></button></div>
-      <div class="help-line">Ask: does time make something else change, or does something else decide how long it takes? Keys: <kbd>←</kbd> <kbd>→</kbd></div>`;
-    UI.controls.querySelectorAll('[data-time]').forEach((b) => b.addEventListener('click', () => answerTime(b.dataset.time)));
-    return;
-  }
-  UI.controls.innerHTML = p.options.map((o, i) => `<button type="button" class="choice" data-choice="${i}" ${G.tried.includes(i) ? 'disabled' : ''}><b>${i + 1}</b>${esc(o.text)}</button>`).join('');
-  UI.controls.querySelectorAll('[data-choice]').forEach((b) => b.addEventListener('click', () => answerPick(Number(b.dataset.choice))));
+function clearMachine() {
+  $('crankRead').textContent = ''; $('gaugeRead').textContent = ''; $('logRows').innerHTML = '';
+  $('gaugeFill').style.height = '0%';
+  $('machine').classList.remove('dead', 'live');
+  $('gaugeBox').classList.remove('twitch');
+}
+function setSocks(crank, gauge, heads = ['', '']) {
+  $('crankSock').textContent = crank || ''; $('crankSock').classList.toggle('full', Boolean(crank));
+  $('gaugeSock').textContent = gauge || ''; $('gaugeSock').classList.toggle('full', Boolean(gauge));
+  $('logC').textContent = heads[0]; $('logE').textContent = heads[1];
+}
+/** Show reading i of an experiment on the crank, the gauge and the notes. units: false hides the gauge's unit (mystery). */
+function showReading(pair, i, units = true) {
+  const x = fmt(pair.xs[i], pair.cause.unit), y = units ? fmt(pair.ys[i], pair.effect.unit) : String(pair.ys[i]);
+  $('crankRead').textContent = x; $('gaugeRead').textContent = y;
+  $('gaugeFill').style.height = `${level(pair, i)}%`;
+  $('logRows').insertAdjacentHTML('beforeend', `<tr><td>${esc(x)}</td><td>${esc(y)}</td></tr>`);
+}
+function spin() { W.turn += 72; $('wheel').style.transform = `rotate(${W.turn}deg)`; hubAudio.playStep(); }
+/** Crank the machine. moves: the gauge follows (from reading `from`); otherwise the crank spins and the gauge stays dead. */
+function run({ pair = null, moves, from = 0, units = true }, then) {
+  W.phase = 'run';
+  W.anim = { pair, moves, i: from, t: 0, units, spins: 0, then };
+  $('machine').classList.remove('dead'); $('machine').classList.toggle('live', moves);
+  hubAudio.playCartridgeLaunch(); renderCtl();
+}
+function updateRun(dt) {
+  const A = W.anim;
+  A.t += dt;
+  if (A.t < 0.34) return;
+  A.t = 0; spin();
+  if (A.moves) { showReading(A.pair, A.i, A.units); A.i += 1; if (A.i < A.pair.xs.length) return; }
+  else { A.spins += 1; $('machine').classList.add('dead'); if (A.spins < 3) return; }
+  W.anim = null;
+  A.then();
 }
 
 /* ================================================================== */
-/* Answers                                                             */
+/* Tags on the bench                                                   */
 /* ================================================================== */
-function arm(i) {
-  if (G.locked) return;
-  G.armed = G.armed === i ? null : i;
-  hubAudio.playSelect();
-  renderControls(); showState();
+function renderTags() {
+  const p = W.round;
+  $('bench').innerHTML = p.tags.map((t, i) => `<button type="button" class="tag ${i === W.crank || i === W.gauge ? 'used' : ''}" data-tag="${i}"><b>${i + 1}</b>${esc(t.name)}</button>`).join('');
 }
-function place(i, slot) {
-  if (G.locked) return;
-  const other = slot === 'dial' ? 'meter' : 'dial';
-  if (G.slots[other] === i) G.slots[other] = null;
-  G.slots[slot] = i;
-  G.armed = null;
-  hubAudio.playTone(slot === 'dial' ? 440 : 660, 'triangle', 0.1, 0.07);
-  renderControls(); showState();
+$('bench').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b || busy()) return; b.blur();
+  if (b.dataset.tag) pickTag(Number(b.dataset.tag));
+  else if (b.dataset.test) testIt(Number(b.dataset.test));
+  else if (b.dataset.opt) pickOpt(Number(b.dataset.opt));
+  else if (b.dataset.belt) decide(true);
+});
+function pickTag(i) {
+  const p = W.round;
+  if (busy() || !p.tags || !p.tags[i]) return;
+  if (W.phase === 'wire') { W.crank = i; setSocks(p.tags[i].name, p.tags[1 - i].name); }
+  else if (W.phase === 'build') {
+    if (i === W.crank || i === W.gauge) return;
+    if (W.crank === null) W.crank = i; else if (W.gauge === null) W.gauge = i; else return;
+    setSocks(W.crank === null ? '' : p.tags[W.crank].name, W.gauge === null ? '' : p.tags[W.gauge].name);
+  } else return;
+  hubAudio.playStep(); showLine(''); renderTags();
 }
-function clickSlot(slot) {
-  const p = G.problem;
-  if (G.locked || !p || (p.type !== 'wire' && p.type !== 'build')) return;
-  if (G.armed !== null) return place(G.armed, slot);
-  if (G.slots[slot] !== null) { G.slots[slot] = null; renderControls(); showState(); }     // tap a filled slot to empty it
+function clearSock(which) {
+  if (busy() || W.phase !== 'build') return;
+  W[which] = null;
+  const p = W.round;
+  setSocks(W.crank === null ? '' : p.tags[W.crank].name, W.gauge === null ? '' : p.tags[W.gauge].name);
+  renderTags();
 }
-function submitWire() {
-  const p = G.problem;
-  if (G.locked || (p.type !== 'wire' && p.type !== 'build')) return;
-  const d = G.slots.dial !== null ? p.cards[G.slots.dial] : null, m = G.slots.meter !== null ? p.cards[G.slots.meter] : null;
-  const res = p.type === 'build' ? checkBuild(p, d, m) : checkWire(p, d, m);
-  if (res.nudge) return nudge(res.message);
-  if (res.correct) {
-    const pair = p.type === 'build' ? null : p.pair;
-    showState({ turn: pair ? pair.dir : 'up' });
-    return win(res);
+$('crankSock').addEventListener('click', (e) => { e.currentTarget.blur(); clearSock('crank'); });
+$('gaugeSock').addEventListener('click', (e) => { e.currentTarget.blur(); clearSock('gauge'); });
+
+/* ================================================================== */
+/* Wire: which tag goes on the crank?                                  */
+/* ================================================================== */
+function beginWire() {
+  W.phase = 'wire';
+  setSocks('', '');
+  renderTags();
+}
+function goWire() {
+  const p = W.round, res = checkWire(p, W.crank === null ? null : p.tags[W.crank]), { pair } = p;
+  if (res.nudge) return showLine(res.message, true);
+  clearMachine();
+  if (res.ok) {
+    setSocks(pair.cause.name, pair.effect.name, [pair.cause.letter, pair.effect.letter]);
+    return run({ pair, moves: true }, () => { arcade.good(15); hubAudio.playCoinClink(); showLine(res.message); rest(1.2); });
   }
-  showState({ wrong: true });
-  miss(res, { lock: true, delay: 1400, retry: () => { G.slots = { dial: null, meter: null }; renderControls(); showState(); } });
-}
-function toggle(i) {
-  if (G.locked || G.problem.type !== 'hunt') return;
-  if (G.picked.has(i)) G.picked.delete(i); else G.picked.add(i);
-  hubAudio.playSelect();
-  renderControls();
-}
-function submitHunt() {
-  const p = G.problem;
-  if (G.locked || p.type !== 'hunt') return;
-  if (!G.picked.size) return nudge('Tap at least one factor first.');
-  const res = checkHunt(p, G.picked);
-  UI.controls.querySelectorAll('[data-hunt]').forEach((b) => { const i = Number(b.dataset.hunt); if (G.picked.has(i)) b.classList.add(p.cards[i].affects ? 'right' : 'wrong'); });
-  if (res.correct) { showState({ turn: 'up' }); return win(res); }
-  showState({ wrong: true });
-  miss(res, { lock: true, delay: 1600, retry: () => renderControls() });
-}
-function answerDial(a) {
-  const p = G.problem;
-  if (G.locked || p.type !== 'dial') return;
-  const res = checkDial(p, a);
-  showState({ turn: res.correct ? a : p.pair.dir, wrong: !res.correct });
-  if (res.correct) return win(res);
-  miss(res, { lock: true, delay: 1600, retry: () => showState() });
-}
-function answerTime(a) {
-  const p = G.problem;
-  if (G.locked || p.type !== 'time') return;
-  const res = checkTime(p, a);
-  const s = p.situation;
-  drawMachine({ title: 'WHERE DOES TIME GO?', dialText: s.time === 'cause' ? 'time (t)' : 'the other amount', meterText: s.time === 'cause' ? 'the other amount' : 'time (t)', turn: res.correct ? 'up' : null, wrong: !res.correct });
-  if (res.correct) return win(res);
-  miss(res, { lock: true, delay: 1600, retry: () => showState() });
-}
-function answerPick(i) {
-  const p = G.problem;
-  if (G.locked || G.tried.includes(i)) return;
-  const res = checkPick(p, i);
-  UI.controls.querySelector(`[data-choice="${i}"]`)?.classList.add(res.correct ? 'right' : 'wrong');
-  if (res.correct) { showState({ turn: 'up' }); return win(res); }
-  G.tried.push(i);
-  miss(res, { lock: true, delay: 1400, retry: () => renderControls() });
-}
-function nudge(text) {
-  const h = $('helpLine');
-  if (h) h.innerHTML = `<span class="warn">${text}</span>`;
-  else showFeedback(true, text);
-  hubAudio.playTone(220, 'square', 0.12, 0.05);
+  run({ moves: false }, () => miss(res, {
+    answer: 'Watch it wired the right way.',
+    retry: () => { W.crank = null; clearMachine(); beginWire(); renderCtl(); },
+    show: () => {
+      W.crank = p.tags.findIndex((t) => t.role === 'cause'); renderTags(); clearMachine();
+      setSocks(pair.cause.name, pair.effect.name, [pair.cause.letter, pair.effect.letter]);
+      run({ pair, moves: true }, () => rest(1));
+    },
+  }));
 }
 
 /* ================================================================== */
-/* Keys and start-up                                                   */
+/* Belt: plug in each factor that would move the gauge                 */
 /* ================================================================== */
+const BELT_START = 0.12, BELT_SECONDS = 6;
+function beginBelt(p) {
+  W.phase = 'belt';
+  W.belt = { i: 0, x: BELT_START, misses: 0, wait: 0 };
+  setSocks('', p.effect);
+  $('gaugeFill').style.height = '50%';
+  drawBeltTag();
+}
+function drawBeltTag() {
+  const p = W.round, t = p.tags[W.belt.i];
+  $('bench').innerHTML = `<div class="belt"><button type="button" class="tag rolling" id="beltTag" data-belt="1">${esc(t.name)}</button></div>`;
+  moveBeltTag();
+}
+function moveBeltTag() { const el = $('beltTag'); if (el) el.style.left = `${W.belt.x * 100}%`; }
+function updateBelt(dt) {
+  const B = W.belt;
+  if (B.wait > 0) { B.wait -= dt; if (B.wait <= 0) nextTag(); return; }
+  B.x += (dt * (1 - BELT_START)) / BELT_SECONDS;
+  if (G.practice) B.x = Math.min(B.x, 0.5);         // practice: the tag waits in the middle
+  moveBeltTag();
+  if (B.x >= 1) decide(false);
+}
+/** The tag was plugged into the crank, or it went by. */
+function decide(plugged) {
+  const p = W.round, B = W.belt;
+  if (W.phase !== 'belt' || busy() || B.wait > 0) return;
+  const res = checkBelt(p, B.i, plugged), el = $('beltTag');
+  el.classList.add(plugged ? 'plugged' : 'gone');
+  if (plugged) setSocks(p.tags[B.i].name, p.effect);
+  B.wait = res.quiet ? 0.3 : 0.75;
+  if (res.quiet) return hubAudio.playStep();
+  if (res.ok) {
+    arcade.good(10); hubAudio.playCoinClink(); showLine(res.message);
+    const box = $('gaugeBox'); box.classList.remove('twitch'); void box.offsetWidth; box.classList.add('twitch');
+    return;
+  }
+  B.misses += 1; showLine('');
+  if (plugged) $('machine').classList.add('dead');
+  arcade.bad(res.key, 20);
+  if (W.phase === 'idle') return;
+  B.wait = 0.05;
+  stopFor(res.message, 'CARRY ON (ENTER)', null);
+}
+function nextTag() {
+  const p = W.round, B = W.belt;
+  $('machine').classList.remove('dead');
+  setSocks('', p.effect);
+  B.i += 1; B.x = BELT_START;
+  if (B.i < p.tags.length) { drawBeltTag(); renderSign(); return; }
+  $('bench').innerHTML = '';
+  if (B.misses < 2) return rest(0.5);
+  W.phase = 'hold'; renderCtl();                      // two misses: the whole answer, and one more hunt (once a zone)
+  const more = !W.extraBelt;
+  stopFor(beltAnswer(p) + (more ? ' Try one more.' : ''), 'NEXT (ENTER)', () => {
+    if (more) { W.extraBelt = true; const other = HUNTS.filter((h) => !W.rounds.some((r) => r.effect === h.effect)); W.rounds.splice(W.ri + 1, 0, genBelt(Math.random, other[Math.floor(Math.random() * other.length)])); }
+    endRound();
+  });
+}
+
+/* ================================================================== */
+/* Which way? predict, then crank                                      */
+/* ================================================================== */
+function beginWay(p) {
+  const { pair } = p;
+  W.phase = 'way';
+  setSocks(pair.cause.name, pair.effect.name, [pair.cause.letter, pair.effect.letter]);
+  showReading(pair, 0);
+  $('ways').classList.remove('hidden');
+  renderWays();
+}
+function renderWays() { for (const b of $('ways').querySelectorAll('button')) b.classList.toggle('on', b.dataset.way === W.way); }
+function setWay(w) { if (W.phase !== 'way' || busy()) return; W.way = w; hubAudio.playStep(); showLine(''); renderWays(); }
+$('ways').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; b.blur(); setWay(b.dataset.way); });
+function goWay() {
+  const p = W.round, res = checkWay(p, W.way);
+  if (res.nudge) return showLine(res.message, true);
+  run({ pair: p.pair, moves: true, from: 1 }, () => {
+    if (res.ok) { arcade.good(15); hubAudio.playCoinClink(); showLine(res.message); return rest(1.2); }
+    W.phase = 'hold';
+    arcade.bad(res.key, 25);
+    if (W.phase === 'idle') return;
+    // The machine has shown the answer, so there is no second try: another machine of the same kind comes next.
+    stopFor(res.message, 'NEXT (ENTER)', () => {
+      if (!p.backup) W.rounds.splice(W.ri + 1, 0, { ...genWay(Math.random, p.pair.dir), backup: true });
+      endRound();
+    });
+    renderCtl();
+  });
+}
+
+/* ================================================================== */
+/* Spot the machine wired backwards                                    */
+/* ================================================================== */
+function beginSpot(p) {
+  W.phase = 'spot';
+  $('spots').innerHTML = p.machines.map((m, i) => `<button type="button" class="spot" data-spot="${i}"><b>${i + 1}</b>
+    <span class="s-part"><small class="px">CRANK</small>${esc(m.crank.name)}</span><span class="s-arrow">→</span><span class="s-part"><small class="px">GAUGE</small>${esc(m.gauge.name)}</span>
+    <span class="s-out"></span></button>`).join('');
+}
+$('spots').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; b.blur(); pickSpot(Number(b.dataset.spot)); });
+/** Crank machine i so the student sees what it does. */
+function showSpot(i) {
+  const m = W.round.machines[i], el = $('spots').querySelector(`[data-spot="${i}"]`), { pair } = m;
+  el.classList.add(m.backwards ? 'sparks' : 'runs');
+  el.querySelector('.s-out').textContent = m.backwards ? '⚡ the crank spins, the gauge is dead'
+    : [0, 1, 2].map((k) => `${fmt(pair.xs[k], pair.cause.unit)} → ${fmt(pair.ys[k], pair.effect.unit)}`).join('  ·  ');
+}
+function pickSpot(i) {
+  const p = W.round;
+  if (W.phase !== 'spot' || busy() || !p.machines[i]) return;
+  const res = checkSpot(p, i);
+  showSpot(i);
+  if (res.ok) { arcade.good(15); hubAudio.playCoinClink(); showLine(res.message); return rest(1.5); }
+  miss(res, { answer: spotAnswer(p), retry: () => { W.phase = 'spot'; renderCtl(); }, show: () => { showSpot(p.bad); rest(1.2); } });
+}
+
+/* ================================================================== */
+/* Build your own experiment                                           */
+/* ================================================================== */
+function beginBuild() {
+  W.phase = 'build';
+  setSocks('', '');
+  renderTags();
+}
+function goBuild() {
+  const p = W.round, res = checkBuild(p, W.crank === null ? null : p.tags[W.crank], W.gauge === null ? null : p.tags[W.gauge]);
+  if (res.nudge) return showLine(res.message, true);
+  if (res.ok) {                                       // a real experiment: now predict which way it goes, then crank it
+    arcade.good(15); hubAudio.playCoinClink(); showLine(res.message);
+    W.rounds.splice(W.ri + 1, 0, { ...genWay(Math.random, null, res.pair), backup: true, follow: true });
+    return rest(1.1);
+  }
+  clearMachine();
+  run({ moves: false }, () => miss(res, { answer: buildAnswer(p), retry: () => { W.crank = null; W.gauge = null; clearMachine(); beginBuild(); renderCtl(); } }));
+}
+
+/* ================================================================== */
+/* Mystery gauge: test cranks, then name the gauge                     */
+/* ================================================================== */
+function beginMystery(p) {
+  W.phase = 'test';
+  W.testsLeft = p.tests;
+  setSocks('', '? ? ?');
+  renderMystery();
+}
+function renderMystery() {
+  const p = W.round, naming = W.phase === 'name' || W.phase === 'hold' || W.phase === 'gap';
+  const note = { moved: 'the gauge MOVED', nothing: 'nothing happened' };
+  $('bench').innerHTML = `<div class="m-row">${p.pairs.map((x, i) => `<button type="button" class="tag test ${W.tested[i] || ''}" data-test="${i}" ${W.tested[i] || W.testsLeft <= 0 || naming ? 'disabled' : ''}>
+      ${naming ? '' : `<b>${i + 1}</b>`}<small class="px">CRANK</small>${esc(x.cause.name)}<em>${W.tested[i] ? note[W.tested[i]] : W.testsLeft > 0 && !naming ? 'tap to test' : 'not tested'}</em></button>`).join('')}</div>
+    ${naming ? `<div class="m-row">${p.options.map((name, i) => `<button type="button" class="tag opt" data-opt="${i}"><b>${i + 1}</b><small class="px">GAUGE?</small>${esc(name)}</button>`).join('')}</div>` : ''}`;
+}
+function testIt(i) {
+  const p = W.round;
+  if (W.phase !== 'test' || busy() || !p.pairs[i] || W.tested[i] || W.testsLeft <= 0) return;
+  W.testsLeft -= 1;
+  const moves = testCrank(p, i), pair = p.pairs[i];
+  clearMachine();
+  setSocks(pair.cause.name, '? ? ?', [pair.cause.letter, '?']);
+  run({ pair, moves, units: false }, () => {
+    W.tested[i] = moves ? 'moved' : 'nothing';
+    hubAudio.playSelect();
+    W.phase = W.testsLeft > 0 ? 'test' : 'name';
+    renderMystery(); renderSign(); renderCtl();
+  });
+}
+function toNaming() { if (W.phase !== 'test' || busy()) return; W.phase = 'name'; renderMystery(); renderSign(); renderCtl(); }
+function pickOpt(i) {
+  const p = W.round;
+  if (W.phase !== 'name' || busy() || !p.options[i]) return;
+  const res = checkMystery(p, i);
+  if (res.ok) {
+    arcade.good(20); hubAudio.playCoinClink(); showLine(res.message);
+    setSocks(p.pair.cause.name, p.pair.effect.name, [p.pair.cause.letter, p.pair.effect.letter]);
+    return rest(1.5);
+  }
+  miss(res, { answer: mysteryAnswer(p), retry: () => { W.phase = 'name'; renderCtl(); } });
+}
+
+/* ================================================================== */
+/* The clock, keys, sign and the bottom bar                            */
+/* ================================================================== */
+function update(dt) {
+  if (W.phase === 'idle' || busy()) return;
+  if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
+  if (W.phase === 'run') return updateRun(dt);
+  if (W.phase === 'belt') updateBelt(dt);
+}
+const GO = { wire: goWire, build: goBuild, way: goWay, belt: () => decide(true), test: toNaming };
+function go() { if (!busy() && GO[W.phase]) GO[W.phase](); }
 function onKey(e) {
-  const key = e.key, p = G.problem;
-  const n = Number(key);
-  if (p.type === 'wire' || p.type === 'build') {
-    if (n >= 1 && n <= p.cards.length) return arm(n - 1);
-    if (key === 'ArrowLeft' && G.armed !== null) { e.preventDefault(); return place(G.armed, 'dial'); }
-    if (key === 'ArrowRight' && G.armed !== null) { e.preventDefault(); return place(G.armed, 'meter'); }
-    if (key === 'Enter') { e.preventDefault(); return submitWire(); }
+  const k = e.key;
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else go(); return; }
+  if (W.frozen) return;
+  if (/^[1-6]$/.test(k)) {
+    const i = Number(k) - 1;
+    if (W.phase === 'wire' || W.phase === 'build') pickTag(i);
+    else if (W.phase === 'spot') pickSpot(i);
+    else if (W.phase === 'test') testIt(i);
+    else if (W.phase === 'name') pickOpt(i);
     return;
   }
-  if (p.type === 'hunt') {
-    if (n >= 1 && n <= p.cards.length) return toggle(n - 1);
-    if (key === 'Enter') { e.preventDefault(); return submitHunt(); }
-    return;
+  if (W.phase === 'way' && ['ArrowUp', 'ArrowDown', 'ArrowRight'].includes(k)) { e.preventDefault(); setWay({ ArrowUp: 'up', ArrowDown: 'down', ArrowRight: 'same' }[k]); }
+  if (W.phase === 'belt' && k === 'ArrowRight') { e.preventDefault(); decide(false); }
+  if (W.phase === 'build' && k === 'Backspace') { e.preventDefault(); clearSock(W.gauge !== null ? 'gauge' : 'crank'); }
+}
+$('goBtn').addEventListener('click', (e) => { e.currentTarget.blur(); go(); });
+$('passBtn').addEventListener('click', (e) => { e.currentTarget.blur(); decide(false); });
+$('resumeBtn').addEventListener('click', (e) => { e.currentTarget.blur(); resume(); });
+
+function renderSign(isNew = false) {
+  const r = W.round, at = `${W.ri + 1}/${W.rounds.length}`;
+  let small = `MACHINE ${at} · THE GAUGE DEPENDS ON THE CRANK`, text = 'WHICH ONE DO YOU CHANGE? PUT IT ON THE CRANK';
+  if (r.type === 'belt') { small = `TAG ${Math.min(W.belt.i + 1, r.tags.length)}/${r.tags.length} · PLUG IN WHAT WOULD CHANGE IT`; text = `WHAT COULD CHANGE ${r.effect.toUpperCase()}?`; }
+  else if (r.type === 'way') { small = r.follow ? 'YOUR MACHINE · NOW PREDICT' : `MACHINE ${at} · PREDICT, THEN CRANK`; text = 'TURN THE CRANK UP: WHICH WAY WILL THE GAUGE GO?'; }
+  else if (r.type === 'spot') { small = `INSPECTION ${at}`; text = 'ONE MACHINE IS WIRED BACKWARDS. TAP IT'; }
+  else if (r.type === 'build') { small = `YOUR MACHINE ${at}`; text = 'BUILD AN EXPERIMENT: A CRANK TAG, THEN A GAUGE TAG'; }
+  else if (r.type === 'mystery') {
+    const naming = W.phase !== 'test' && W.phase !== 'run';
+    small = naming ? 'MYSTERY GAUGE · THIS ONE COUNTS' : `MYSTERY GAUGE · ${W.testsLeft} FREE TEST${W.testsLeft === 1 ? '' : 'S'}`;
+    text = naming ? 'NAME THE GAUGE: WHAT DEPENDS ON THAT CRANK?' : 'WHICH CRANK MOVES THE GAUGE? CHOOSE ONE TO TEST';
   }
-  if (p.type === 'dial') {
-    if (key === 'ArrowUp' || key === '1') { e.preventDefault(); return answerDial('up'); }
-    if (key === ' ' || key === '2') { e.preventDefault(); return answerDial('same'); }
-    if (key === 'ArrowDown' || key === '3') { e.preventDefault(); return answerDial('down'); }
-    return;
-  }
-  if (p.type === 'time') {
-    if (key === 'ArrowLeft' || key === '1') { e.preventDefault(); return answerTime('cause'); }
-    if (key === 'ArrowRight' || key === '2') { e.preventDefault(); return answerTime('effect'); }
-    return;
-  }
-  if (n >= 1 && n <= p.options.length) answerPick(n - 1);
+  $('signSmall').textContent = small;
+  $('signText').textContent = text;
+  if (isNew) { const s = $('sign'); s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); }
+}
+function renderCtl() {
+  const p = W.phase;
+  const label = { wire: 'CRANK IT (ENTER)', build: 'CRANK IT (ENTER)', way: 'CRANK IT (ENTER)', belt: 'PLUG IT IN (ENTER)', test: 'I KNOW THE GAUGE (ENTER)' }[p];
+  $('goBtn').classList.toggle('hidden', !label);
+  $('goBtn').textContent = label || '';
+  $('passBtn').classList.toggle('hidden', p !== 'belt');
+  $('tip').textContent = { wire: 'Tap a tag (or press 1 or 2) to put it on the crank.', build: 'Tap two tags. Tap a socket to empty it.',
+    way: '↑ up · ↓ down · → stays the same', belt: 'Tap the tag to plug it in.', spot: 'Tap a machine (or press 1, 2 or 3).',
+    test: 'Tap a crank to test it (or press 1, 2 or 3).', name: 'Tap the name of the gauge (or press 1, 2 or 3).' }[p] || '';
+  $('waveTag').textContent = W.rounds.length ? `ROUND ${W.ri + 1}/${W.rounds.length}` : '';
 }
 
-function init() {
-  const stripEl = document.createElement('div');
-  stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
-  $('stage').appendChild(stripEl);
-  drawMachine({ title: 'EXPERIMENT', dialText: 'raffle tickets sold (t)', meterText: 'money earned (m)' });   // a sample behind the briefing
+let last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  update(dt * W.speed);
+  requestAnimationFrame(frame);
 }
-
-init();
+// Something to look at behind the briefing.
+setSocks('raffle tickets sold', 'money earned', ['t', 'm']);
+$('gaugeFill').style.height = '50%';
+requestAnimationFrame(frame);
