@@ -67,8 +67,12 @@ docs/lessons.md                    lesson lists from the textbook database
   student picks test riders. 4-10 Trail Mapper is rebuilt too (`trail.js`, the map is an SVG graph): the student puts stakes on
   the map for a rule's logbook (`genStake` / `checkStakes`, with `genFix` where one stake is already wrong), reads the map
   with a pointer on an axis (`genDrop` / `checkDrop`) and sets a rule on two dials (`genRule` / `checkRule`); each time a
-  scout walks the true trail to show what matches. Proposed order for reworking the
-  remaining games (most quiz-like first): 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
+  scout walks the true trail to show what matches. 4-2 Counterweight is rebuilt too (`balance.js`, HTML): a balance scale whose
+  beam really tips as a timer; a saboteur changes one pan and the student does the same to the other (`genMatch` /
+  `checkMatch`, with two changes or a hidden one in the boss), makes one move on both pans to get x alone (`genSolve` /
+  `checkSolve`) and calls clamped scales LEVEL or TIPS (`genInspect`). Every Equation Valley lesson game is now rebuilt.
+  Proposed order for reworking the
+  remaining games: the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
   Rework one game at a time, each with a plan the owner approves.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the

@@ -14,7 +14,7 @@ export const STAGES = [
   }),
   stage(2, 'Counterweight', 'Apply Properties of Equality', { x: 360, y: 600 }, {
     built: true, building: 'scale_lift', url: './games/4-2-counterweight/index.html',
-    description: 'The Saboteur keeps tipping the cargo lift over the canyon. Do the same thing to both sides of the equation to keep it level: add, subtract, multiply or divide. Then inspect repairs and beat the Saboteur.',
+    description: 'A saboteur keeps changing one pan of the balance scale, and the beam starts to tip. Do the same thing to the other pan before it hits the ground. Then make your own move on both pans to get the x-block alone, inspect repaired scales, and stop the Saboteur.',
   }),
   stage(3, 'Undo Machine', 'Write and Solve Addition and Subtraction Equations', { x: 570, y: 555 }, {
     built: true, building: 'undo_machine', url: './games/4-3-undo-machine/index.html',

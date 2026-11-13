@@ -1,576 +1,331 @@
-// Counterweight (Lesson 4-2): screen, controls and game flow. The math lives in balance.js.
+// Counterweight (Lesson 4-2: Apply Properties of Equality): the screen and the controls.
+// The math is in balance.js. The shared parts of an action game (briefing, top bar, chains, hint card, report) are in
+// shared/game/arcadeShell.js.
+//
+// The balance scale is the playfield, and its beam really tips. A zone is a list of ROUNDS (see balance.js):
+//   match    the saboteur changes one pan and the beam starts to tip: do the same thing to the other pan in time
+//   solve    choose one operation; the machine does it to both pans; the goal is one x-block alone
+//   inspect  a repaired scale is clamped: call it LEVEL or TIPS, then the clamp opens
+// All timing goes through update(), so the action stops cleanly whenever a banner, hint, help screen or mistake
+// message is showing.
+import { createArcade } from '../../../../shared/game/arcadeShell.js';
 import {
-  ZONES, PROPERTIES, MISTAKES, OP_SIGN, genZone, genBackup, weigh, isBalanced, eqText, settled, parseAmount, applyOp,
-  checkRebalanceDrop, checkPair, checkIsolate, checkProperty, checkStamp, checkMistake, checkPartial, checkChain, workedSolution,
+  ZONES, OPS, OP_SIGN, DIAL, genZone, applyOp, settled, tilt, stepText, hitPan, checkMatch, matchAnswer, checkSolve, solveAnswer, checkInspect,
 } from './balance.js';
-import { hubAudio } from '../../../../shared/audio.js';
-import { createGame } from '../../../../shared/game/gameShell.js';
-import { dragOrTap } from '../../../../shared/game/drag.js';
 
-const SKILL_TIPS = {
-  different_amount: 'Use the SAME amount on both sides.',
-  opposite_op: 'Give the other side the same change, not the opposite one.',
-  different_op: 'Use the same operation on both sides.',
-  multiplied_instead: 'To free x from 4x, divide (not multiply).',
-  wrong_divisor: 'Divide by the number of x-blocks.',
-  add_sub_with_coefficient: '4x means 4 times x. Undo times with divide.',
-  added_instead: 'To undo + 5, subtract 5 from both sides.',
-  subtracted_instead: 'To undo − 5, add 5 to both sides.',
-  wrong_amount: 'Undo exactly the amount that is with x.',
-  wrong_property: 'Match the step to its property: add, subtract, multiply or divide.',
-  wrong_stamp: 'Work out both sides before you stamp.',
-  wrong_mistake: 'Look closely at what changed on each side.',
-  went_too_far: 'Divide by just enough to get the blocks you need.',
-  order: 'When copying two steps, keep them in the same order.',
-  different_steps: 'Copy the other side’s steps exactly.',
-  wrong_op: 'Think about which operation makes the number smaller.',
-  mult_with_sum: 'Undo adding with subtracting, and subtracting with adding.',
-  same_side: 'Put your block on the OTHER pan, not the one that was changed.',
-  undid_it: 'Do not undo the change. Give the other side the same change.',
+const BOSS = ZONES.length - 1;
+const $ = (id) => document.getElementById(id);
+
+// Everything about the round being played.
+const W = {
+  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, match, solve, inspect, run, hold, gap
+  left: null, right: null,                          // the two pans as they stand
+  step: 0, t: 0,                                    // match: which of the saboteur's changes is being matched, and seconds since it began
+  op: null, n: 2, typed: '', typedAt: 0,            // the student's move: an operation and an amount
+  angle: 0, lurch: 0,                               // the beam, in degrees (positive: the right pan is down)
+  anim: null, tries: 0,
+  gapLeft: 0, frozen: false, afterResume: null, speed: 1,
 };
 
-const TIMED = new Set(['rebalance', 'chain']);         // the scale is tipping during these problems
-const shell = createGame({
-  zones: ZONES, makeZone: genZone, makeBackup: genBackup, workedSolution, showProblem,
-  seconds: [32, 32, 30, 0, 36],                        // tilt meter: seconds until a crate slips (0 = no timer in that zone)
-  isTimed: (p) => TIMED.has(p.type), meterFloor: 10, wrongBump: 34, rightRelief: 35, winDelay: () => 1500,
-  lifeLostText: (left) => (left > 0 ? 'A CRATE SLIPPED!' : 'LAST CRATE GONE!'),
-  onLifeLost: (left) => UI.scene.querySelectorAll('g[transform^="translate(400 160)"] > g')[left]?.classList.add('fall'),
-  skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. Excellent balancing!',
-  onKeyFirst: (e) => {                                 // Enter or space skips the Saboteur's story
-    if (!G.intro || (e.key !== 'Enter' && e.key !== ' ')) return false;
-    e.preventDefault(); endIntro(); return true;
-  },
-  onKey, onRetry: () => { G.skipNextIntro = true; }, testName: '__counterweight',
+const HINTS = {
+  undid: 'Matching is not undoing. If one pan gets + 6, the other pan needs + 6 too.<span class="mono">12 + 6 = 12 + 6</span>',
+  amount: 'Same operation AND same amount.<span class="mono">× 3 on one pan : × 3 on the other</span>',
+  mixed_ops: 'Times 2 and plus 2 are different changes.<span class="mono">12 × 2 = 24, but 12 + 2 = 14</span>',
+  off: 'Read what was done to the first pan, then do exactly that to the second.',
+  too_slow: 'Look at the burst on the pan first: the operation and the amount are both there.',
+  same_op: 'To get x alone, UNDO what is with it, on both pans.<span class="mono">x + 5 = 9 : subtract 5 from both</span>',
+  wrong_kind: 'Undo adding with subtracting, and multiplying with dividing.<span class="mono">3x = 12 : divide both by 3</span>',
+  one_side: 'A change to only one pan always tips the scale.',
+  amounts: 'Both pans need the same amount, not just the same operation.',
+  mixed: 'Both pans need the same operation, not just the same number.<span class="mono">× 2 and + 2 are different</span>',
+  partial: 'Multiplying a pan means multiplying EVERYTHING on it.<span class="mono">(x + 2) × 3 = 3x + 6, not 3x + 2</span>',
+  doubted_same: 'The same operation with the same amount on both pans always keeps the scale level. That is the property of equality.',
+};
+const TIPS = {
+  undid: 'To keep an equation true, do the SAME operation to both sides.',
+  amount: 'Use the same amount on both sides of the equation.',
+  mixed_ops: 'Multiplying by 2 and adding 2 are different operations.',
+  off: 'Whatever is done to one side of an equation must be done to the other.',
+  too_slow: 'Read the operation and the amount, then match them.',
+  same_op: 'To isolate x, use the inverse operation on both sides.',
+  wrong_kind: 'Addition and subtraction undo each other; so do multiplication and division.',
+  one_side: 'Changing one side only makes the equation false.',
+  amounts: 'Both sides need the same amount.',
+  mixed: 'Both sides need the same operation.',
+  partial: 'Multiply or divide every term on a side, not just one.',
+  doubted_same: 'The properties of equality: the same operation on both sides keeps the equation true.',
+};
+
+const arcade = createArcade({
+  zones: ZONES, startZone, stopZone, onKey, hints: HINTS, skillTips: TIPS, testName: '__scale',
+  perfectText: 'Level every time: no mistakes to sharpen!',
+  lifeLostText: (left) => (left > 0 ? `A CHAIN SNAPPED! ${left} LEFT` : 'THE SCALE FELL'),
 });
-const { G, UI, $, showFeedback } = shell;
-Object.assign(G, { sel: { op: null, amount: '', moves: [], stamped: null, first: null, armed: false }, theta: 0, intro: false, introTimers: [] });
+const { G, hubAudio } = arcade;
+if (window.__scale) window.__scale.W = W;
+const busy = () => W.frozen || arcade.paused();
 
 /* ================================================================== */
-/* Drawing the canyon and the scale                                    */
+/* Zones and rounds                                                    */
 /* ================================================================== */
-const K = '#1d1433';
-const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
-
-function backdrop() {
-  return `
-    <defs>
-      <linearGradient id="gorge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a9512b"/><stop offset="1" stop-color="#5a2a1a"/></linearGradient>
-    </defs>
-    <path d="M0 230 L60 200 L120 215 L170 190 L230 210 L240 520 L0 520 Z" fill="#d98a52" ${O}/>
-    <path d="M800 220 L740 195 L690 210 L640 188 L570 212 L560 520 L800 520 Z" fill="#d98a52" ${O}/>
-    <path d="M230 210 L300 520 L500 520 L570 212 Z" fill="url(#gorge)"/>
-    <path d="M330 520 Q400 470 470 520" fill="#3a8ef0" ${O}/>
-    <path d="M0 300 L240 290 M0 370 L250 365 M800 300 L565 292 M800 380 L555 372" stroke="#b5683a" stroke-width="5"/>
-    <g opacity="0.55"><path d="M90 200 L105 150 L160 150 L175 200 Z M610 205 L622 165 L668 165 L680 205 Z" fill="#c8673a" ${O}/></g>
-    <rect x="384" y="150" width="32" height="330" fill="#8a5a2b" ${O}/>
-    <path d="M360 480 L440 480 L430 455 L370 455 Z" fill="#6b4425" ${O}/>`;
+function startZone(z) {
+  W.rounds = genZone(Math.random, z);
+  startRound(0);
 }
-
-function blocksSvg(s, letter, hidden) {
-  if (hidden) return `<text x="0" y="-18" text-anchor="middle" font-size="34" font-weight="900" fill="${K}">?</text>`;
-  const a = Math.round(s.a * 1000) / 1000, b = Math.round(s.b * 1000) / 1000;
-  let out = '', x = -78;
-  if (a > 0 && Number.isInteger(a) && a <= 6) {
-    for (let i = 0; i < a; i++) {
-      out += `<g transform="translate(${x + i * 27} -34)"><rect width="25" height="30" rx="4" fill="#3a8ef0" ${O}/><text x="12.5" y="21" text-anchor="middle" font-size="15" font-weight="900" fill="#fff">${letter}</text></g>`;
-    }
-    x += a * 27 + 4;
-  } else if (a !== 0) {
-    out += `<g transform="translate(${x} -34)"><rect width="62" height="30" rx="4" fill="#3a8ef0" ${O}/><text x="31" y="21" text-anchor="middle" font-size="14" font-weight="900" fill="#fff">${a}${letter}</text></g>`;
-    x += 66;
-  }
-  if (b > 0) {
-    const w = Math.min(90, 34 + String(b).length * 9);
-    out += `<g transform="translate(${Math.min(x, 78 - w)} -40)"><path d="M6 0 H${w - 6} L${w} 36 H0 Z" fill="#6b6f80" ${O}/><text x="${w / 2}" y="25" text-anchor="middle" font-size="16" font-weight="900" fill="#fff">${b}</text></g>`;
-  } else if (b < 0) {                                  // taken away: a balloon lifting that much
-    out += `<g transform="translate(${Math.min(x + 16, 60)} -70)"><path d="M0 34 L0 60" stroke="${K}" stroke-width="2"/><ellipse cx="0" cy="16" rx="18" ry="20" fill="#ff7a8a" ${O}/><text x="0" y="22" text-anchor="middle" font-size="13" font-weight="900" fill="#fff">−${-b}</text></g>`;
-  }
-  return out;
+function stopZone() {
+  Object.assign(W, { phase: 'idle', frozen: false, afterResume: null, anim: null });
+  $('callout').classList.add('hidden');
 }
-
-function letterOf(eq) {
-  const m = `${eq.left.text} ${eq.right.text}`.match(/[a-z]/);
-  return m ? m[0] : 'x';
+function startRound(i) {
+  const p = W.rounds[i];
+  Object.assign(W, { ri: i, round: p, tries: 0, anim: null, frozen: false, afterResume: null, left: p.left, right: p.right, step: 0, t: 0, op: null, n: 2, typed: '', lurch: 0 });
+  if (G.zone === BOSS) arcade.setBossProgress((i / W.rounds.length) * 100);
+  showLine(''); setStamp(''); clearBursts();
+  $('before').classList.toggle('hidden', p.type !== 'inspect');
+  $('clamp').classList.toggle('hidden', p.type !== 'inspect');
+  $('panL').classList.remove('mine'); $('panR').classList.remove('mine');
+  if (p.type === 'match') beginMatch(); else if (p.type === 'solve') W.phase = 'solve'; else beginInspect();
+  renderSign(true); renderPans(); renderWork(); renderCtl();
 }
-
-const endsAt = (theta) => {
-  const rad = (theta * Math.PI) / 180;
-  return [{ x: 400 - 270 * Math.cos(rad), y: 150 - 270 * Math.sin(rad) }, { x: 400 + 270 * Math.cos(rad), y: 150 + 270 * Math.sin(rad) }];
-};
-
-/**
- * Draws the scale for an equation, swinging smoothly from the last angle.
- *   hidden     beam stays level and pans show "?" (Inspector questions)
- *   chips      weight tags that drop onto (or lift off) a pan: [{ side: 'left'|'right', op, n, who: 'sab'|'you' }]
- *   saboteur   { side, bubble } to show the Saboteur by that pan (always shown in the boss zone)
- */
-function drawScale(eq, { hidden = false, chips = [], saboteur = null } = {}) {
-  const L = weigh(eq.left, eq.x), R = weigh(eq.right, eq.x);
-  const big = Math.max(Math.abs(L), Math.abs(R), 1);
-  const theta = hidden ? 0 : Math.max(-16, Math.min(16, ((R - L) / big) * 22));
-  const from = endsAt(G.theta), to = endsAt(theta);
-  const letter = letterOf(eq);
-  const pan = (id, end, s, label) => `
-    <g class="pan-group" id="${id}" style="transform: translate(${end.x}px, ${end.y}px)">
-      <path d="M0 0 L-80 82 M0 0 L80 82" stroke="${K}" stroke-width="2.5"/>
-      <g transform="translate(0 82)">${blocksSvg(s, letter, hidden)}
-        <path d="M-92 0 L92 0 L76 16 L-76 16 Z" fill="#ffd23f" ${O}/></g>
-      <g transform="translate(0 124)"><rect x="-108" y="-17" width="216" height="32" rx="6" fill="#fff4d6" ${O}/>
-        <text x="0" y="5" text-anchor="middle" font-size="${label.length > 20 ? 12 : 15}" font-weight="900" font-family="ui-monospace, monospace" fill="${K}">${label}</text></g>
-    </g>`;
-  const balanced = isBalanced(eq);
-  const level = hidden ? '#9b958b' : balanced ? '#2fbf71' : '#e5484d';
-  const sign = hidden ? '' : `<g transform="translate(400 74)"><rect x="-74" y="-16" width="148" height="28" rx="7" fill="${balanced ? '#2fbf71' : '#e5484d'}" ${O}/>
-    <text x="0" y="4" text-anchor="middle" font-size="12" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${balanced ? 'BALANCED ✓' : 'NOT BALANCED'}</text></g>`;
-  const chipSvg = chips.map((c) => {
-    const e = to[c.side === 'left' ? 0 : 1];
-    const lift = c.op === '-' || c.op === '÷';
-    return `<g transform="translate(${e.x} ${e.y + 30})"><g class="${lift ? 'chip-lift' : 'chip-drop'}">
-      <rect x="-36" y="-18" width="72" height="32" rx="8" fill="${c.who === 'sab' ? '#e5484d' : '#3a8ef0'}" ${O}/>
-      <text x="0" y="5" text-anchor="middle" font-size="17" font-weight="900" fill="#fff" font-family="ui-monospace, monospace">${OP_SIGN[c.op]} ${c.n}</text></g></g>`;
-  }).join('');
-  const sab = saboteur || (G.zone === 4 ? { side: 'right' } : null);
-  UI.scene.innerHTML = `${backdrop()}
-    <g class="beam-group" id="beam" style="transform: rotate(${G.theta}deg)">
-      <rect x="120" y="140" width="560" height="20" rx="8" fill="#c4935a" ${O}/>
-      <path d="M150 150 H650" stroke="#8a5a2b" stroke-width="3" stroke-dasharray="10 14"/>
-    </g>
-    <circle cx="400" cy="150" r="16" fill="#ffd23f" ${O}/>
-    <path d="M400 108 L388 128 L412 128 Z" fill="${level}" ${O}/>
-    ${sign}
-    ${pan('panL', from[0], eq.left, eq.left.text)}${pan('panR', from[1], eq.right, eq.right.text)}
-    ${cratesSvg()}
-    ${sab ? saboteurSvg(sab.side, sab.bubble) : ''}
-    ${chipSvg}`;
-  void UI.scene.getBoundingClientRect();                       // let the old angle paint, then swing
-  $('beam').style.transform = `rotate(${theta}deg)`;
-  $('panL').style.transform = `translate(${to[0].x}px, ${to[0].y}px)`;
-  $('panR').style.transform = `translate(${to[1].x}px, ${to[1].y}px)`;
-  if (Math.abs(theta - G.theta) > 0.5) hubAudio.playTone(theta === 0 ? 520 : 140, 'triangle', 0.25, 0.08);
-  G.theta = theta;
+function rest(seconds) { W.phase = 'gap'; W.gapLeft = seconds; renderWork(); renderCtl(); }
+function endRound() { rest(0.7); }
+function nextRound() {
+  if (W.ri + 1 < W.rounds.length) return startRound(W.ri + 1);
+  W.phase = 'idle';
+  if (G.zone === BOSS) arcade.setBossProgress(100);
+  arcade.zoneCleared();
 }
-
-function cratesSvg() {
-  let out = '<g transform="translate(400 160)"><path d="M0 0 V70" stroke="#1d1433" stroke-width="3"/>';
-  out += `<rect x="-44" y="70" width="88" height="10" rx="3" fill="#8a5a2b" ${O}/>`;
-  for (let i = 0; i < 3; i++) {
-    const lost = i >= G.lives;
-    out += `<g class="${lost ? 'gone' : ''}" ${lost ? 'opacity="0"' : ''} transform="translate(${-40 + i * 28} 44)"><rect width="24" height="24" rx="3" fill="#c4935a" ${O}/><path d="M4 4 L20 20 M20 4 L4 20" stroke="#8a5a2b" stroke-width="2"/></g>`;
-  }
-  return `${out}</g>`;
+function stopFor(message, button, then) {
+  W.frozen = true; W.afterResume = then;
+  $('calloutText').textContent = message;
+  $('resumeBtn').textContent = button;
+  $('callout').classList.remove('hidden');
 }
+function resume() {
+  if (!W.frozen || arcade.paused()) return;
+  W.frozen = false;
+  $('callout').classList.add('hidden');
+  const then = W.afterResume;
+  W.afterResume = null;
+  if (then) then();
+}
+function showLine(text, off = false) { $('cline').textContent = text; $('cline').classList.toggle('off', off); }
+/** A short wait inside a round (the saboteur winding up, pans settling). */
+function pause(seconds, then) { W.phase = 'run'; W.anim = { left: seconds, then }; renderWork(); renderCtl(); }
 
-function saboteurSvg(side = 'right', bubble = '') {
-  const x = side === 'left' ? 62 : 738;
-  const face = side === 'left' ? -1 : 1;
-  return `<g transform="translate(${x} 452)" class="saboteur">
-    <ellipse cx="0" cy="40" rx="30" ry="8" fill="rgba(0,0,0,0.25)"/>
-    <g transform="scale(${face} 1)">
-      <rect x="-20" y="-6" width="40" height="44" rx="10" fill="#4a2f6b" ${O}/>
-      <circle cx="0" cy="-18" r="17" fill="#ffd3a8" ${O}/>
-      <rect x="-17" y="-26" width="34" height="9" rx="4" fill="${K}"/>
-      <circle cx="-7" cy="-21" r="4" fill="#ffd23f"/><circle cx="7" cy="-21" r="4" fill="#ffd23f"/>
-      <path d="M-20 8 L-34 -4" stroke="${K}" stroke-width="6" stroke-linecap="round"/>
-      <path d="M-36 -8 L-30 -16 L-26 -6 Z" fill="#e5484d" ${O}/>
-    </g>
-    ${bubble ? `<g transform="translate(${side === 'left' ? 30 : -30} -70)" class="bubble"><rect x="${side === 'left' ? 0 : -96}" y="-22" width="96" height="36" rx="10" fill="#fff" ${O}/>
-      <text x="${side === 'left' ? 48 : -48}" y="3" text-anchor="middle" font-size="17" font-weight="900" fill="#e5484d" font-family="ui-monospace, monospace">${bubble}</text></g>` : ''}
-  </g>`;
+/* ================================================================== */
+/* The scale                                                           */
+/* ================================================================== */
+const MAX_TILT = 13, ARM = 300;                      // degrees when a pan is on the ground, and half the beam's length
+function renderPans(wasL = '', wasR = '') {
+  const set = (id, s, was) => { $(id).querySelector('.ptext').textContent = s.text; $(id).querySelector('.ptext').classList.toggle('long', s.text.length > 11); $(id).querySelector('.pwas').textContent = was; };
+  set('panL', W.left, wasL); set('panR', W.right, wasR);
+}
+function drawBeam() {
+  const drop = Math.sin((W.angle * Math.PI) / 180) * ARM;
+  $('beam').style.transform = `rotate(${W.angle}deg)`;
+  $('panL').style.transform = `translateY(${-drop}px)`; $('panR').style.transform = `translateY(${drop}px)`;
+}
+function burst(side, text) { const b = $(side === 'left' ? 'panL' : 'panR').querySelector('.burst'); b.textContent = text; b.classList.remove('hidden'); void b.offsetWidth; b.classList.add('pop'); }
+function clearBursts() { for (const b of document.querySelectorAll('.burst')) { b.classList.add('hidden'); b.classList.remove('pop'); } }
+function setStamp(text) { const s = $('stamp'); s.textContent = text; s.classList.remove('show'); if (text) { void s.offsetWidth; s.classList.add('show'); } }
+/** Where the beam is heading: the heavier pan goes down. In a match round it tips slowly, as a timer. */
+function beamGoal() {
+  const p = W.round, dir = tilt(W.left, W.right, p.x);
+  if (W.lurch) return W.lurch * MAX_TILT;
+  if (W.phase === 'match') return dir * MAX_TILT * Math.min(1, W.t / p.seconds);
+  if (W.phase === 'inspect' || (p.type === 'inspect' && !W.opened)) return 0;
+  return dir * MAX_TILT;
+}
+function updateBeam(dt) {
+  const goal = beamGoal(), move = 45 * dt;
+  W.angle += Math.max(-move, Math.min(move, goal - W.angle));
+  drawBeam();
 }
 
 /* ================================================================== */
-/* The equation strip: the math, step by step, under the scale         */
+/* The student's move: an operation and an amount                      */
 /* ================================================================== */
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-/** A side after a move, with the move highlighted: "7 + 5 [+ 4]" or "[(]7 + 5[) × 3]". */
-function moveHtml(html, plain, op, n, who) {
-  const span = (s) => `<span class="${who}">${s}</span>`;
-  if (op === '+' || op === '-') return `${html}${span(` ${OP_SIGN[op]} ${n}`)}`;
-  return /[+−-]/.test(plain) ? `${span('(')}${html}${span(`) ${OP_SIGN[op]} ${n}`)}` : `${html}${span(` ${OP_SIGN[op]} ${n}`)}`;
-}
-function valueLine(eq) {
-  const ok = isBalanced(eq);
-  return `<span class="${ok ? 'good' : 'bad'}">${settled(eq.left)} ${ok ? '=' : '≠'} ${settled(eq.right)}${ok ? '  ✓' : ''}</span>`;
-}
-function strip(leftHtml, rightHtml, eq) {
-  const el = $('eqStrip');
-  if (!el) return;
-  el.classList.remove('hidden');
-  el.innerHTML = `<div class="eq-line">${leftHtml} = ${rightHtml}</div><div class="eq-value">${valueLine(eq)}</div>`;
-}
-function hideStrip() { $('eqStrip')?.classList.add('hidden'); }
-function chainHtml(plain, moves, who) {
-  let html = esc(plain), text = plain;
-  for (const m of moves) { html = moveHtml(html, text, m.op, m.n, who); text = applyOp({ a: 0, b: 0, text }, m.op, m.n).text; }
-  return html;
-}
-
-/** The scale and strip as the problem stands (before the student's move). */
-function showProblemState() {
-  const p = G.problem;
-  const hidden = p.type === 'inspect' || p.type === 'critique';
-  if (p.type === 'rebalance') {
-    const s = p.sabotage;
-    drawScale(p.after, { saboteur: { side: s.side } });
-    const sabHtml = moveHtml(esc(p.start[s.side].text), p.start[s.side].text, s.op, s.n, 'sab');
-    const other = esc(p.start[p.fixSide].text);
-    strip(s.side === 'left' ? sabHtml : other, s.side === 'left' ? other : sabHtml, p.after);
-  } else if (p.type === 'chain') {
-    drawScale(p.after, { saboteur: { side: 'left' } });
-    strip(chainHtml(p.start.left.text, p.moves, 'sab'), esc(p.start.right.text), p.after);
-  } else {
-    drawScale(sceneEq(), { hidden });
-    if (p.type === 'isolate' || p.type === 'partial') strip(esc(p.start.left.text), esc(p.start.right.text), p.start);
-    else hideStrip();
-  }
-}
-
-/** The story: balanced, then the Saboteur strikes (twice for the boss), then it tips. Enter or a click skips. */
-function runIntro(p) {
-  G.intro = true; G.locked = true;
-  const moves = p.type === 'chain' ? p.moves.map((m) => ({ side: 'left', ...m })) : [{ ...p.sabotage }];
-  const later = (ms, fn) => G.introTimers.push(setTimeout(fn, ms));
-  G.theta = 0;
-  drawScale(p.start, { saboteur: { side: moves[0].side, bubble: 'Heh heh…' } });
-  strip(esc(p.start.left.text), esc(p.start.right.text), p.start);
-  let eq = p.start;
-  const html = { left: esc(p.start.left.text), right: esc(p.start.right.text) };
-  const plain = { left: p.start.left.text, right: p.start.right.text };
-  moves.forEach((m, i) => later(1300 + i * 1300, () => {
-    eq = { ...eq, [m.side]: applyOp(eq[m.side], m.op, m.n) };
-    html[m.side] = moveHtml(html[m.side], plain[m.side], m.op, m.n, 'sab');
-    plain[m.side] = eq[m.side].text;
-    drawScale(eq, { saboteur: { side: m.side, bubble: `${OP_SIGN[m.op]} ${m.n}!` }, chips: [{ side: m.side, op: m.op, n: m.n, who: 'sab' }] });
-    strip(html.left, html.right, eq);
-  }));
-  later(1300 + moves.length * 1300 + 500, endIntro);
-}
-function endIntro() {
-  if (!G.intro) return;
-  G.introTimers.forEach(clearTimeout); G.introTimers = [];
-  G.intro = false; G.locked = false;
-  showProblemState();
-}
-
-/* ================================================================== */
-/* Problems                                                            */
-/* ================================================================== */
-const TAGS = {
-  rebalance: 'REBALANCE THE SCALE', isolate: 'FREE ONE X-BLOCK', property: 'NAME THE PROPERTY', inspect: 'INSPECT THE REPAIR',
-  critique: 'CHECK THEIR WORK', partial: 'ONE CLEVER STEP', chain: 'COPY BOTH MOVES',
-};
-
-/** The shell has set G.problem, G.attempts and G.isBackup; set up the scale and controls. */
-function showProblem(p, isBackup) {
-  G.sel = { op: null, amount: '', moves: [], stamped: null, first: null, armed: false };
-  UI.taskTag.textContent = `${TAGS[p.type]}${isBackup ? ' · BACKUP' : ''}`;
-  renderPrompt();
-  renderControls();
-  G.introTimers.forEach(clearTimeout); G.introTimers = []; G.intro = false;
-  if ((p.type === 'rebalance' || p.type === 'chain') && !G.skipNextIntro) runIntro(p);
-  else { G.theta = 0; showProblemState(); }
-  G.skipNextIntro = false;                              // a retry starts straight at the tipped scale
-}
-
-/** What the scale shows before the student answers. */
-function sceneEq() {
-  const p = G.problem;
-  if (p.type === 'rebalance' || p.type === 'chain' || p.type === 'inspect' || p.type === 'critique' || p.type === 'property') return p.after;
-  return p.start;
-}
-
-function renderPrompt() {
-  const p = G.problem;
-  const eq = (e) => `<span class="eq">${eqText(e)}</span>`;
-  let html;
-  switch (p.type) {
-    case 'rebalance': html = `<span class="story">Before: ${eqText(p.start)} ✓ balanced</span>${p.prompt}${eq(p.after)}`; break;
-    case 'isolate': html = `${p.prompt}${eq(p.start)}`; break;
-    case 'property': html = `If <span class="eq">${eqText(p.start)}</span>then<span class="eq">${eqText(p.after)}</span>Which property was used?`; break;
-    case 'inspect': html = `A repair crew changed the scale. Is it still balanced?<span class="eq">Before: ${eqText(p.start)}</span><span class="eq">After: ${eqText(p.after)}</span>`; break;
-    case 'critique': html = `${p.who} changed <span class="eq">${eqText(p.start)}</span>into<span class="eq">${eqText(p.after)}</span>Is ${p.who} right?`; break;
-    case 'partial': html = `Start with<span class="eq">${eqText(p.start)}</span>What ONE step, done to both sides, leaves <b>${p.targetA}b</b> on the left?`; break;
-    case 'chain': html = `<span class="story">Before: ${eqText(p.start)} ✓ balanced</span>${p.prompt}<span class="eq">${eqText(p.after)}</span>`; break;
-    default: html = p.prompt;
-  }
-  UI.prompt.innerHTML = html;
-}
-
-function renderControls() {
-  const p = G.problem;
-  if (p.type === 'property') {
-    UI.controls.innerHTML = PROPERTIES.map((name, i) => `<button type="button" class="choice" data-choice="${i}"><b>${i + 1}</b>${name}</button>`).join('');
-    UI.controls.querySelectorAll('[data-choice]').forEach((b) => b.addEventListener('click', () => answerProperty(Number(b.dataset.choice))));
-    return;
-  }
-  if (p.type === 'inspect' || p.type === 'critique') {
-    if (G.sel.stamped === null) {
-      const yes = p.type === 'critique' ? `${p.who.toUpperCase()} IS RIGHT` : 'STILL BALANCED';
-      const no = p.type === 'critique' ? `${p.who.toUpperCase()} IS WRONG` : 'NOT BALANCED';
-      UI.controls.innerHTML = `<div class="stamps"><button type="button" class="stamp yes px" data-stamp="1">1 · ${yes}</button><button type="button" class="stamp no px" data-stamp="0">2 · ${no}</button></div>`;
-      UI.controls.querySelectorAll('[data-stamp]').forEach((b) => b.addEventListener('click', () => answerStamp(b.dataset.stamp === '1')));
-    } else {
-      const keys = Object.keys(MISTAKES);
-      UI.controls.innerHTML = `<div class="label px">WHAT WENT WRONG?</div>${keys.map((k, i) => `<button type="button" class="choice" data-mistake="${k}"><b>${i + 1}</b>${MISTAKES[k]}</button>`).join('')}`;
-      UI.controls.querySelectorAll('[data-mistake]').forEach((b) => b.addEventListener('click', () => answerMistake(b.dataset.mistake)));
-    }
-    return;
-  }
-  // Block problems: build a block (operation + number), then drag it onto a pan.
-  const n = parseAmount(G.sel.amount, G.sel.op);
-  const ready = G.sel.op && n !== null;
-  const label = G.sel.op ? `${OP_SIGN[G.sel.op]} ${G.sel.amount || '?'}` : '? ?';
-  UI.controls.innerHTML = `
-    <div class="label px">1. PICK AN OPERATION</div>
-    <div class="op-row">${['+', '-', '×', '÷'].map((op, i) => `<button type="button" class="op-btn ${G.sel.op === op ? 'on' : ''}" data-op="${op}">${OP_SIGN[op]}<small>${i + 1}</small></button>`).join('')}</div>
-    <div class="label px">2. HOW MUCH?</div>
-    <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((d) => `<button type="button" data-digit="${d}">${d}</button>`).join('')}</div>
-    <div class="label px">3. DRAG YOUR BLOCK ONTO A PAN</div>
-    <div class="tray">
-      <button type="button" id="block" class="block ${ready ? 'ready' : 'empty'} ${G.sel.armed ? 'armed' : ''}" aria-label="Your block ${label}">${label}</button>
-      <button type="button" id="clearBlock" class="clear-block" title="Clear (Backspace)">⌫</button>
-    </div>
-    <div id="trayHelp" class="tray-help">${trayHelp()}</div>`;
-  UI.controls.querySelectorAll('[data-op]').forEach((b) => b.addEventListener('click', () => pickOp(b.dataset.op)));
-  UI.controls.querySelectorAll('[data-digit]').forEach((b) => b.addEventListener('click', () => typeDigit(String(b.dataset.digit))));
-  $('clearBlock').addEventListener('click', backspace);
-  $('block').addEventListener('pointerdown', startDrag);
-}
-
-/** The line under the tray: what to do next. */
-function trayHelp() {
-  const p = G.problem;
-  if (G.sel.armed) return '<b>Now tap the LEFT or RIGHT pan.</b>';
-  if (G.sel.first) return `<b>${G.sel.first.side === 'left' ? 'Left' : 'Right'} pan done. Now the ${G.sel.first.side === 'left' ? 'RIGHT' : 'LEFT'} pan needs the same block.</b>`;
-  if (p.type === 'chain' && G.sel.moves.length === 1) return `<b>Move 1 is on. Build move 2 and drop it on the same pan.</b>`;
-  if (p.type === 'chain') return 'Copy his two moves, in order, one block at a time.';
-  if (p.type === 'isolate' || p.type === 'partial') return 'One block on EACH pan, one at a time.';
-  return 'Drag it, or tap it and then tap a pan. Keys: <kbd>←</kbd> <kbd>→</kbd>';
-}
-
-/** Redraws only the block and the help line (keeps buttons in place while typing). */
-function refreshBlock() {
-  const b = $('block');
-  if (!b) return;
-  const ready = G.sel.op && parseAmount(G.sel.amount, G.sel.op) !== null;
-  b.textContent = G.sel.op ? `${OP_SIGN[G.sel.op]} ${G.sel.amount || '?'}` : '? ?';
-  b.className = `block ${ready ? 'ready' : 'empty'} ${G.sel.armed ? 'armed' : ''}`;
-  UI.controls.querySelectorAll('[data-op]').forEach((x) => x.classList.toggle('on', x.dataset.op === G.sel.op));
-  $('trayHelp').innerHTML = trayHelp();
-}
-function pickOp(op) {
-  if (G.locked) return;
-  hubAudio.playSelect();
-  G.sel.op = op; G.sel.armed = false;
-  refreshBlock();
-}
+const canMove = () => (W.phase === 'match' || W.phase === 'solve') && !busy();
+function setOp(op) { if (!canMove() || !OPS.includes(op)) return; W.op = op; W.typed = ''; hubAudio.playStep(); showLine(''); renderWork(); }
+function setN(n) { if (!canMove()) return; n = Math.min(DIAL.hi, Math.max(DIAL.lo, Math.round(n))); if (n === W.n) return; W.n = n; hubAudio.playStep(); showLine(''); renderWork(); }
+/** Number keys: typing 1 then 2 quickly makes 12. */
 function typeDigit(d) {
-  if (G.locked) return;
-  G.sel.amount = (G.sel.amount + d).replace(/^0+(?=\d)/, '').slice(0, 2);
-  G.sel.armed = false;
-  refreshBlock();
+  const now = performance.now();
+  W.typed = now - W.typedAt < 1200 && W.typed.length < 2 ? W.typed + d : d;
+  W.typedAt = now;
+  if (Number(W.typed) >= DIAL.lo) setN(Number(W.typed));
 }
-function backspace() {
-  if (G.locked) return;
-  if (G.sel.amount) G.sel.amount = G.sel.amount.slice(0, -1); else G.sel.op = null;
-  G.sel.armed = false;
-  refreshBlock();
+function renderWork() {
+  const ph = W.phase;
+  if (ph === 'inspect') { $('work').innerHTML = '<button type="button" class="kbtn lev" data-says="level">▲ STAYS LEVEL</button><button type="button" class="kbtn tip2" data-says="tips">▼ TIPS</button>'; return; }
+  if (ph !== 'match' && ph !== 'solve') { $('work').innerHTML = ''; return; }
+  $('work').innerHTML = `<div class="opkeys2">${OPS.map((o) => `<button type="button" class="${W.op === o ? 'on' : ''}" data-op="${o}">${OP_SIGN[o]}</button>`).join('')}</div>
+    <div class="ndial"><button type="button" data-n="-1" title="Less (left arrow)">◀</button><span class="val" id="moveVal">${W.op ? stepText(W.op, W.n) : `? ${W.n}`}</span><button type="button" data-n="1" title="More (right arrow)">▶</button></div>`;
 }
-/** A gentle reminder in the help line (not a miss). */
-function nudge(text) {
-  const h = $('trayHelp');
-  if (!h) return;
-  h.innerHTML = `<span class="warn">${text}</span>`;
-  hubAudio.playTone(220, 'square', 0.12, 0.05);
-}
-function blockReady() {
-  if (G.sel.op && parseAmount(G.sel.amount, G.sel.op) !== null) return true;
-  nudge(G.sel.op ? 'Type a number for your block first (not 0).' : 'Build a block first: pick + − × ÷ and a number.');
-  return false;
+$('work').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b || busy()) return; b.blur();
+  const d = b.dataset;
+  if (d.op) setOp(d.op); else if (d.n) setN(W.n + Number(d.n)); else if (d.says) decideInspect(d.says === 'level');
+});
+/** A mistake the student can try again once. After the second miss the answer is given and the round moves on. */
+function miss(res, { answer, retry }) {
+  W.tries += 1; W.phase = 'hold';
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;                    // that was the last chain: the zone has stopped
+  const moveOn = W.tries >= 2;
+  stopFor(res.message + (moveOn ? ` ${answer}` : ''), moveOn ? 'NEXT (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? endRound : retry);
+  renderWork(); renderCtl();
 }
 
 /* ================================================================== */
-/* Dragging the block: mouse, touch and trackpad all send pointer events */
+/* Match: the saboteur hits one pan                                    */
 /* ================================================================== */
-/** Which pan a screen point is over: the left or right half of the scale picture, or null. */
-function sideAt(x, y) {
-  const r = UI.scene.getBoundingClientRect();
-  if (x < r.left || x > r.right || y < r.top || y > r.bottom) return null;
-  return x < r.left + r.width / 2 ? 'left' : 'right';
+const PAN_ID = { left: 'panL', right: 'panR' };
+function beginMatch() {
+  const p = W.round;
+  pause(0.8, () => {                                 // a beat with the scale level, then the saboteur strikes
+    const hit = hitPan(p), was = p.curtain ? `was: ${p[p.side].text}` : '';
+    W[p.side] = p.curtain ? { ...hit, text: settled(hit) } : hit;
+    burst(p.side, p.curtain ? '? ? ?' : p.hits.map((h) => stepText(h.op, h.n)).join(' then '));
+    $(PAN_ID[p.other]).classList.add('mine');
+    renderPans(p.side === 'left' ? was : '', p.side === 'right' ? was : '');
+    hubAudio.playLockRattle();
+    W.phase = 'match'; W.t = 0; W.mine = p[p.other];
+    renderSign(); renderWork(); renderCtl();
+  });
 }
-function highlightPan(side) {
-  ['panL', 'panR'].forEach((id) => $(id)?.classList.toggle('drop-target', side === (id === 'panL' ? 'left' : 'right')));
+function updateMatch(dt) {
+  const p = W.round;
+  W.t += dt;
+  if (G.practice) W.t = Math.min(W.t, p.seconds * 0.45);   // practice: the beam leans and waits
+  if (W.t < p.seconds) return;
+  miss({ key: 'too_slow', message: 'Too slow: the pan hit the ground. Read the burst on the other pan, then match it.' }, { answer: matchAnswer(p, W.step), retry: retryMatch });
 }
-function startDrag(e) {
-  if (G.locked || G.intro) return;
-  if (!blockReady()) return;
-  dragOrTap(e, e.currentTarget, {
-    targetAt: sideAt, glow: highlightPan, onDrop: drop, scene: UI.scene,
-    onTap: () => {                                     // tap: arm the block, then tap a pan
-      G.sel.armed = !G.sel.armed;
-      if (G.sel.armed) hubAudio.playSelect();
-      refreshBlock();
-    },
+function retryMatch() {
+  const p = W.round;
+  W[p.other] = W.mine; W.lurch = 0; W.t = 0; W.phase = 'match';
+  renderPans(...wasTexts()); showLine(''); renderWork(); renderCtl();
+}
+const wasTexts = () => { const p = W.round, was = p.curtain ? `was: ${p[p.side].text}` : ''; return [p.side === 'left' ? was : '', p.side === 'right' ? was : '']; };
+function goMatch() {
+  const p = W.round;
+  if (!W.op) return showLine('Choose + − × or ÷ first.', true);
+  const res = checkMatch(p, W.step, W.mine, W.op, W.n);
+  W[p.other] = res.pan; renderPans(...wasTexts());
+  if (!res.ok) { W.lurch = tilt(W.left, W.right, p.x) || (p.side === 'left' ? -1 : 1); return miss(res, { answer: matchAnswer(p, W.step), retry: retryMatch }); }
+  arcade.good(10); hubAudio.playCoinClink(); setStamp(res.property);
+  W.mine = res.pan; W.step += 1; W.t = 0; W.op = null; W.typed = '';
+  if (W.step < p.hits.length) { showLine(`${res.message.replace(': level again.', '.')} One more change to match.`); return renderWork(); }
+  showLine(res.message); clearBursts();
+  rest(1.2);
+}
+
+/* ================================================================== */
+/* Solve: one move, done to both pans                                  */
+/* ================================================================== */
+function goSolve() {
+  const p = W.round;
+  if (!W.op) return showLine('Choose + − × or ÷ first.', true);
+  const res = checkSolve(p, W.op, W.n);
+  W.left = applyOp(p.left, W.op, W.n); W.right = applyOp(p.right, W.op, W.n); renderPans();   // first show the move on both pans...
+  hubAudio.playCartridgeLaunch();
+  pause(0.7, () => {                                                                         // ...then what each pan comes to
+    W.left = res.left; W.right = res.right; renderPans();
+    if (res.ok) { arcade.good(15); hubAudio.playCoinClink(); setStamp(res.property); showLine(res.message); return rest(1.4); }
+    miss(res, { answer: solveAnswer(p), retry: () => { W.left = p.left; W.right = p.right; W.phase = 'solve'; W.op = null; renderPans(); renderWork(); renderCtl(); } });
   });
 }
 
 /* ================================================================== */
-/* Answers                                                             */
+/* Inspect: a clamped scale                                            */
 /* ================================================================== */
-/** The student's block lands on one pan. */
-function drop(side) {
-  const p = G.problem;
-  if (G.locked || G.intro || !['rebalance', 'isolate', 'partial', 'chain'].includes(p.type)) return;
-  if (!blockReady()) return;
-  const op = G.sel.op, n = parseAmount(G.sel.amount, op);
-  G.sel.armed = false;
-  hubAudio.playTone(330, 'triangle', 0.12, 0.08);
-  let res;
-  if (p.type === 'rebalance') {
-    res = checkRebalanceDrop(p, side, op, n);
-    showRebalanceDrop(p, side, op, n, res.result);
-    return settle(res);
-  }
-  if (p.type === 'chain') {
-    if (side === 'left') {
-      const eq = { ...p.after, left: applyOp(p.after.left, op, n) };
-      drawScale(eq, { saboteur: { side: 'left' }, chips: [{ side: 'left', op, n, who: 'you' }] });
-      return settle({ correct: false, key: 'same_side', message: 'The Saboteur already did his two moves to the LEFT pan. Copy them onto the RIGHT pan.' });
-    }
-    if (G.sel.moves.length === 0) {                     // move 1 lands; the scale is still off
-      G.sel.moves.push({ op, n });
-      G.sel.op = null; G.sel.amount = '';
-      renderControls();
-      const partial = { ...p.after, right: applyOp(p.start.right, op, n) };
-      drawScale(partial, { saboteur: { side: 'left' }, chips: [{ side: 'right', op, n, who: 'you' }] });
-      strip(chainHtml(p.start.left.text, p.moves, 'sab'), chainHtml(p.start.right.text, [{ op, n }], 'you'), partial);
-      return;
-    }
-    res = checkChain(p, [...G.sel.moves, { op, n }]);
-    if (res.result) showMove(p, op, n, res.result);
-    return settle(res);
-  }
-  // isolate and partial: one block on each pan, one at a time
-  const first = G.sel.first;
-  if (!first) {
-    G.sel.first = { side, op, n };
-    const half = { ...p.start, [side]: applyOp(p.start[side], op, n) };
-    drawScale(half, { chips: [{ side, op, n, who: 'you' }] });
-    const html = { left: esc(p.start.left.text), right: esc(p.start.right.text) };
-    html[side] = moveHtml(html[side], p.start[side].text, op, n, 'you');
-    strip(html.left, html.right, half);
-    refreshBlock();                                     // the same block stays ready for the other pan
-    return;
-  }
-  if (side === first.side) return nudge(`The ${side} pan already has its block. Drop one on the ${side === 'left' ? 'RIGHT' : 'LEFT'} pan.`);
-  const mismatch = checkPair(first, { side, op, n });
-  if (mismatch) {
-    const eq = { ...p.start, [first.side]: applyOp(p.start[first.side], first.op, first.n), [side]: applyOp(p.start[side], op, n) };
-    drawScale(eq, { chips: [{ side, op, n, who: 'you' }] });
-    const html = { [first.side]: moveHtml(esc(p.start[first.side].text), p.start[first.side].text, first.op, first.n, 'you'), [side]: moveHtml(esc(p.start[side].text), p.start[side].text, op, n, 'you') };
-    strip(html.left, html.right, eq);
-    return settle(mismatch);
-  }
-  res = p.type === 'isolate' ? checkIsolate(p, op, n) : checkPartial(p, op, n);
-  if (res.result) showMove(p, op, n, res.result, side);
-  settle(res);
+const INSPECT_SECONDS = 9;
+function beginInspect() {
+  const p = W.round;
+  W.phase = 'inspect'; W.t = 0; W.opened = false;
+  $('before').textContent = `BEFORE THE REPAIR:  ${p.before}`;
+  $('clamp').textContent = 'CLAMPED';
 }
-
-/** Rebalance: the student's block lands on either pan, after the Saboteur's red block. */
-function showRebalanceDrop(p, side, op, n, result) {
-  const s = p.sabotage;
-  drawScale(result, { saboteur: { side: s.side }, chips: [{ side, op, n, who: 'you' }] });
-  const html = { [s.side]: moveHtml(esc(p.start[s.side].text), p.start[s.side].text, s.op, s.n, 'sab'), [p.fixSide]: esc(p.after[p.fixSide].text) };
-  html[side] = moveHtml(html[side], p.after[side].text, op, n, 'you');
-  strip(html.left, html.right, result);
+function updateInspect(dt) {
+  if (G.practice) return;
+  W.t += dt;
+  const left = Math.ceil(INSPECT_SECONDS - W.t);
+  $('clamp').textContent = left <= 5 ? `OPENS IN ${Math.max(1, left)}` : 'CLAMPED';
+  if (W.t >= INSPECT_SECONDS) openClamp(null);
 }
-
-/** Animates the student's finished move on the scale and shows it in blue in the equation strip. */
-function showMove(p, op, n, result, lastSide = 'right') {
-  if (p.type === 'chain') {
-    drawScale(result, { saboteur: { side: 'left' }, chips: [{ side: 'right', op, n, who: 'you' }] });
-    strip(chainHtml(p.start.left.text, p.moves, 'sab'), chainHtml(p.start.right.text, [...G.sel.moves, { op, n }], 'you'), result);
-  } else {
-    drawScale(result, { chips: [{ side: lastSide, op, n, who: 'you' }] });
-    strip(moveHtml(esc(p.start.left.text), p.start.left.text, op, n, 'you'), moveHtml(esc(p.start.right.text), p.start.right.text, op, n, 'you'), result);
-  }
-}
-
-function answerProperty(i) {
-  if (G.locked) return;
-  const res = checkProperty(G.problem, PROPERTIES[i]);
-  UI.controls.querySelectorAll('[data-choice]').forEach((b) => {
-    if (Number(b.dataset.choice) === i) b.classList.add(res.correct ? 'right' : 'wrong');
+function decideInspect(saysLevel) { if (W.phase === 'inspect' && !busy()) openClamp(saysLevel); }
+/** saysLevel: the student's call, or null when the clamp opened by itself. */
+function openClamp(saysLevel) {
+  const p = W.round, res = saysLevel === null ? { ok: false, key: 'too_slow', message: `Too slow: the clamp opened by itself. ${p.level ? 'It stayed level.' : 'It tipped.'} ${p.why}` } : checkInspect(p, saysLevel);
+  W.opened = true;
+  $('clamp').classList.add('hidden');
+  hubAudio.playCartridgeLaunch();
+  pause(0.7, () => {
+    if (res.ok) { arcade.good(10); hubAudio.playCoinClink(); showLine(res.message); return rest(1.1); }
+    W.phase = 'hold';
+    arcade.bad(res.key, 20);
+    if (W.phase === 'idle') return;
+    stopFor(res.message, 'CARRY ON (ENTER)', endRound);   // the scale has shown the answer, so the line moves on
+    renderWork(); renderCtl();
   });
-  settle(res);
-}
-
-function answerStamp(says) {
-  if (G.locked) return;
-  const p = G.problem;
-  const res = checkStamp(p, says);
-  drawScale(p.after);                                   // reveal the real tilt
-  strip(esc(p.after.left.text), esc(p.after.right.text), p.after);
-  if (res.correct && !p.equivalent) {                   // right stamp; now name the mistake
-    hubAudio.playCoinClink();
-    G.sel.stamped = true;
-    showFeedback(true, res.message);
-    renderControls();
-    return;
-  }
-  settle(res);
-}
-function answerMistake(key) {
-  if (G.locked) return;
-  settle(checkMistake(G.problem, key));
-}
-
-/** Right or wrong: the shell scores it. A first miss clears the student's block, then redraws the problem. */
-function settle(res) {
-  if (!res.correct && G.attempts === 0) {
-    if (G.problem.type === 'chain') G.sel.moves = [];
-    G.sel.op = null; G.sel.amount = ''; G.sel.stamped = null; G.sel.first = null; G.sel.armed = false;
-    renderControls();
-  }
-  shell.settle(res, { delay: 1400, retry: showProblemState });
 }
 
 /* ================================================================== */
-/* Keys and start-up                                                   */
+/* The clock, keys, sign and the bottom bar                            */
 /* ================================================================== */
-/** Keys while a problem is in play (the shell handles Enter on buttons, help, sound and the briefing). */
+function update(dt) {
+  if (W.phase === 'idle' || arcade.paused()) return;
+  updateBeam(dt);                                   // the beam keeps moving behind a mistake message, so the tip is seen
+  if (W.frozen) return;
+  if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
+  if (W.phase === 'run') { W.anim.left -= dt; if (W.anim.left <= 0) { const { then } = W.anim; W.anim = null; then(); } return; }
+  if (W.phase === 'match') updateMatch(dt);
+  else if (W.phase === 'inspect') updateInspect(dt);
+}
+function go() { if (busy()) return; if (W.phase === 'match') goMatch(); else if (W.phase === 'solve') goSolve(); }
+const OP_KEYS = { '+': '+', '-': '-', '*': '×', x: '×', X: '×', '/': '÷' };
 function onKey(e) {
-  const key = e.key;
-  const p = G.problem;
-  const n = Number(key);
-  if (p.type === 'property' && n >= 1 && n <= 4) return answerProperty(n - 1);
-  if ((p.type === 'inspect' || p.type === 'critique') && G.sel.stamped === null && (n === 1 || n === 2)) return answerStamp(n === 1);
-  if ((p.type === 'inspect' || p.type === 'critique') && G.sel.stamped && n >= 1 && n <= 4) return answerMistake(Object.keys(MISTAKES)[n - 1]);
-  if (['rebalance', 'isolate', 'partial', 'chain'].includes(p.type)) {
-    if (key >= '1' && key <= '4' && !G.sel.op) { e.preventDefault(); return pickOp(['+', '-', '×', '÷'][n - 1]); }
-    if (key === '+') return pickOp('+');
-    if (key === '-') return pickOp('-');
-    if (key === '*' || key === 'x') return pickOp('×');
-    if (key === '/') { e.preventDefault(); return pickOp('÷'); }
-    if (/^[0-9]$/.test(key)) return typeDigit(key);
-    if (key === 'Backspace') { e.preventDefault(); return backspace(); }
-    if (key === 'ArrowLeft') { e.preventDefault(); return drop('left'); }
-    if (key === 'ArrowRight') { e.preventDefault(); return drop('right'); }
-    if (key === 'Enter') { e.preventDefault(); return nudge('Use ← or → to drop your block on a pan.'); }
-  }
+  const k = e.key;
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else go(); return; }
+  if (W.frozen) return;
+  if (W.phase === 'inspect') { if (k === 'ArrowUp' || k === 'ArrowDown') { e.preventDefault(); decideInspect(k === 'ArrowUp'); } return; }
+  if (OP_KEYS[k]) { e.preventDefault(); setOp(OP_KEYS[k]); }
+  else if (/^\d$/.test(k)) typeDigit(k);
+  else if (k === 'ArrowLeft' || k === 'ArrowRight') { e.preventDefault(); setN(W.n + (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 5 : 1)); }
+}
+$('goBtn').addEventListener('click', (e) => { e.currentTarget.blur(); go(); });
+$('resumeBtn').addEventListener('click', (e) => { e.currentTarget.blur(); resume(); });
+
+function renderSign(isNew = false) {
+  const p = W.round, at = `${W.ri + 1}/${W.rounds.length}`;
+  let small = `SCALE ${at} · SAME THING, BOTH PANS`, text = 'THE SABOTEUR HIT ONE PAN. DO THE SAME TO THE OTHER';
+  if (p.type === 'match' && p.curtain) { small = `SCALE ${at} · BEHIND THE CURTAIN`; text = 'WHAT WAS DONE TO THAT PAN? DO THE SAME TO THIS ONE'; }
+  else if (p.type === 'match' && p.hits.length === 2) text = 'TWO CHANGES! MATCH THEM IN THE SAME ORDER';
+  else if (p.type === 'solve') { small = `SCALE ${at} · YOUR MOVE`; text = 'GET THE x-BLOCK ALONE: ONE MOVE, DONE TO BOTH PANS'; }
+  else if (p.type === 'inspect') { small = `SCALE ${at} · INSPECTION`; text = 'THE CLAMP IS ABOUT TO OPEN: LEVEL, OR WILL IT TIP?'; }
+  $('signSmall').textContent = small;
+  $('signText').textContent = text;
+  if (isNew) { const s = $('sign'); s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); }
+}
+function renderCtl() {
+  const ph = W.phase;
+  const label = { match: 'DO IT TO THE OTHER PAN (ENTER)', solve: 'DO IT TO BOTH PANS (ENTER)' }[ph];
+  $('goBtn').classList.toggle('hidden', !label);
+  $('goBtn').textContent = label || '';
+  $('tip').textContent = { match: '+ − × ÷ for the operation · number keys or ← → for the amount', solve: '+ − × ÷ for the operation · number keys or ← → for the amount',
+    inspect: '↑ stays level · ↓ tips' }[ph] || '';
+  $('waveTag').textContent = W.rounds.length ? `ROUND ${W.ri + 1}/${W.rounds.length}` : '';
 }
 
-function init() {
-  const stripEl = document.createElement('div');
-  stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
-  $('stage').appendChild(stripEl);
-  $('stage').addEventListener('click', (e) => {
-    if (G.intro) return endIntro();
-    if (G.sel.armed) { const side = sideAt(e.clientX, e.clientY); if (side) drop(side); }
-  });
-  // Show a sample scale behind the briefing.
-  drawScale({ left: { a: 0, b: 12, text: '7 + 5' }, right: { a: 0, b: 12, text: '12' }, x: null });
+let last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  update(dt * W.speed);
+  requestAnimationFrame(frame);
 }
-
-init();
+// Something to look at behind the briefing.
+$('panL').querySelector('.ptext').textContent = 'x + 3'; $('panR').querySelector('.ptext').textContent = '9';
+drawBeam();
+requestAnimationFrame(frame);

@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Counterweight · Lesson 4-2 Properties of Equality</title>
+  <title>Counterweight · Lesson 4-2 Apply Properties of Equality</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@700;800;900&display=swap">
   <link rel="stylesheet" href="../../../../shared/game/game.css">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -23,12 +23,12 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, a crate slips off the lift">
-      <div class="px hud-label">TILT</div>
+    <div class="hud-meter" id="meterBox" title="Every mistake shakes the scale. When this fills, a spare chain snaps">
+      <div class="px hud-label">SHAKE</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
     <div class="hud-crates">
-      <div class="px hud-label">CARGO</div>
+      <div class="px hud-label">CHAINS</div>
       <div id="lives" class="crates"></div>
     </div>
     <div class="hud-score">
@@ -42,21 +42,37 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="Balance scale"></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play">
+      <div id="before" class="before hidden"></div>
+      <div id="scale" class="scale">
+        <div id="stamp" class="stamp-eq px"></div>
+        <div id="beam" class="beam"><i></i></div>
+        <div class="post"></div>
+        <div id="panL" class="pan"><div class="burst hidden"></div><div class="ptext"></div><div class="pwas"></div></div>
+        <div id="panR" class="pan"><div class="burst hidden"></div><div class="ptext"></div><div class="pwas"></div></div>
+        <div id="clamp" class="clamp px hidden">CLAMPED</div>
+        <div class="ground"></div>
+      </div>
+      <div id="work" class="work"></div>
+      <div id="cline" class="cline"></div>
+    </div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">THE SABOTEUR</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <div id="tip" class="tip"></div>
+      <button type="button" id="goBtn" class="cbtn go px hidden"></button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -70,40 +86,48 @@
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. KEEP IT LEVEL</div>
-          <p>The cargo lift hangs from a giant balance. The <b>Saboteur</b> changes one side. Drag the <b>same block</b> onto the other side to level it.</p></div>
-        <div class="brief-col"><div class="px col-h">2. THE RULE</div>
-          <p>Whatever you do to one side, do to the other.</p>
-          <p class="mono">7 + 5 = 12<br>7 + 5 <b>+ 4</b> = 12 <b>+ 4</b> ✓</p></div>
+        <div class="brief-col"><div class="px col-h">1. THE SCALE IS AN EQUATION</div>
+          <p>The two pans weigh the same, so the beam is level. An <b>x-block</b> has a hidden weight.</p>
+          <p class="mono">x + 3 = 9</p></div>
+        <div class="brief-col"><div class="px col-h">2. SAME THING, BOTH PANS</div>
+          <p>A saboteur changes <b>one</b> pan and the beam starts to tip. Do the <b>same thing</b> to the other pan before it hits the ground: same operation, same amount.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>Wrong moves and waiting tip the scale. When the <b>TILT</b> meter fills, a crate slips off. Lose all <b>3 crates</b> and the run ends. Beat the Saboteur to win!</p></div>
+          <p>Every mistake makes the scale <b>SHAKE</b>. When it fills, a chain snaps. Lose all <b>3 chains</b> and the scale falls. Stop the Saboteur to win!</p></div>
       </div>
-      <div class="brief-keys">Build a block, then <b>drag it onto a pan</b> (or tap it, then tap a pan) · <kbd>1</kbd>–<kbd>4</kbd> + − × ÷ · <kbd>0</kbd>–<kbd>9</kbd> amount · <kbd>←</kbd> <kbd>→</kbd> drop · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>+</kbd> <kbd>-</kbd> <kbd>*</kbd> <kbd>/</kbd> the operation · number keys or <kbd>←</kbd> <kbd>→</kbd> the amount · <kbd>Enter</kbd> do it · <kbd>↑</kbd> level <kbd>↓</kbd> tips · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
-        <button type="button" id="startBtn" class="btn btn-go"><span class="px">⚖️ START MISSION (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no lost crates</small></button>
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">⚖️ STEADY THE SCALE (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no shake · the beam waits</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">SCALE TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">
-      <div class="px big-title">CARGO LOST!</div>
-      <p id="failText">All 3 crates slipped off the lift.</p>
+      <div class="px big-title">THE SCALE FELL!</div>
+      <p id="failText">All 3 chains snapped.</p>
       <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
     </div>
   </div>
 
   <div id="report" class="overlay hidden">
     <div class="card report">
-      <div class="px big-title">LIFT REPORT</div>
+      <div class="px big-title">SCALE REPORT</div>
       <div id="reportStars" class="report-stars"></div>
       <div id="reportStats" class="report-stats"></div>
       <div id="reportZones" class="report-zones"></div>
