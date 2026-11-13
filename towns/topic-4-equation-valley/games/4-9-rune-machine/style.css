@@ -1,28 +1,80 @@
-/* Rune Machine (Lesson 4-9): the stone machine, its table and the rule boxes. Shared looks are in shared/game/game.css. */
-.rune { transition: fill 0.4s; }
-.rune.lit { fill: #ffd23f; animation: runeGlow 0.9s ease-out; }
-@keyframes runeGlow { 0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 1; } }
-.row-lit { animation: rowIn 0.35s ease-out; }
-@keyframes rowIn { from { opacity: 0.4; } }
+/* Rune Machine (Lesson 4-9): the machine, its dials, the table on the wall, the stones and the number line. Shared looks are in shared/game/game.css. */
+#app.arcade { grid-template-columns: 1fr; background: #2b2233; }
+#app.arcade .hud { grid-column: 1; }
+.mono { font-family: ui-monospace, 'Courier New', monospace; font-weight: 900; }
+.stage { background: linear-gradient(#3b2f4a 0%, #57436a 100%); }
+.play { position: absolute; inset: 0 0 66px 0; overflow: hidden; }
 
-/* ---- the hint strip under the machine ---- */
-.eq-strip { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5; min-width: 440px; width: max-content; max-width: 94%;
-  background: #fff4d6; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 6px 16px; text-align: center; }
-.eq-line { font-family: ui-monospace, 'Courier New', monospace; font-size: 23px; font-weight: 900; color: var(--ink); line-height: 1.35; }
-.eq-line.small { font-size: 16px; color: #5e5640; white-space: normal; }
-.prompt .story { display: block; font-size: 15px; font-weight: 800; background: #fff; border: 3px solid var(--ink); border-radius: 10px; padding: 7px 10px; margin-top: 6px; }
+/* ---- the sign ---- */
+.sign { position: absolute; z-index: 2; top: 8px; left: 50%; transform: translateX(-50%); min-width: 420px; max-width: 1000px; text-align: center; white-space: nowrap;
+  background: #fff8e1; border: 4px solid var(--ink); border-radius: 14px; box-shadow: 0 5px 0 var(--ink); padding: 7px 22px 9px; pointer-events: none; }
+.sign small { display: block; font-size: 8px; color: #8a6d3b; margin-bottom: 6px; }
+#signText { font-family: ui-monospace, 'Courier New', monospace; font-size: 21px; font-weight: 900; color: var(--ink); }
+.sign.new { animation: signPop 0.4s ease-out; }
+@keyframes signPop { from { transform: translateX(-50%) scale(1.1); background: var(--gold); } to { transform: translateX(-50%) scale(1); } }
+#app.arcade .boss-bar { left: auto; right: 12px; top: 10px; transform: none; width: 180px; }
 
-/* ---- rule shapes and number boxes ---- */
-.shapes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.shape { height: 46px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 var(--ink);
-  font-family: ui-monospace, 'Courier New', monospace; font-size: 19px; font-weight: 900; color: var(--ink); }
-.shape.on { background: #ffe680; outline: 4px solid var(--gold); outline-offset: 2px; }
-.shape .sq { color: #8f3f22; }
-.rule-row { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 56px; padding: 4px 8px; border: 3px solid var(--ink); border-radius: 12px;
-  background: #fff; font-family: ui-monospace, 'Courier New', monospace; font-size: 24px; font-weight: 900; color: var(--ink); }
-.rule-row .empty { font-family: Nunito, system-ui, sans-serif; font-size: 14px; color: #a99a74; }
-.rbox { width: 76px; height: 44px; text-align: center; font-family: ui-monospace, 'Courier New', monospace; font-size: 22px; font-weight: 900;
-  border: 3px solid #8f3f22; border-radius: 9px; background: #fff3c4; color: var(--ink); }
-.rbox.wide { width: 120px; }
-.rbox:focus { outline: 4px solid var(--gold); outline-offset: 1px; }
-.fills { display: grid; gap: 8px; }
+/* ---- what went wrong. It sits low, so the machine and table stay in view ---- */
+.callout { position: absolute; z-index: 6; bottom: 76px; left: 50%; transform: translateX(-50%); width: 860px; background: #ffe3cc; border: 4px solid var(--ink); border-radius: 14px;
+  box-shadow: 0 5px 0 var(--ink); padding: 10px 14px; font-size: 17px; font-weight: 800; line-height: 1.35; text-align: center; }
+.callout button { margin-top: 8px; height: 40px; padding: 0 16px; border: 3px solid var(--ink); border-radius: 10px; background: var(--gold); font-size: 10px; }
+
+/* ---- the bar along the bottom ---- */
+.ctl { position: absolute; left: 0; right: 0; bottom: 0; height: 66px; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 14px;
+  background: var(--night); border-top: 4px solid var(--ink); }
+.cbtn { height: 46px; padding: 0 14px; border: 3px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 0 4px 0 #000; font-size: 15px; font-weight: 900; color: var(--ink); }
+.cbtn.go { background: var(--red); color: #fff; font-size: 10px; min-width: 250px; }
+.tip { color: #fff; font-size: 15px; font-weight: 800; }
+.wave-tag { color: var(--gold); font-size: 9px; min-width: 100px; text-align: right; }
+
+/* ---- the machine ---- */
+.chute { position: absolute; left: 0; width: 50%; top: 232px; height: 12px; background: #2b2233; border: 3px solid var(--ink); border-left: 0; }
+.mach { position: absolute; left: 50%; top: 92px; transform: translateX(-50%); width: 470px; min-height: 196px; background: #8d99ae; border: 5px solid var(--ink); border-radius: 22px;
+  box-shadow: 0 8px 0 rgba(0,0,0,0.35), inset 0 0 0 6px #6c778c; padding: 14px 16px; text-align: center; }
+.mach.glow { background: #9df0b4; }
+.m-rule { font: 900 40px ui-monospace, 'Courier New', monospace; color: var(--ink); white-space: nowrap; }
+.m-names { font-size: 14px; font-weight: 800; color: #2b2233; margin-top: 2px; }
+.m-dials { margin-top: 8px; }
+.shapes { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
+.shapes button { height: 38px; padding: 0 7px; border: 3px solid var(--ink); border-radius: 10px; background: #fff; font: 900 13px ui-monospace, 'Courier New', monospace; color: var(--ink); white-space: nowrap; }
+.shapes button.on { background: var(--gold); }
+.dial { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 900; color: var(--ink); }
+.dial span.lab { min-width: 150px; text-align: right; }
+.dial button { width: 42px; height: 38px; border: 3px solid var(--ink); border-radius: 9px; background: #fff; font-size: 16px; font-weight: 900; }
+.dial .val { min-width: 62px; height: 38px; border: 3px solid var(--ink); border-radius: 9px; background: #fff3c4; font: 900 22px ui-monospace, 'Courier New', monospace; line-height: 32px; }
+.dial.on .val { outline: 4px solid var(--gold); outline-offset: 1px; }
+
+/* ---- the table on the wall ---- */
+.tbl { position: absolute; left: 22px; top: 92px; width: 330px; background: #fffdf4; border: 4px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 0 rgba(0,0,0,0.3); padding: 8px; }
+.tbl table { width: 100%; border-collapse: collapse; font: 900 20px ui-monospace, 'Courier New', monospace; color: var(--ink); text-align: center; }
+.tbl th { font: 800 12px 'Nunito', system-ui, sans-serif; color: #6b5a3a; padding: 2px 4px 6px; }
+.tbl td { border-top: 2px solid #d9c69c; padding: 5px 4px; }
+.tbl td.made { min-width: 76px; color: #8a6d3b; }
+.tbl tr.ok td.made { background: #d9f7e3; color: #1f6b3e; } .tbl tr.bad td.made { background: #ffd9dc; color: #b3261e; }
+.tbl tr.own td:first-child::before { content: '★ '; color: #d98a00; }
+.tbl .empty { font: 800 14px 'Nunito', system-ui, sans-serif; color: #8a6d3b; padding: 14px 6px; }
+
+/* ---- stones and the target box (not called .crate: the top bar's torches use that name) ---- */
+.stone { position: absolute; left: 0; top: 0; width: 88px; height: 52px; text-align: center; background: #e9e2d0; border: 4px solid var(--ink); border-radius: 26px; will-change: transform;
+  font: 900 20px ui-monospace, 'Courier New', monospace; line-height: 44px; color: var(--ink); }
+.stone.out { background: var(--gold); } .stone.caught { background: #9df0b4; } .stone.smash { background: #ff9d9d; border-color: #e5484d; }
+.goalbox { position: absolute; left: calc(50% + 262px); top: 150px; min-width: 190px; padding: 12px 16px; background: #c98a4b; border: 4px solid var(--ink); border-radius: 12px; box-shadow: 0 6px 0 rgba(0,0,0,0.3);
+  font: 900 24px ui-monospace, 'Courier New', monospace; color: #fff; text-align: center; white-space: nowrap; }
+.goalbox small { display: block; font: 800 12px 'Nunito', system-ui, sans-serif; color: #fff3c4; margin-bottom: 4px; }
+.goalbox.ok { background: #2e9e5b; } .goalbox.bad { background: #c0392b; }
+
+/* ---- the number line ---- */
+.nl { position: absolute; left: 0; right: 0; top: 452px; height: 150px; touch-action: none; cursor: ew-resize; }
+.nl .bar { position: absolute; left: 70px; right: 70px; top: 76px; height: 5px; background: #fff; }
+.nl .tick { position: absolute; top: 68px; width: 2px; height: 20px; margin-left: -1px; background: #fff; }
+.nl .tick.small { top: 73px; height: 10px; opacity: 0.6; }
+.nl .tl { position: absolute; top: 94px; width: 40px; margin-left: -20px; text-align: center; font: 900 14px ui-monospace, 'Courier New', monospace; color: #fff; }
+.nl .cap { position: absolute; left: 8px; top: 122px; font-size: 13px; font-weight: 800; color: #e6dcf5; }
+.mark { position: absolute; top: 14px; width: 84px; height: 50px; margin-left: -42px; text-align: center; border: 4px solid var(--ink); border-radius: 8px 8px 22px 22px; background: var(--gold);
+  font: 900 22px ui-monospace, 'Courier New', monospace; line-height: 42px; color: var(--ink); }
+.mark.basket { background: #d9a066; border-radius: 6px 6px 26px 26px; }
+.mark.locked { opacity: 0.75; border-style: dashed; }
+.mark::after { content: ''; position: absolute; left: 50%; top: 100%; width: 2px; height: 12px; margin-left: -1px; background: #fff; }
+.hint-card { width: 640px; }
+.hint-text { font-size: 17px; font-weight: 800; line-height: 1.45; margin: 12px 0 14px; }
+.hint-text .mono { display: block; margin-top: 8px; font-size: 20px; }

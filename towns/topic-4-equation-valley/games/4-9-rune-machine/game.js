@@ -1,303 +1,417 @@
-// Rune Machine (Lesson 4-9): the ancient machine, its stone table and the controls. The math and checks live in rune.js;
-// zones, timer, lives, scoring and the report come from the shared game shell (shared/game/gameShell.js).
+// Rune Machine (Lesson 4-9: Use Patterns to Write and Solve Equations): the screen and the controls.
+// The math is in rune.js. The shared parts of an action game (briefing, top bar, torches, hint card, report)
+// are in shared/game/arcadeShell.js.
 //
-// Problem types: crack (pick the rule's shape, type its numbers; the machine tests every row), fill (the rule is carved
-// on the machine; fill the missing outputs), predict (read far ahead, or work backward), maya (where does her rule break?).
-import {
-  ZONES, genZone, genBackup, checkRule, checkFill, checkPredict, checkMaya, workedSolution, ruleText, needs, fmt, run, parseNumber,
-} from './rune.js';
-import { hubAudio } from '../../../../shared/audio.js';
-import { createGame } from '../../../../shared/game/gameShell.js';
+// A zone is a list of ROUNDS. Each round is one of four moves:
+//   catch  the rule is on the machine; stones roll in; the basket must be where each output lands
+//   dials  a table is on the wall; set the rule on the dials; the machine runs every row
+//   back   the machine must make a target; choose the input stone
+//   feed   the rule is hidden; choose inputs to test, then it becomes a dials round
+// All timing goes through update(), so the action stops cleanly whenever a banner, hint, help screen or mistake
+// message is showing.
+import { createArcade } from '../../../../shared/game/arcadeShell.js';
+import { ZONES, genZone, run, ruleText, fmt, TEMPLATES, needs, DIAL, checkCatch, testRule, answerRule, checkBack, feedRows, dialsFromFeed } from './rune.js';
 
-const SKILL_TIPS = {
-  add_vs_times: 'Outputs going up by the same amount can mean MULTIPLY: compare across each row, not just down the column.',
-  swapped: 'The rule gives the output (dependent) from the input (independent): y = …x.',
-  skipped_inputs: 'When inputs skip, divide the output jump by the input jump to get the change for 1.',
-  wrong_direction: 'If the outputs go down, the rule takes away: start − rate × input.',
-  forgot_start: 'Two-step rules have a start amount: check what the output would be at 0.',
-  some_rows: 'A rule must work for EVERY row, not just the first one.',
-  no_rows: 'Compare each output with its input: added to, or multiplied?',
-  order_of_ops: 'In y = 2x + 5, multiply first, then add.',
-  calc: 'Put the input into the rule carefully, one step at a time.',
-  forward_instead: 'Working backward means undoing the rule: divide instead of multiply, subtract instead of add.',
-  scaled_with_start: 'You can\'t just scale up one row when the rule has a start amount. Use the rule.',
-  use_the_rule: 'Find the rule first, then use it to read far down the table.',
-  first_row_only: 'Test a rule on every row. One matching row proves nothing.',
+const BOSS = ZONES.length - 1;
+const ROLL = [5, 5, 6.5, 5, 5.5], FLY = 0.75;      // seconds a stone takes to roll in (per zone), and to fly out
+const $ = (id) => document.getElementById(id);
+const play = $('play'), stone = $('stone'), nl = $('nl');
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+// Everything about the round being played.
+const W = {
+  rounds: [], ri: 0, round: null, phase: 'idle',    // phase: idle, catch, dials, test, back, feed, fed, gap
+  axis: null, val: 0, locked: false,                // the number line, and where the basket or the chosen stone is
+  ci: 0, stage: 'roll', t: 0, misses: 0,            // catch: which stone, and where it is (roll, fly, wait)
+  g: null, di: 0, test: null,                       // dials: the student's rule, the active dial, the running test
+  fed: [], tries: 0,
+  gapLeft: 0, frozen: false, afterResume: null, speed: 1,
 };
 
-const shell = createGame({
-  zones: ZONES, makeZone: genZone, makeBackup: genBackup, workedSolution, showProblem,
-  seconds: [60, 60, 55, 60, 80],                       // seconds until the runes fade, per zone
-  meterFloor: 8, wrongBump: 30, rightRelief: 25, pauseOnBanner: true,
-  lifeLostText: (left) => (left > 0 ? 'A TORCH WENT OUT!' : 'THE MACHINE SEALED!'),
-  bossHitText: 'RUNE CRACKED!', winDelay: () => 1700,
-  skillTips: SKILL_TIPS, perfectText: 'No mistakes to sharpen. A true rune master!',
-  onKey, testName: '__rune',
+const HINTS = {
+  add_vs_times: 'A number right next to a letter means MULTIPLY.<span class="mono">c = 8b : 8 times b</span>A plus sign means add: b + 8.',
+  forgot_start: 'A two-part rule has a rate AND a start.<span class="mono">c = 2r + 5 : 2 for each ride, plus 5 to get in</span>Work out the rate part, then add the start.',
+  order_of_ops: 'Multiply first, then add.<span class="mono">2(4) + 5 = 8 + 5 = 13</span>',
+  wrong_direction: 'When the outputs go DOWN, the rule takes away each time.<span class="mono">a = 60 − 5w</span>',
+  close: 'So close. Slow down and check the arithmetic before the stone goes in.',
+  calc: 'Put the stone\'s number in place of the letter, then work it out.<span class="mono">c = 8b, b = 5 : 8(5) = 40</span>',
+  skipped_inputs: 'Check the INPUTS before you compare the outputs. If the inputs jump by 2, the outputs jump by two steps.<span class="mono">Look across a row instead: output ÷ input</span>',
+  some_rows: 'A rule has to work for EVERY row, not just one. Test your rule on the second row before you run the machine.',
+  no_rows: 'Look across each row. Is the output the input plus the same number every time? Or the input times the same number?',
+  backward: 'To find the input, undo the rule.<span class="mono">c = 8b = 40 : b = 40 ÷ 8</span>For a two-step rule, undo the last step first.',
+};
+const TIPS = {
+  add_vs_times: '8b means 8 times b; b + 8 means add 8.',
+  forgot_start: 'A rule like y = 2x + 5 has a rate and a starting amount: use both.',
+  order_of_ops: 'In y = 2x + 5, multiply first, then add.',
+  wrong_direction: 'If the outputs go down as the inputs go up, the rule subtracts each time.',
+  close: 'Check your arithmetic when using a rule.',
+  calc: 'Substitute the input for the variable, then evaluate.',
+  skipped_inputs: 'When a table skips inputs, compare across each row instead of down the column.',
+  some_rows: 'A rule must fit every row of the table.',
+  no_rows: 'Compare each output with its input to find the pattern.',
+  backward: 'Work backward with the opposite operation to find an input.',
+};
+
+const arcade = createArcade({
+  zones: ZONES, startZone, stopZone, onKey, hints: HINTS, skillTips: TIPS, testName: '__rune',
+  perfectText: 'Every rune glowed: no mistakes to sharpen!',
+  lifeLostText: (left) => (left > 0 ? `OVERHEATED! ${left} TORCH${left === 1 ? '' : 'ES'} LEFT` : 'MACHINE SEALED'),
 });
-const { G, UI, $, win, miss, showFeedback } = shell;
-const SHAPES = ['times', 'plus', 'line', 'down'];
-Object.assign(G, { form: null, vals: { m: '', b: '' }, lights: null, glow: false, tried: [] });
+const { G, hubAudio } = arcade;
+if (window.__rune) window.__rune.W = W;
+const busy = () => W.frozen || arcade.paused();
 
 /* ================================================================== */
-/* Drawing the machine                                                 */
+/* Zones and rounds                                                    */
 /* ================================================================== */
-const K = '#1d1433';
-const O = `stroke="${K}" stroke-width="3" stroke-linejoin="round"`;
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const FONT = 'font-family="Nunito, system-ui, sans-serif" font-weight="900"';
-const MONO = 'font-family="ui-monospace, \'Courier New\', monospace" font-weight="900"';
-
-function lines(text, x, y, n, size, fill = K) {
-  const out = [];
-  for (const w of String(text).split(' ')) { const last = out[out.length - 1]; if (last && `${last} ${w}`.length <= n) out[out.length - 1] = `${last} ${w}`; else out.push(w); }
-  const top = y - ((out.length - 1) * (size + 2)) / 2;
-  return out.map((l, i) => `<text x="${x}" y="${top + i * (size + 2)}" text-anchor="middle" font-size="${size}" fill="${fill}" ${FONT}>${esc(l)}</text>`).join('');
+function startZone(z) {
+  W.rounds = genZone(Math.random, z);
+  startRound(0);
 }
-function canyon() {
-  return `<rect x="-300" y="-300" width="1400" height="1120" fill="#f2b671"/>
-    <path d="M-300 120 L-40 60 L60 140 L120 40 L170 520 H-300 Z" fill="#c4643a" ${O}/>
-    <path d="M1100 140 L840 50 L740 150 L680 60 L630 520 H1100 Z" fill="#c4643a" ${O}/>
-    <path d="M-300 260 L20 230 L110 520 H-300 Z M1100 280 L780 240 L690 520 H1100 Z" fill="#9e4a2b"/>
-    <rect x="-300" y="470" width="1400" height="400" fill="#8a4a2a"/><path d="M-300 470 H1100" stroke="${K}" stroke-width="3"/>`;
+function stopZone() {
+  Object.assign(W, { phase: 'idle', frozen: false, afterResume: null, test: null });
+  $('callout').classList.add('hidden');
+  for (const id of ['stone', 'crate', 'tbl', 'nl']) $(id).classList.add('hidden');
 }
-const RUNES = ['ᚠ', 'ᚢ', 'ᚦ', 'ᚨ', 'ᚱ', 'ᚲ', 'ᚷ', 'ᚹ'];
-/**
- * The machine: a stone slab with the rule plaque on top and the table carved below.
- *   plaque   text on the rule plaque ('???' while the rule is hidden)
- *   rows     [{ x, y, state: 'ok' | 'bad' | 'ask' | null, gap }]  (x or y may be '?' or a typed value)
- */
-function drawMachine({ plaque = '???', rows = [], X = 'x', Y = 'y', xName = 'input', yName = 'output', glow = false }) {
-  const top = 150, h = 44;
-  const cell = (r, i) => {
-    if (r.gap) return `<text x="400" y="${top + i * h + 30}" text-anchor="middle" font-size="26" fill="#5b4a3a" ${FONT}>⋮</text>`;
-    const y0 = top + i * h;
-    const fill = r.state === 'ok' ? '#9be7b4' : r.state === 'bad' ? '#ffadb3' : r.state === 'ask' ? '#fff3c4' : '#efe2c4';
-    return `<g class="${r.state === 'ok' || r.state === 'bad' ? 'row-lit' : ''}">
-      <rect x="226" y="${y0 + 4}" width="348" height="${h - 8}" rx="8" fill="${fill}" ${O}/>
-      <text x="300" y="${y0 + 31}" text-anchor="middle" font-size="22" fill="${K}" ${MONO}>${esc(r.x)}</text>
-      <text x="390" y="${y0 + 31}" text-anchor="middle" font-size="20" fill="#8f3f22" ${FONT}>➜</text>
-      <text x="480" y="${y0 + 31}" text-anchor="middle" font-size="22" fill="${K}" ${MONO}>${esc(r.y)}</text>
-      ${r.state === 'ok' ? `<text x="548" y="${y0 + 31}" font-size="20" fill="#1f8a4c" ${FONT}>✓</text>` : r.state === 'bad' ? `<text x="548" y="${y0 + 31}" font-size="20" fill="#d6283a" ${FONT}>✗</text>` : ''}
-    </g>`;
-  };
-  UI.scene.innerHTML = `${canyon()}
-    <rect x="180" y="20" width="440" height="${Math.max(top + rows.length * h + 18, 330)}" rx="20" fill="#8c7c6b" ${O}/>
-    ${RUNES.map((r, i) => `<text class="rune ${glow ? 'lit' : ''}" style="animation-delay:${i * 0.08}s" x="${i < 4 ? 200 : 600}" y="${150 + (i % 4) * 70}" text-anchor="middle" font-size="22" fill="#5b4a3a" ${FONT}>${r}</text>`).join('')}
-    <rect x="216" y="34" width="368" height="56" rx="10" fill="${glow ? '#ffe680' : '#3b3049'}" ${O}/>
-    <text x="400" y="71" text-anchor="middle" font-size="${plaque.length > 22 ? 18 : 24}" fill="${glow ? K : '#ffd23f'}" ${MONO}>${esc(plaque)}</text>
-    <rect x="226" y="98" width="170" height="48" rx="8" fill="#5b4a3a" ${O}/><rect x="404" y="98" width="170" height="48" rx="8" fill="#5b4a3a" ${O}/>
-    ${lines(`IN: ${xName} (${X})`, 311, 124, 20, 13, '#fff4d6')}${lines(`OUT: ${yName} (${Y})`, 489, 124, 20, 13, '#fff4d6')}
-    ${rows.map(cell).join('')}
-    <g transform="translate(110 380)"><path d="M-40 0 L40 0 L28 60 L-28 60 Z" fill="#6b5a4a" ${O}/><text x="0" y="40" text-anchor="middle" font-size="14" fill="#fff4d6" ${FONT}>IN</text></g>
-    <g transform="translate(690 380)"><path d="M-40 0 L40 0 L28 60 L-28 60 Z" fill="#6b5a4a" ${O}/><text x="0" y="40" text-anchor="middle" font-size="14" fill="#fff4d6" ${FONT}>OUT</text></g>`;
+function startRound(i) {
+  const round = W.rounds[i];
+  Object.assign(W, { ri: i, round, phase: round.type, tries: 0, misses: 0, fed: [], test: null, frozen: false, afterResume: null, locked: false });
+  if (G.zone === BOSS) arcade.setBossProgress((i / W.rounds.length) * 100);
+  for (const id of ['stone', 'crate', 'tbl', 'nl']) $(id).classList.add('hidden');
+  $('mach').classList.remove('glow');
+  ({ catch: beginCatch, dials: beginDials, back: beginBack, feed: beginFeed })[round.type]();
+  renderSign(true); renderCtl();
 }
-function strip(text) {
-  const el = $('eqStrip');
-  if (!el) return;
-  if (!text) { el.classList.add('hidden'); return; }
-  el.classList.remove('hidden');
-  el.innerHTML = `<div class="eq-line small">${text}</div>`;
+function rest(seconds) { W.phase = 'gap'; W.gapLeft = seconds; renderCtl(); }
+function endRound(bonus) {
+  if (bonus) { G.score += 20; arcade.renderHud(); arcade.flash(bonus); }
+  rest(0.9);
+}
+function nextRound() {
+  if (W.ri + 1 < W.rounds.length) return startRound(W.ri + 1);
+  W.phase = 'idle';
+  if (G.zone === BOSS) arcade.setBossProgress(100);
+  arcade.zoneCleared();
+}
+/** Stop the action and say what went wrong. */
+function stopFor(message, button, then) {
+  W.frozen = true; W.afterResume = then;
+  $('calloutText').textContent = message;
+  $('resumeBtn').textContent = button;
+  $('callout').classList.remove('hidden');
+}
+function resume() {
+  if (!W.frozen || arcade.paused()) return;
+  W.frozen = false;
+  $('callout').classList.add('hidden');
+  const then = W.afterResume;
+  W.afterResume = null;
+  if (then) then();
+}
+function showMachine(text, dials = '') {
+  const r = W.round;
+  $('mRule').textContent = text;
+  $('mNames').textContent = `${r.X} = ${r.xName}   ·   ${r.Y} = ${r.yName}`;
+  $('mDials').innerHTML = dials;
 }
 
 /* ================================================================== */
-/* Problems                                                            */
+/* The number line (the basket in a catch round, the chosen stone in the others) */
 /* ================================================================== */
-const TAGS = { crack: 'CRACK THE RUNE', fill: 'FEED THE MACHINE', predict: 'READ AHEAD', maya: 'IS MAYA RIGHT?' };
-function showProblem(p, isBackup) {
-  Object.assign(G, { form: null, vals: { m: '', b: '' }, lights: null, glow: false, tried: [] });
-  const tag = p.type === 'predict' && p.backward ? 'WORK BACKWARD' : TAGS[p.type];
-  UI.taskTag.textContent = `${tag}${isBackup ? ' · BACKUP' : ''}`;
-  renderPrompt();
-  renderControls();
-  showState();
-}
-function renderPrompt() {
-  const p = G.problem;
-  UI.prompt.innerHTML = {
-    crack: () => `Input: <b>${esc(p.xName)}</b>. Output: <b>${esc(p.yName)}</b>. Write its rule as an equation.${p.skip ? ' <b>Careful: the inputs skip!</b>' : ''}`,
-    fill: () => `The rule is carved on the machine. Feed in each input and fill the missing outputs.`,
-    predict: () => `<span class="story">${esc(p.question)}</span>`,
-    maya: () => `Maya says: <b>"The rule is ${esc(ruleText(p.maya, 'd', 'h'))}. It works for the first row!"</b> Find the <b>first</b> row where her rule breaks.`,
-  }[p.type]();
-}
-function tableRows() {
-  const p = G.problem, L = G.lights || [];
-  if (p.type === 'fill') {
-    return p.rows.map((r, i) => {
-      const k = p.blanks.indexOf(i);
-      if (k < 0) return { x: fmt(r.x), y: fmt(r.y), state: L[i] || null };
-      const typed = ($(`f${k}`)?.value || '').trim();
-      return { x: fmt(r.x), y: typed || '?', state: L[i] || 'ask' };
-    });
+const L = 110;
+const width = () => play.clientWidth - 2 * L;
+const X = (v) => L + ((v - W.axis.lo) / (W.axis.hi - W.axis.lo)) * width();
+function drawAxis(axis, kind, caption) {
+  W.axis = axis;
+  const span = axis.hi - axis.lo, every = span <= 60 ? 1 : span <= 100 ? 2 : 5, label = span <= 20 ? 1 : span <= 60 ? 5 : span <= 100 ? 10 : 20;
+  let html = '<div class="bar"></div>';
+  for (let v = axis.lo; v <= axis.hi; v += every) {
+    html += `<div class="tick ${v % label ? 'small' : ''}" style="left:${X(v)}px"></div>`;
+    if (v % label === 0) html += `<div class="tl" style="left:${X(v)}px">${v}</div>`;
   }
-  const rows = p.rows.map((r, i) => ({ x: fmt(r.x), y: fmt(r.y), state: L[i] || null }));
-  if (p.type === 'predict') {
-    const typed = ($('pv')?.value || '').trim() || '?';
-    const out = run(p.rule, p.answer);
-    rows.push({ gap: true });
-    rows.push(p.backward ? { x: typed, y: fmt(out), state: L[4] || 'ask' } : { x: fmt(p.target), y: typed, state: L[4] || 'ask' });
-  }
-  return rows;
+  nl.innerHTML = `${html}<div class="cap">${esc(caption)}</div><div id="mark" class="mark ${kind}"></div>`;
+  nl.classList.remove('hidden');
+  W.val = Math.round((axis.lo + axis.hi) / 2);
+  drawMark();
 }
-function showState() {
-  const p = G.problem;
-  const plaque = p.type === 'fill' || G.glow ? ruleText(p.rule, p.X, p.Y) : p.type === 'maya' ? `MAYA: ${ruleText(p.maya, 'd', 'h')}` : '???';
-  drawMachine({ plaque, rows: tableRows(), X: p.X, Y: p.Y, xName: p.xName, yName: p.yName, glow: G.glow });
-  if (p.type === 'crack') strip(G.form ? 'Fill the boxes, then TEST: the machine checks every row.' : 'Pick the rule\'s shape: is each output added to, or multiplied?');
-  else if (p.type === 'fill') strip(`Rule: <b>${esc(ruleText(p.rule, p.X, p.Y))}</b> · put each input in for <b>${esc(p.X)}</b>`);
-  else if (p.type === 'predict') strip(p.backward ? 'Find the rule, then UNDO it to get the input.' : 'Find the rule, then use it. Too far to count row by row!');
-  else strip('Test her rule on every row.');
+function drawMark() {
+  const mark = $('mark');
+  if (!mark) return;
+  mark.style.left = `${X(W.val)}px`;
+  mark.textContent = fmt(W.val);
+  mark.classList.toggle('locked', W.locked);
 }
+const canMove = () => !busy() && !W.locked && (W.phase === 'catch' || W.phase === 'back' || W.phase === 'feed');
+function setVal(v) {
+  if (!canMove()) return;
+  v = Math.round(Math.min(W.axis.hi, Math.max(W.axis.lo, v)));
+  if (v === W.val) return;
+  W.val = v; hubAudio.playStep(); drawMark();
+}
+let dragging = false;
+const valueAt = (e) => { const r = play.getBoundingClientRect(); return W.axis.lo + ((e.clientX - r.left - L) / width()) * (W.axis.hi - W.axis.lo); };
+nl.addEventListener('pointerdown', (e) => { if (!canMove()) return; dragging = true; nl.setPointerCapture(e.pointerId); setVal(valueAt(e)); });
+nl.addEventListener('pointermove', (e) => { if (dragging) setVal(valueAt(e)); });
+nl.addEventListener('pointerup', () => { dragging = false; });
+nl.addEventListener('pointercancel', () => { dragging = false; });
 
 /* ================================================================== */
-/* Controls                                                            */
+/* Catch: stones roll in, the basket waits where the output will land  */
 /* ================================================================== */
-const box = (k) => `<input id="r_${k}" class="rbox" value="${esc(G.vals[k])}" inputmode="decimal" maxlength="7" placeholder="?" autocomplete="off" aria-label="${k === 'm' ? 'rate' : 'number'}">`;
-function shapeHtml(form, X, Y, live = false) {
-  const b = (k) => (live ? box(k) : '<span class="sq">□</span>');
-  return {
-    times: `${Y} = ${b('m')}${X}`, plus: `${Y} = ${X} + ${b('b')}`, line: `${Y} = ${b('m')}${X} + ${b('b')}`, down: `${Y} = ${b('b')} − ${b('m')}${X}`,
-  }[form];
+const moveStone = (x, y) => { stone.style.transform = `translate(${x}px, ${y}px)`; };
+function beginCatch() {
+  const r = W.round;
+  showMachine(ruleText(r.rule, r.X, r.Y));
+  drawAxis(r.line, 'basket', `${r.yName} (${r.Y})`);
+  W.ci = 0;
+  nextStone();
 }
-function renderControls() {
-  const p = G.problem;
-  if (p.type === 'crack') {
-    UI.controls.innerHTML = `
-      <div class="label px">1. PICK THE RULE'S SHAPE (↑ ↓)</div>
-      <div class="shapes">${SHAPES.map((f) => `<button type="button" class="shape ${G.form === f ? 'on' : ''}" data-shape="${f}">${shapeHtml(f, esc(p.X), esc(p.Y))}</button>`).join('')}</div>
-      <div class="label px">2. FILL IN THE NUMBERS</div>
-      <div class="rule-row">${G.form ? shapeHtml(G.form, esc(p.X), esc(p.Y), true) : '<span class="empty">pick a shape first</span>'}</div>
-      <button type="button" id="checkBtn" class="apply px">TEST THE RULE (ENTER)</button>
-      <div id="helpLine" class="help-line">Click a shape, type the numbers, press <kbd>Enter</kbd>. Decimals are fine.</div>`;
-    UI.controls.querySelectorAll('[data-shape]').forEach((b) => b.addEventListener('click', () => pickShape(b.dataset.shape)));
-    UI.controls.querySelectorAll('.rbox').forEach((el) => el.addEventListener('input', () => { G.vals[el.id.slice(2)] = el.value; }));
-    $('checkBtn').addEventListener('click', submitRule);
-    focusFirst();
+function nextStone() {
+  const r = W.round;
+  Object.assign(W, { stage: 'roll', t: 0, locked: false });
+  stone.className = 'stone';
+  stone.textContent = `${r.X} = ${fmt(r.inputs[W.ci])}`;
+  moveStone(-100, 182);
+  drawMark(); renderSign();
+}
+function updateCatch(dt) {
+  const r = W.round, cx = play.clientWidth / 2, x = r.inputs[W.ci], y = run(r.rule, x);
+  W.t += dt;
+  if (W.stage === 'roll') {
+    const roll = ROLL[G.zone] * (G.practice ? 1.6 : 1), u = Math.min(1, W.t / roll);
+    moveStone(-100 + u * (cx - 235 - 70 + 100), 182);
+    if (u >= 1) {                                    // into the machine: the basket locks, the output is hidden until it lands
+      Object.assign(W, { stage: 'fly', t: 0, locked: true });
+      stone.className = 'stone out'; stone.textContent = '?';
+      hubAudio.playCartridgeLaunch(); drawMark();
+    }
     return;
   }
-  if (p.type === 'fill') {
-    UI.controls.innerHTML = `
-      <div class="label px">MISSING OUTPUTS</div>
-      <div class="fills">${p.blanks.map((i, k) => `<label class="rule-row">${esc(p.X)} = ${fmt(p.rows[i].x)} ➜ ${esc(p.Y)} = <input id="f${k}" class="rbox wide" inputmode="decimal" maxlength="8" placeholder="?" autocomplete="off"></label>`).join('')}</div>
-      <button type="button" id="checkBtn" class="apply px">RUN THE MACHINE (ENTER)</button>
-      <div id="helpLine" class="help-line">Type each output, then press <kbd>Enter</kbd>. <kbd>Tab</kbd> moves to the next box.</div>`;
-    UI.controls.querySelectorAll('.rbox').forEach((el) => el.addEventListener('input', () => showState()));
-    $('checkBtn').addEventListener('click', submitFill);
-    focusFirst();
+  if (W.stage === 'fly') {
+    const u = Math.min(1, W.t / FLY);
+    moveStone(cx - 44 + u * (X(y) - cx), 292 + u * (466 - 292) - 90 * Math.sin(Math.PI * u));
+    if (u >= 1) land(x, y);
     return;
   }
-  if (p.type === 'predict') {
-    const ask = p.backward ? `${esc(p.X)} = ` : `${esc(p.Y)} = `;
-    UI.controls.innerHTML = `
-      <div class="label px">${p.backward ? 'WHICH INPUT?' : 'WHAT COMES OUT?'}</div>
-      <label class="rule-row">${ask}<input id="pv" class="rbox wide" inputmode="decimal" maxlength="9" placeholder="?" autocomplete="off"></label>
-      <button type="button" id="checkBtn" class="apply px">RUN THE MACHINE (ENTER)</button>
-      <div id="helpLine" class="help-line">Type a number and press <kbd>Enter</kbd>. Money can be typed as 61.25 or $61.25.</div>`;
-    $('pv').addEventListener('input', () => showState());
-    $('checkBtn').addEventListener('click', submitPredict);
-    focusFirst();
-    return;
-  }
-  UI.controls.innerHTML = p.options.map((o, i) => `<button type="button" class="choice" data-choice="${i}" ${G.tried.includes(i) ? 'disabled' : ''}><b>${i + 1}</b>${esc(o.text)}</button>`).join('');
-  UI.controls.querySelectorAll('[data-choice]').forEach((b) => b.addEventListener('click', () => answerMaya(Number(b.dataset.choice))));
+  if (W.t >= 0.7) afterStone();
 }
-function focusFirst() {
-  const el = [...UI.controls.querySelectorAll('input')].find((i) => !i.value) || UI.controls.querySelector('input');
-  if (el && UI.briefing.classList.contains('hidden')) el.focus({ preventScroll: true });
+function land(x, y) {
+  const res = checkCatch(W.round, x, W.val);
+  stone.textContent = fmt(y);
+  Object.assign(W, { stage: 'wait', t: 0 });
+  if (!res) { arcade.good(10); hubAudio.playCoinClink(); stone.classList.add('caught'); return; }
+  W.misses += 1;
+  stone.classList.add('smash');
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;                    // that was the last torch: the zone has stopped
+  stopFor(res.message, 'CONTINUE (ENTER)', afterStone);
+}
+function afterStone() {
+  if (W.phase !== 'catch') return;
+  W.ci += 1;
+  if (W.ci >= W.round.inputs.length) { stone.classList.add('hidden'); W.locked = false; return endRound(W.misses === 0 ? 'EVERY STONE CAUGHT! +20' : null); }
+  nextStone();
 }
 
 /* ================================================================== */
-/* Answers                                                             */
+/* Dials: set the rule, then the machine runs every row                */
 /* ================================================================== */
-function pickShape(f) {
-  if (G.locked) return;
-  G.form = f; G.lights = null;
+const letters = (form, r) => TEMPLATES[form].replace('Y', r.Y).replace(/X/g, r.X);
+const dialOf = (form, key) => (key === 'm' ? DIAL.m : form === 'down' ? DIAL.start : DIAL.b);
+const dialName = (form, key) => (key === 'm' ? (form === 'down' ? 'TAKE AWAY EACH TIME' : 'MULTIPLY BY') : form === 'down' ? 'START AT' : 'ADD');
+function beginDials() {
+  const r = W.round;
+  W.phase = 'dials';
+  W.g = r.preset ? { m: 1, b: 0, ...r.preset } : { form: r.forms[0], m: 1, b: 0 };
+  W.di = 0;
+  drawDials(); drawTable();
+}
+function drawDials() {
+  const r = W.round, g = W.g;
+  const shapes = r.forms.map((f) => `<button type="button" data-form="${f}" class="${f === g.form ? 'on' : ''}">${esc(letters(f, r))}</button>`).join('');
+  const dials = needs(g.form).map((key, i) => `<div class="dial ${i === W.di ? 'on' : ''}"><span class="lab">${dialName(g.form, key)}</span>
+    <button type="button" data-dial="${i}" data-turn="-1">◀</button><span class="val" id="dial${i}">${fmt(g[key])}</span><button type="button" data-dial="${i}" data-turn="1">▶</button></div>`).join('');
+  showMachine(ruleText(g, r.X, r.Y), `<div class="shapes">${shapes}</div>${dials}`);
+}
+/** rows: what to show. made: what the student's rule makes for each (filled in as the machine runs). */
+function drawTable(rows = W.round.rows, made = null, upTo = -1, own = []) {
+  const r = W.round;
+  const body = rows.length ? rows.map((row, i) => {
+    const cls = `${made && i <= upTo ? (made[i] === row.y ? 'ok' : 'bad') : ''} ${own.includes(row.x) ? 'own' : ''}`;
+    return `<tr class="${cls}"><td>${fmt(row.x)}</td><td>${fmt(row.y)}</td>${made ? `<td class="made">${i <= upTo ? fmt(made[i]) : ''}</td>` : ''}</tr>`;
+  }).join('') : '<tr><td colspan="2" class="empty">Drop stones in to fill the table.</td></tr>';
+  $('tbl').innerHTML = `<table><tr><th>${esc(r.xName)}<br>${r.X}</th><th>${esc(r.yName)}<br>${r.Y}</th>${made ? '<th>your rule<br>makes</th>' : ''}</tr>${body}</table>`;
+  $('tbl').classList.remove('hidden');
+}
+const canDial = () => W.phase === 'dials' && !busy();
+function setForm(form) {
+  if (!canDial() || !W.round.forms.includes(form) || form === W.g.form) return;
+  W.g.form = form; W.di = 0;
+  for (const key of ['m', 'b']) { const d = dialOf(form, key); W.g[key] = Math.min(d.hi, Math.max(needs(form).includes(key) ? d.lo : (key === 'm' ? 1 : 0), W.g[key])); }
+  if (!needs(form).includes('m')) W.g.m = 1;
+  if (!needs(form).includes('b')) W.g.b = 0;
+  hubAudio.playStep(); drawDials();
+}
+function turn(i, delta) {
+  if (!canDial()) return;
+  const key = needs(W.g.form)[i];
+  if (!key) return;
+  const d = dialOf(W.g.form, key), v = Math.min(d.hi, Math.max(d.lo, W.g[key] + delta));
+  W.di = i;
+  if (v !== W.g[key]) { W.g[key] = v; hubAudio.playStep(); }
+  drawDials();
+}
+$('mach').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  b.blur();
+  if (b.dataset.form) setForm(b.dataset.form); else if (b.dataset.dial) turn(Number(b.dataset.dial), Number(b.dataset.turn));
+});
+function runMachine() {
+  if (!canDial()) return;
+  W.phase = 'test';
+  W.test = { res: testRule(W.round, W.g), i: -1, t: 0.3 };
+  hubAudio.playCartridgeLaunch();
+  drawTestTable(); renderCtl();
+}
+const drawTestTable = () => drawTable(W.test.res.table, W.test.res.made, W.test.i, (W.round.hidden || []).map((h) => h.x));
+function updateTest(dt) {
+  const T = W.test, res = T.res;
+  T.t += dt;
+  if (T.t < 0.45) return;
+  T.t = 0; T.i += 1;
+  drawTestTable();
+  const row = res.table[T.i], bad = T.i === res.firstBad;
+  if (!bad && T.i < res.table.length - 1) return hubAudio.playSelect();
+  if (!bad) {                                        // every row matched
+    arcade.good(15); hubAudio.playCoinClink();
+    $('mach').classList.add('glow');
+    return rest(1.5);
+  }
+  W.tries += 1;
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;
+  const r = W.round, moveOn = W.tries >= 2;
+  const message = `${r.X} = ${fmt(row.x)}: your rule makes ${fmt(res.made[T.i])}, but the machine makes ${fmt(row.y)}. ${res.message}${moveOn ? ` The rule: ${answerRule(r)}.` : ''}`;
+  stopFor(message, moveOn ? 'NEXT (ENTER)' : 'TURN THE DIALS AGAIN (ENTER)', moveOn ? () => endRound(null) : () => { W.phase = 'dials'; W.test = null; drawTable(); renderCtl(); });
+}
+
+/* ================================================================== */
+/* Back: choose the input that makes the target                        */
+/* ================================================================== */
+function showCrate(small, big, cls = '') {
+  $('crate').className = `goalbox ${cls}`;
+  $('crate').innerHTML = `<small>${esc(small)}</small>${esc(big)}`;
+}
+function beginBack() {
+  const r = W.round;
+  showMachine(ruleText(r.rule, r.X, r.Y));
+  drawAxis(r.strip, 'pick', `choose ${r.xName} (${r.X})`);
+  showCrate('THE MACHINE MUST MAKE', `${r.Y} = ${fmt(r.target)}`);
+}
+function sendBack() {
+  if (W.phase !== 'back' || busy()) return;
+  const r = W.round, x = W.val, res = checkBack(r, x);
+  showCrate(`${r.X} = ${fmt(x)} MAKES`, `${r.Y} = ${fmt(run(r.rule, x))}`, res ? 'bad' : 'ok');
+  if (!res) { arcade.good(15); hubAudio.playCoinClink(); return rest(1.4); }
+  W.tries += 1;
+  arcade.bad(res.key, 25);
+  if (W.phase === 'idle') return;
+  const moveOn = W.tries >= 2;
+  stopFor(res.message + (moveOn ? ` It was ${r.X} = ${fmt(r.answer)}.` : ''), moveOn ? 'NEXT (ENTER)' : 'TRY AGAIN (ENTER)', moveOn ? () => endRound(null) : () => showCrate('THE MACHINE MUST MAKE', `${r.Y} = ${fmt(r.target)}`));
+}
+
+/* ================================================================== */
+/* Feed: choose which inputs to test on a hidden rule                  */
+/* ================================================================== */
+function beginFeed() {
+  const r = W.round;
+  showMachine('? ? ?');
+  drawAxis(r.strip, 'pick', `choose ${r.xName} (${r.X}) to test`);
+  drawTable([]);
+  showCrate('STONES LEFT', String(r.stones));
+}
+function dropStone() {
+  if (W.phase !== 'feed' || busy()) return;
+  const r = W.round, x = W.val;
+  W.fed.push(x);
   hubAudio.playSelect();
-  renderControls(); showState();
+  drawTable(feedRows(r, W.fed));
+  const left = r.stones - W.fed.length;
+  showCrate(`${r.X} = ${fmt(x)} MAKES`, `${r.Y} = ${fmt(run(r.rule, x))}`);
+  renderSign();
+  if (left > 0) return;
+  W.phase = 'fed'; W.gapLeft = 1.1; renderCtl();    // a moment to read the last stone, then the dials
 }
-function submitRule() {
-  const p = G.problem;
-  if (G.locked || p.type !== 'crack') return;
-  if (!G.form) return nudge('Pick the rule\'s shape first.');
-  const guess = { form: G.form };
-  for (const k of needs(G.form)) { const v = parseNumber(G.vals[k]); if (v !== null) guess[k] = v; }
-  const res = checkRule(p, guess);
-  if (res.nudge) return nudge(res.message);
-  G.lights = res.rows.map((ok) => (ok ? 'ok' : 'bad'));
-  if (res.correct) { G.glow = true; showState(); return win(res); }
-  showState();
-  hubAudio.playTone(180, 'sawtooth', 0.15, 0.06);
-  miss(res, { lock: true, delay: 1800, retry: () => { G.lights = null; renderControls(); showState(); } });
-}
-function submitFill() {
-  const p = G.problem;
-  if (G.locked || p.type !== 'fill') return;
-  const raws = p.blanks.map((_, k) => $(`f${k}`).value);
-  const res = checkFill(p, raws);
-  if (res.nudge) return nudge(res.message);
-  if (res.correct) { G.lights = p.rows.map(() => 'ok'); G.glow = true; showState(); return win(res); }
-  G.lights = p.rows.map((_, i) => (i === res.row ? 'bad' : null));
-  showState();
-  miss(res, { lock: true, delay: 1800, retry: () => { G.lights = null; showState(); focusFirst(); } });
-}
-function submitPredict() {
-  const p = G.problem;
-  if (G.locked || p.type !== 'predict') return;
-  const res = checkPredict(p, $('pv').value);
-  if (res.nudge) return nudge(res.message);
-  G.lights = res.correct ? ['ok', 'ok', 'ok', 'ok', 'ok'] : [null, null, null, null, 'bad'];
-  if (res.correct) { G.glow = true; showState(); return win(res); }
-  showState();
-  miss(res, { lock: true, delay: 1800, retry: () => { G.lights = null; $('pv').value = ''; showState(); focusFirst(); } });
-}
-function answerMaya(i) {
-  const p = G.problem;
-  if (G.locked || G.tried.includes(i)) return;
-  const res = checkMaya(p, i);
-  UI.controls.querySelector(`[data-choice="${i}"]`)?.classList.add(res.correct ? 'right' : 'wrong');
-  G.lights = p.rows.map((_, k) => (k === 0 ? 'ok' : 'bad'));
-  if (res.correct) { G.glow = true; showState(); return win(res); }
-  showState();
-  G.tried.push(i);
-  miss(res, { lock: true, delay: 1600, retry: () => { G.lights = null; renderControls(); showState(); } });
-}
-function nudge(text) {
-  const h = $('helpLine');
-  if (h) h.innerHTML = `<span class="warn">${text}</span>`;
-  else showFeedback(true, text);
-  hubAudio.playTone(220, 'square', 0.12, 0.05);
+function feedToDials() {
+  W.round = dialsFromFeed(W.round, W.fed);
+  W.rounds[W.ri] = W.round;
+  $('nl').classList.add('hidden'); $('crate').classList.add('hidden');
+  beginDials();
+  renderSign(true); renderCtl();
 }
 
 /* ================================================================== */
-/* Keys and start-up                                                   */
+/* The clock, keys, sign and the bottom bar                            */
 /* ================================================================== */
+function update(dt) {
+  if (W.phase === 'idle' || busy()) return;
+  if (W.phase === 'gap') { W.gapLeft -= dt; if (W.gapLeft <= 0) nextRound(); return; }
+  if (W.phase === 'fed') { W.gapLeft -= dt; if (W.gapLeft <= 0) feedToDials(); return; }
+  if (W.phase === 'catch') return updateCatch(dt);
+  if (W.phase === 'test') return updateTest(dt);
+}
+function go() { if (W.phase === 'dials') runMachine(); else if (W.phase === 'back') sendBack(); else if (W.phase === 'feed') dropStone(); }
 function onKey(e) {
-  const key = e.key, p = G.problem;
-  if (p.type === 'maya') {
-    const n = Number(key);
-    if (n >= 1 && n <= p.options.length) answerMaya(n - 1);
+  const k = e.key;
+  if (k === 'Enter') { e.preventDefault(); if (W.frozen) resume(); else go(); return; }
+  if (W.frozen) return;
+  const side = k === 'ArrowLeft' ? -1 : k === 'ArrowRight' ? 1 : 0;
+  if (W.phase === 'dials') {
+    if (side) { e.preventDefault(); turn(W.di, side * (e.shiftKey ? 5 : 1)); }
+    else if (k === 'ArrowUp' || k === 'ArrowDown') { e.preventDefault(); const f = W.round.forms, at = f.indexOf(W.g.form); setForm(f[(at + (k === 'ArrowDown' ? 1 : f.length - 1)) % f.length]); }
+    else if (k === 'Tab') { e.preventDefault(); W.di = (W.di + 1) % needs(W.g.form).length; drawDials(); }
     return;
   }
-  if (p.type === 'crack' && (key === 'ArrowUp' || key === 'ArrowDown')) {
-    e.preventDefault();
-    const step = key === 'ArrowDown' ? 1 : -1;
-    const now = SHAPES.indexOf(G.form);                         // -1 when no shape is picked yet
-    const next = now < 0 ? (step > 0 ? 0 : SHAPES.length - 1) : (now + step + SHAPES.length) % SHAPES.length;
-    return pickShape(SHAPES[next]);
-  }
-  if (key === 'Enter') {
-    e.preventDefault();
-    if (p.type === 'crack') return submitRule();
-    if (p.type === 'fill') return submitFill();
-    return submitPredict();
-  }
+  if (side) { e.preventDefault(); setVal(W.val + side * (e.shiftKey ? 10 : 1)); }
+}
+$('goBtn').addEventListener('click', (e) => { e.currentTarget.blur(); go(); });
+$('resumeBtn').addEventListener('click', (e) => { e.currentTarget.blur(); resume(); });
+
+function renderSign(isNew = false) {
+  const r = W.round, at = `${W.ri + 1}/${W.rounds.length}`;
+  let small = '', text = '';
+  if (r.type === 'catch') { small = `STONE ${Math.min(W.ci + 1, r.inputs.length)}/${r.inputs.length} · ${r.far ? 'FAR AHEAD' : 'USE THE RULE'}`; text = 'PUT THE BASKET WHERE THE OUTPUT WILL LAND'; }
+  if (r.type === 'dials') { small = r.fed ? 'NOW SET THE DIALS. THE MACHINE ADDS TWO STONES OF ITS OWN (★)' : r.broken ? `TABLE ${at} · THIS RULE ONLY FITS THE FIRST ROW` : `TABLE ${at} · A RULE MUST FIT EVERY ROW`; text = r.broken ? 'FIX THE RULE, THEN RUN THE MACHINE' : 'SET THE DIALS TO THE RULE IN THE TABLE'; }
+  if (r.type === 'back') { small = `TARGET ${at} · RUN IT BACKWARD`; text = `WHICH ${r.X} MAKES ${r.Y} = ${fmt(r.target)}?`; }
+  if (r.type === 'feed') { const left = r.stones - W.fed.length; small = `HIDDEN RULE ${at} · CHOOSE WHAT TO TEST`; text = `DROP STONES TO FIND THE RULE · ${left} LEFT`; }
+  $('signSmall').textContent = small;
+  $('signText').textContent = text;
+  if (isNew) { const s = $('sign'); s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); }
+}
+function renderCtl() {
+  const p = W.phase;
+  $('goBtn').classList.toggle('hidden', !(p === 'dials' || p === 'back' || p === 'feed'));
+  $('goBtn').textContent = p === 'dials' ? 'RUN THE MACHINE (ENTER)' : p === 'back' ? 'SEND IT THROUGH (ENTER)' : 'DROP THE STONE (ENTER)';
+  $('tip').textContent = {
+    catch: '← → move the basket (Shift jumps 10), or drag it. It locks when the stone goes in.',
+    dials: '↑ ↓ rule shape · Tab next dial · ← → turn it',
+    back: '← → choose the input, or drag it.',
+    feed: '← → choose an input to test, or drag it.',
+    test: 'The machine is running your rule on every row...',
+  }[p] || '';
+  $('waveTag').textContent = W.rounds.length ? `ROUND ${W.ri + 1}/${W.rounds.length}` : '';
 }
 
-function init() {
-  const stripEl = document.createElement('div');
-  stripEl.id = 'eqStrip'; stripEl.className = 'eq-strip hidden';
-  $('stage').appendChild(stripEl);
-  drawMachine({ plaque: 'c = 8b', rows: [1, 2, 3, 4].map((x) => ({ x: fmt(x), y: fmt(8 * x), state: null })), X: 'b', Y: 'c', xName: 'boxes', yName: 'candles' });   // a sample behind the briefing
+let last = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  update(dt * W.speed);
+  requestAnimationFrame(frame);
 }
-
-init();
+// Something to look at behind the briefing.
+W.round = { X: 'b', Y: 'c', xName: 'boxes', yName: 'candles' };
+showMachine('c = 8b');
+requestAnimationFrame(frame);

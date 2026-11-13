@@ -42,7 +42,7 @@ export const STAGES = [
   }),
   stage(9, 'Rune Machine', 'Use Patterns to Write and Solve Equations', { x: 800, y: 290 }, {
     built: true, building: 'rune_machine', url: './games/4-9-rune-machine/index.html',
-    description: 'An ancient machine changes inputs into outputs by a hidden rule. Crack the rule as an equation, fill its table, read far ahead, and crack the Ancient Runes.',
+    description: 'An ancient machine changes each stone by a rule. Catch what flies out, set its dials to match a table, run it backward, and feed it stones of your own to crack the hidden rules of the Ancient Runes.',
   }),
   stage(10, 'Trail Mapper', 'Relate Tables, Graphs, and Equations', { x: 570, y: 320 }, {
     built: true, building: 'trail_mapper', url: './games/4-10-trail-mapper/index.html',

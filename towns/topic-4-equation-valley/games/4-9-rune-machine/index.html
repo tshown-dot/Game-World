@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -23,8 +23,8 @@
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, the runes go dark">
-      <div class="px hud-label">FADE</div>
+    <div class="hud-meter" id="meterBox" title="Every mistake heats the machine. When this fills, a torch goes out">
+      <div class="px hud-label">HEAT</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
     <div class="hud-crates">
@@ -42,21 +42,31 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The rune machine and its table"></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play">
+      <div class="chute"></div>
+      <div id="tbl" class="tbl hidden"></div>
+      <div id="mach" class="mach"><div id="mRule" class="m-rule"></div><div id="mNames" class="m-names"></div><div id="mDials" class="m-dials"></div></div>
+      <div id="crate" class="goalbox hidden"></div>
+      <div id="stone" class="stone hidden"></div>
+      <div id="nl" class="nl hidden"></div>
+    </div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">THE ANCIENT RUNES</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
+    <div id="callout" class="callout hidden">
+      <div id="calloutText"></div>
+      <button type="button" id="resumeBtn" class="px">CONTINUE (ENTER)</button>
+    </div>
+    <div id="ctl" class="ctl">
+      <div id="tip" class="tip"></div>
+      <button type="button" id="goBtn" class="cbtn go px hidden"></button>
+      <div id="waveTag" class="wave-tag px"></div>
+    </div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -71,28 +81,35 @@
       </div>
       <div class="brief-cols">
         <div class="brief-col"><div class="px col-h">1. THE MACHINE</div>
-          <p>An ancient machine turns each <b>input</b> into an <b>output</b> by a hidden rule. Its table shows it working.</p>
-          <p class="mono">1 ➜ 8<br>2 ➜ 16<br>3 ➜ 24</p></div>
-        <div class="brief-col"><div class="px col-h">2. CRACK THE RULE</div>
-          <p>Pick the rule's <b>shape</b>, type its numbers, and the machine tests your rule on <b>every row</b>. All green? The rune glows!</p>
-          <p class="mono">c = □b &nbsp;➜&nbsp; c = 8b</p></div>
+          <p>A stone goes in with a number on it. The machine changes it by a <b>rule</b>, and a new stone flies out.</p>
+          <p class="mono">c = 8b : in 5, out 40</p></div>
+        <div class="brief-col"><div class="px col-h">2. CATCH, SET, FEED</div>
+          <p><b>Catch</b>: put the basket where the output will land. <b>Set the dials</b> to the rule a table shows. <b>Feed</b> the machine your own stones to work out a hidden rule.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>The runes <b>FADE</b> while you think, and wrong rules make them fade faster. Lose all <b>3 torches</b> and the machine seals shut. Crack the Ancient Runes to win!</p></div>
+          <p>Every mistake <b>HEATS</b> the machine. When it overheats, a torch goes out. Lose all <b>3 torches</b> and the machine seals shut. Crack the Ancient Runes to win!</p></div>
       </div>
-      <div class="brief-keys">Click a shape or <kbd>↑</kbd> <kbd>↓</kbd> · type the numbers · <kbd>Tab</kbd> next box · <kbd>Enter</kbd> test · <kbd>1</kbd>–<kbd>4</kbd> pick a row · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>←</kbd> <kbd>→</kbd> move the basket or turn a dial (<kbd>Shift</kbd> jumps) · <kbd>↑</kbd> <kbd>↓</kbd> rule shape · <kbd>Tab</kbd> next dial · <kbd>Enter</kbd> go · <kbd>H</kbd> help</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
         <button type="button" id="startBtn" class="btn btn-go"><span class="px">🗿 WAKE THE MACHINE (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · no fading</small></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>slower stones · no heat</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">RUNE TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">

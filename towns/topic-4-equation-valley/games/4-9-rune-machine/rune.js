@@ -1,11 +1,17 @@
 // Rune Machine (Lesson 4-9: Use Patterns to Write and Solve Equations): the math.
 // No screen code here, so it can be tested with plain node (see test_rune_machine_math.js).
 //
-// The machine turns an input (the independent variable) into an output (the dependent variable) by a hidden rule.
+// The machine turns an input (the independent variable) into an output (the dependent variable) by a rule.
 // A rule is { form, m, b }:
-//   times  y = m·x          plus  y = x + b          line  y = m·x + b (b may be negative: y = 2x − 7)
-//   down   y = b − m·x  (Ethan owes $75 and pays $5 a week: a = 75 − 5w)
-// A problem has a story with its own letters: X (input) and Y (output).
+//   times  y = m·x          plus  y = x + b          line  y = m·x + b
+//   down   y = b − m·x  (Ethan owes $60 and pays $5 a week: a = 60 − 5w)
+// A machine has a story with its own letters: X (input) and Y (output).
+//
+// The game is an action game with four moves:
+//   catch  the rule is carved on the machine; stones roll in and the student puts a basket where each output lands
+//   dials  a table is on the wall; the student sets the rule on the machine's dials and the machine runs every row
+//   back   the machine must make a target output; the student chooses the input
+//   feed   the rule is hidden; the student chooses which inputs to test, then sets the dials
 
 let nextId = 1;
 const EPS = 1e-6;
@@ -28,18 +34,11 @@ const shuffle = (rnd, list) => {
 const r2 = (v) => Math.round(v * 100) / 100;
 const near = (a, b) => Math.abs(a - b) < EPS;
 
-/** 1250 -> "1,250"; 36.6 -> "36.6"; 61.25 -> "61.25"; −7 -> "−7" */
+/** 1250 -> "1,250"; 36.6 -> "36.6"; −7 -> "−7" */
 export function fmt(v) {
   const x = r2(v);
   if (x < 0) return `−${fmt(-x)}`;
   return Number.isInteger(x) ? x.toLocaleString('en-US') : x.toLocaleString('en-US', { maximumFractionDigits: 2 });
-}
-/** A typed number: "1,250", "$61.25", "36.6", "-7" (negatives allowed for table outputs like 2x − 7). */
-export function parseNumber(raw) {
-  const t = String(raw ?? '').trim().replace(/^\$/, '').replace(/,/g, '').replace(/^−/, '-').replace(/\s/g, '');
-  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
 }
 
 export const FORMS = ['times', 'plus', 'line', 'down'];
@@ -60,127 +59,83 @@ export function ruleText(rule, X = 'x', Y = 'y') {
 }
 /** The rule with a number put in: c = 8(5) = 40 */
 export function plugIn(rule, X, Y, x) { return `${ruleText(rule, `(${fmt(x)})`, Y)} = ${fmt(run(rule, x))}`; }
-/** The shape templates the student picks from (with boxes for the numbers). */
+/** The rule shapes on the machine's dial (with boxes for the numbers). */
 export const TEMPLATES = { times: 'Y = □X', plus: 'Y = X + □', line: 'Y = □X + □', down: 'Y = □ − □X' };
+/** Which numbers a shape needs, in the order they appear. */
 export const needs = (form) => ({ times: ['m'], plus: ['b'], line: ['m', 'b'], down: ['b', 'm'] })[form];
+/** How far each dial turns. */
+export const DIAL = { m: { lo: 1, hi: 12 }, b: { lo: 0, hi: 30 }, start: { lo: 0, hi: 80 } };
 
 /* ================================================================== */
-/* Stories (from the kinds of tables in the textbook lesson)           */
+/* Machines (numbers kept small enough to fit a number line)           */
 /* ================================================================== */
-const STORIES = {
-  times: [
-    { X: 'b', Y: 'c', xName: 'boxes', yName: 'candles', make: (rnd) => ({ m: int(rnd, 6, 12) }), ask: (x) => `How many candles are in ${fmt(x)} boxes?` },
-    { X: 'n', Y: 'c', xName: 'tickets', yName: 'cost ($)', make: (rnd) => ({ m: int(rnd, 12, 30) }), ask: (x) => `How much do ${fmt(x)} water park tickets cost?` },
-    { X: 'w', Y: 'p', xName: 'weeks', yName: 'pages read', make: (rnd) => ({ m: int(rnd, 20, 60) }), ask: (x) => `How many pages after ${fmt(x)} weeks?` },
-    { X: 'k', Y: 'r', xName: 'rune keys', yName: 'runes lit', make: (rnd) => ({ m: int(rnd, 3, 9) }), ask: (x) => `How many runes light up with ${fmt(x)} keys?` },
-  ],
-  plus: [
-    { X: 't', Y: 'b', xName: 'Talia\'s age', yName: 'Brenda\'s age', make: (rnd) => ({ b: int(rnd, 2, 9) }), ask: (x) => `How old is Brenda when Talia is ${fmt(x)}?` },
-    { X: 'p', Y: 't', xName: 'price ($)', yName: 'total with shipping ($)', make: (rnd) => ({ b: int(rnd, 4, 9) }), ask: (x) => `What is the total for a $${fmt(x)} item?` },
-    { X: 's', Y: 't', xName: 'stones put in', yName: 'stones out', make: (rnd) => ({ b: int(rnd, 3, 15) }), ask: (x) => `How many stones come out when ${fmt(x)} go in?` },
-  ],
-  line: [
-    { X: 'r', Y: 'c', xName: 'rides', yName: 'cost ($)', make: (rnd) => ({ m: int(rnd, 2, 4), b: int(rnd, 5, 12) }), ask: (x) => `What does Andrea pay at the fair for ${fmt(x)} rides?`, start: 'the admission' },
-    { X: 't', Y: 'p', xName: 'toppings', yName: 'pizza cost ($)', make: (rnd) => ({ m: int(rnd, 2, 3), b: int(rnd, 8, 14) }), ask: (x) => `How much is a pizza with ${fmt(x)} toppings?`, start: 'the plain pizza' },
-  ],
-  down: [
-    { X: 'w', Y: 'a', xName: 'weeks', yName: 'amount owed ($)', make: (rnd) => { const m = pick(rnd, [5, 10, 15]); return { m, b: m * int(rnd, 10, 18) }; }, ask: (x) => `How much will Ethan owe after ${fmt(x)} weeks?`, start: 'what he owed at first' },
-    { X: 'm', Y: 'g', xName: 'minutes', yName: 'gallons left', make: (rnd) => { const m = pick(rnd, [4, 6, 8]); return { m, b: m * int(rnd, 12, 20) }; }, ask: (x) => `How many gallons are left after ${fmt(x)} minutes?`, start: 'the full tank' },
-  ],
-  decimal: [
-    { X: 's', Y: 'y', xName: 'seconds', yName: 'yards', make: () => ({ m: 12.2 }), ask: (x) => `How far does the cyclist ride in ${fmt(x)} seconds?` },
-    { X: 't', Y: 'c', xName: 'movie tickets', yName: 'cost ($)', make: (rnd) => ({ m: pick(rnd, [8.75, 9.25, 7.5]) }), ask: (x) => `What do ${fmt(x)} movie tickets cost?` },
-  ],
+const NAMES = {
+  times: [{ X: 'b', Y: 'c', xName: 'boxes', yName: 'candles' }, { X: 'k', Y: 'r', xName: 'rune keys', yName: 'runes lit' }, { X: 'p', Y: 'c', xName: 'packs', yName: 'cards' }],
+  plus: [{ X: 't', Y: 'b', xName: "Talia's age", yName: "Brenda's age" }, { X: 'p', Y: 't', xName: 'price ($)', yName: 'total with shipping ($)' }, { X: 's', Y: 't', xName: 'stones in', yName: 'stones out' }],
+  line: [{ X: 'r', Y: 'c', xName: 'rides', yName: 'cost ($)', start: 'the admission' }, { X: 't', Y: 'p', xName: 'toppings', yName: 'pizza cost ($)', start: 'the plain pizza' }],
+  down: [{ X: 'w', Y: 'a', xName: 'weeks', yName: 'amount owed ($)', start: 'what was owed at first' }, { X: 'm', Y: 'g', xName: 'minutes', yName: 'gallons left', start: 'the full tank' }],
 };
-function story(rnd, kind) {
-  const s = pick(rnd, STORIES[kind]);
-  const rule = { form: kind === 'decimal' ? 'times' : kind, m: 1, b: 0, ...s.make(rnd) };
-  return { s, rule };
+/** A machine: { rule, xmax (the biggest sensible input), X, Y, xName, yName, start? }. */
+export function genMachine(rnd, form) {
+  const names = pick(rnd, NAMES[form]);
+  if (form === 'times') return { rule: { form, m: int(rnd, 2, 9), b: 0 }, xmax: 10, ...names };
+  if (form === 'plus') return { rule: { form, m: 1, b: int(rnd, 3, 15) }, xmax: 20, ...names };
+  if (form === 'line') return { rule: { form, m: int(rnd, 2, 4), b: int(rnd, 3, 12) }, xmax: 10, ...names };
+  const m = int(rnd, 2, 5), k = int(rnd, 8, 12);
+  return { rule: { form, m, b: m * k }, xmax: k, ...names };
 }
+const distinct = (rnd, lo, hi, n) => shuffle(rnd, Array.from({ length: hi - lo + 1 }, (_, i) => lo + i)).slice(0, n);
 function tableFor(rnd, rule, { skip = false, start = null } = {}) {
   let xs;
   if (skip) { const a = int(rnd, 1, 3); xs = [a, a + 1, a + 3, a + 4 + int(rnd, 0, 2)]; }
   else { const a = start !== null ? start : int(rnd, 1, 4); xs = [a, a + 1, a + 2, a + 3]; }
-  if (rule.form === 'down') xs = xs.filter((x) => run(rule, x) >= 0);
   return xs.map((x) => ({ x, y: run(rule, x) }));
 }
-const base = (p, s) => ({ ...p, X: s.X, Y: s.Y, xName: s.xName, yName: s.yName, start: s.start });
 
-/** Zones 1, 4 and the boss: crack the rule from a table. */
-export function genCrack(rnd, { kind = rnd() < 0.5 ? 'times' : 'plus', skip = false } = {}) {
-  const { s, rule } = story(rnd, kind);
-  const rows = tableFor(rnd, rule, { skip, start: kind === 'down' ? 0 : null });
-  return base({ id: nextId++, type: 'crack', rule, rows, skip, kind }, s);
+/* ================================================================== */
+/* Catch: where does each stone land?                                  */
+/* ================================================================== */
+/** inputs: the stones that roll in. line: the stretch of number line the outputs land on. far: big inputs. */
+export function genCatch(rnd, form, { count = 5, far = false } = {}) {
+  const mach = genMachine(rnd, form);
+  if (far && form === 'times') mach.rule.m = Math.min(mach.rule.m, 4);
+  const inputs = far ? shuffle(rnd, [20, 25, 30, 40, 50]).slice(0, count) : distinct(rnd, form === 'down' ? 0 : 1, mach.xmax, count);
+  const max = Math.max(...inputs.map((x) => run(mach.rule, x)), form === 'down' ? mach.rule.b : 0);
+  return { id: nextId++, type: 'catch', ...mach, inputs, far, line: { lo: 0, hi: Math.max(20, Math.ceil(max / 10) * 10) } };
 }
-/** Zone 2: the rule is carved on the machine; fill in the missing outputs. */
-export function genFill(rnd, { kind = pick(rnd, ['times', 'plus', 'line', 'line', 'down']) } = {}) {
-  let rule, s;
-  if (kind === 'line' && rnd() < 0.4) { rule = { form: 'line', m: int(rnd, 2, 3), b: -int(rnd, 1, 7) }; s = { X: 'x', Y: 'y', xName: 'x', yName: 'y' }; }   // y = 2x − 7
-  else ({ s, rule } = story(rnd, kind));
-  const rows = tableFor(rnd, rule, { start: kind === 'down' ? 0 : null });
-  const blanks = shuffle(rnd, rows.map((_, i) => i)).slice(0, 2).sort((a, c) => a - c);
-  return base({ id: nextId++, type: 'fill', rule, rows, blanks, kind }, s);
-}
-/** Zone 3 and the boss: read far ahead, or work backward to an input. */
-export function genPredict(rnd, { kind = rnd() < 0.5 ? 'times' : 'plus', backward = false } = {}) {
-  const { s, rule } = story(rnd, kind);
-  const rows = tableFor(rnd, rule, { start: kind === 'down' ? 0 : null });
-  let x, question;
-  if (backward) {
-    x = kind === 'down' ? rule.b / rule.m : rows[rows.length - 1].x + int(rnd, 3, 8);
-    question = kind === 'down' ? `After how many ${s.xName} will the amount reach 0?` : `For which input does the machine put out ${fmt(run(rule, x))} ${s.yName}?`;
-  } else {
-    x = rows[rows.length - 1].x + int(rnd, 4, 9);
-    if (kind === 'down') x = Math.min(x, Math.floor(rule.b / rule.m));
-    question = s.ask(x);
-  }
-  return base({ id: nextId++, type: 'predict', rule, rows, backward, target: x, answer: backward ? x : run(rule, x), question, kind }, s);
-}
-/** Zone 4: Maya's rule fits the first row only. Which row breaks it? */
-export function genMaya(rnd) {
-  const m = int(rnd, 2, 4), x0 = int(rnd, 1, 3), b0 = int(rnd, 5, 20);
-  const rule = { form: 'line', m, b: b0 };
-  const rows = [0, 1, 2, 3].map((i) => ({ x: x0 + i, y: run(rule, x0 + i) }));
-  const maya = { form: 'plus', b: rows[0].y - rows[0].x };              // fits row 1 only
-  const options = [
-    ...rows.slice(1).map((r, i) => ({ text: `Row ${i + 2}: ${fmt(r.x)} → ${fmt(r.y)}`, row: i + 1, ok: i === 0 })),
-    { text: 'None: Maya is right', row: -1, ok: false },
-  ];
-  return { id: nextId++, type: 'maya', rule, maya, rows, options, X: 'd', Y: 'h', xName: 'days', yName: 'plant height (cm)' };
-}
-
-export const ZONES = [
-  { name: 'Crack the Rune', blurb: 'Find the rule from the table' },
-  { name: 'Feed the Machine', blurb: 'Use the rule to fill the table' },
-  { name: 'Read Ahead', blurb: 'Predict far ahead, or work backward' },
-  { name: 'Tricky Tables', blurb: 'Skipped inputs, and is Maya right?' },
-  { name: 'The Ancient Runes', blurb: 'Boss: two-step rules and decimals' },
-];
-export function genZone(rnd, zone) {
-  if (zone === 0) return shuffle(rnd, [genCrack(rnd, { kind: 'times' }), genCrack(rnd, { kind: 'times' }), genCrack(rnd, { kind: 'plus' }), genCrack(rnd, { kind: 'plus' }), genCrack(rnd)]);
-  if (zone === 1) return shuffle(rnd, [genFill(rnd, { kind: 'times' }), genFill(rnd, { kind: 'plus' }), genFill(rnd, { kind: 'line' }), genFill(rnd, { kind: 'line' }), genFill(rnd, { kind: 'down' })]);
-  if (zone === 2) return shuffle(rnd, [genPredict(rnd, { kind: 'times' }), genPredict(rnd, { kind: 'plus' }), genPredict(rnd, { kind: 'times', backward: true }), genPredict(rnd, { kind: 'plus', backward: true }), genPredict(rnd, { kind: 'down', backward: true })]);
-  if (zone === 3) return shuffle(rnd, [genCrack(rnd, { kind: 'times', skip: true }), genCrack(rnd, { kind: 'times', skip: true }), genCrack(rnd, { kind: 'plus', skip: true }), genMaya(rnd), genMaya(rnd)]);
-  return [genCrack(rnd, { kind: 'line', skip: true }), genCrack(rnd, { kind: 'down', skip: true }), genCrack(rnd, { kind: 'decimal', skip: true }), genPredict(rnd, { kind: 'decimal' }), genPredict(rnd, { kind: 'line' })];
-}
-export function genBackup(rnd, p) {
-  if (p.type === 'maya') return genMaya(rnd);
-  if (p.type === 'fill') return genFill(rnd, { kind: p.kind });
-  if (p.type === 'predict') return genPredict(rnd, { kind: p.kind, backward: p.backward });
-  return genCrack(rnd, { kind: p.kind, skip: p.skip });
+/** The stone for input x landed. Was the basket there? Returns null when it was caught. */
+export function checkCatch(p, x, basket) {
+  const { rule, X, Y } = p, want = run(rule, x), { m, b } = rule;
+  if (near(basket, want)) return null;
+  const fact = `${plugIn(rule, X, Y, x)}. Your basket was at ${fmt(basket)}.`;
+  const tip = (key, text) => ({ key, message: `${fact} ${text}` });
+  if (rule.form === 'times' && near(basket, x + m)) return tip('add_vs_times', `${fmt(m)}${X} means ${fmt(m)} TIMES ${X}, not ${X} + ${fmt(m)}.`);
+  if (rule.form === 'plus' && near(basket, x * b)) return tip('add_vs_times', `This machine ADDS ${fmt(b)}. It does not multiply.`);
+  if (rule.form === 'line' && near(basket, m * (x + b))) return tip('order_of_ops', `Multiply first, then add: ${fmt(m)} × ${fmt(x)} = ${fmt(m * x)}, then + ${fmt(b)}.`);
+  if ((rule.form === 'line' || rule.form === 'down') && near(basket, m * x)) return tip('forgot_start', `That is only ${fmt(m)} × ${fmt(x)}. Do not forget the ${rule.form === 'down' ? `start of ${fmt(b)}` : `+ ${fmt(b)}`}.`);
+  if (rule.form === 'down' && near(basket, b + m * x)) return tip('wrong_direction', `This machine takes ${fmt(m)} AWAY each time, so the outputs go down.`);
+  if (Math.abs(basket - want) <= 2) return tip('close', 'Close! Check the arithmetic.');
+  return tip('calc', `Put ${fmt(x)} in for ${X} and work it out.`);
 }
 
 /* ================================================================== */
-/* Checking                                                            */
+/* Dials: write the rule from a table                                  */
 /* ================================================================== */
+/**
+ * forms: the shapes on offer. skip: the table's inputs skip numbers.
+ * broken: the dials start on a rule that fits the first row only (the student has to fix it).
+ */
+export function genDials(rnd, form, { skip = false, forms = FORMS, broken = false } = {}) {
+  const mach = genMachine(rnd, form);
+  const rows = tableFor(rnd, mach.rule, { skip, start: form === 'down' ? 0 : null });
+  const preset = broken ? { form: 'plus', m: 1, b: rows[0].y - rows[0].x } : null;
+  return { id: nextId++, type: 'dials', ...mach, rows, forms, preset, broken, skip };
+}
 /** The student's rule: { form, m, b }. Every row is tested; rows[i] true/false comes back for the screen. */
 export function checkRule(p, guess) {
-  if (!guess || !FORMS.includes(guess.form) || needs(guess.form).some((k) => typeof guess[k] !== 'number' || !Number.isFinite(guess[k]))) {
-    return { correct: false, nudge: true, key: 'incomplete', message: 'Pick a rule shape and fill in every box.' };
-  }
   const g = { m: 1, b: 0, ...guess };
   const rows = p.rows.map((r) => near(run(g, r.x), r.y));
-  const want = ruleText(p.rule, p.X, p.Y), got = ruleText(g, p.X, p.Y);
+  const got = ruleText(g, p.X, p.Y);
   if (rows.every(Boolean)) return { correct: true, key: 'correct', rows, message: `The rune glows! ${got} works for every row.` };
   const fits = rows.filter(Boolean).length;
   const r0 = p.rows[0];
@@ -193,9 +148,6 @@ export function checkRule(p, guess) {
   if (p.rule.form === 'times' && g.form === 'plus' && near(g.b, slope)) {
     return { correct: false, key: 'add_vs_times', rows, message: `The outputs go up by ${fmt(slope)} for each 1 more input, but that doesn't mean "add ${fmt(slope)}". Look across a row: ${fmt(r0.y)} is ${fmt(p.rule.m)} TIMES ${fmt(r0.x)}.` };
   }
-  if (p.rule.form === 'times' && g.form === 'times' && near(g.m * p.rule.m, 1) && !near(g.m, 1)) {
-    return { correct: false, key: 'swapped', rows, message: `That's backwards: it gets ${p.X} from ${p.Y}. The output ${p.Y} is the bigger number: ${p.Y} = ${fmt(p.rule.m)}${p.X}.` };
-  }
   if (p.rule.form === 'down' && g.form === 'line' && near(g.m, p.rule.m)) {
     return { correct: false, key: 'wrong_direction', rows, message: `The outputs go DOWN as ${p.X} goes up, so the rule must take ${fmt(p.rule.m)} away each time: start amount − ${fmt(p.rule.m)}${p.X}.` };
   }
@@ -205,62 +157,74 @@ export function checkRule(p, guess) {
   if (fits > 0) return { correct: false, key: 'some_rows', rows, message: `${got} fits ${fits} row${fits > 1 ? 's' : ''}, but not all of them. A rule must work for EVERY row.` };
   return { correct: false, key: 'no_rows', rows, message: `${got} doesn't fit the table. Compare each output with its input: is it added to, or multiplied?` };
 }
+/**
+ * Run the student's rule through the machine: every row on the wall, then the machine's own hidden stones.
+ * Returns checkRule's result plus  table (all the rows tested),  made (what the student's rule makes for each)
+ * and  firstBad (the first row that disagrees, or -1).
+ */
+export function testRule(p, guess) {
+  const g = { m: 1, b: 0, ...guess };
+  const table = [...p.rows, ...(p.hidden || [])].sort((a, c) => a.x - c.x);
+  const res = checkRule({ ...p, rows: table }, g);
+  return { ...res, table, made: table.map((r) => run(g, r.x)), firstBad: res.rows.indexOf(false) };
+}
 export const answerRule = (p) => ruleText(p.rule, p.X, p.Y);
 
-/** Fill the table: typed values for the blank rows. */
-export function checkFill(p, raws) {
-  const vals = raws.map(parseNumber);
-  if (vals.some((v) => v === null)) return { correct: false, nudge: true, key: 'incomplete', message: 'Type a number in each empty box.' };
-  const rule = p.rule, rt = ruleText(rule, p.X, p.Y);
-  for (let k = 0; k < p.blanks.length; k++) {
-    const x = p.rows[p.blanks[k]].x, want = run(rule, x), v = vals[k];
-    if (near(v, want)) continue;
-    let key = 'calc', message = `Put ${fmt(x)} in for ${p.X}: ${plugIn(rule, p.X, p.Y, x)}.`;
-    if (rule.form === 'line' && near(v, rule.m * (x + rule.b))) { key = 'order_of_ops'; message = `Multiply first, then ${rule.b < 0 ? 'subtract' : 'add'}: ${fmt(rule.m)} × ${fmt(x)} = ${fmt(rule.m * x)}, then ${rule.b < 0 ? '−' : '+'} ${fmt(Math.abs(rule.b))} = ${fmt(want)}.`; }
-    else if ((rule.form === 'line' || rule.form === 'down') && near(v, rule.m * x)) { key = 'forgot_start'; message = `That's only ${fmt(rule.m)} × ${fmt(x)}. Don't forget the ${rule.form === 'down' ? 'starting amount' : `${rule.b < 0 ? '−' : '+'} ${fmt(Math.abs(rule.b))}`}: ${fmt(want)}.`; }
-    return { correct: false, key, message, row: p.blanks[k] };
-  }
-  return { correct: true, key: 'correct', message: `Table complete! Every row follows ${rt}.` };
+/* ================================================================== */
+/* Back: which input makes the target?                                 */
+/* ================================================================== */
+/** zero: (shrinking rules) when does the amount reach 0? */
+export function genBack(rnd, form, { zero = false } = {}) {
+  const mach = genMachine(rnd, form);
+  const answer = form === 'down' ? (zero ? mach.xmax : int(rnd, 2, mach.xmax - 1)) : int(rnd, 2, mach.xmax);
+  return { id: nextId++, type: 'back', ...mach, answer, target: run(mach.rule, answer), strip: { lo: 0, hi: 20 } };
 }
-
-/** Predict: far ahead or backward. */
-export function checkPredict(p, raw) {
-  const v = parseNumber(raw);
-  if (v === null) return { correct: false, nudge: true, key: 'incomplete', message: 'Type a number.' };
-  const rt = ruleText(p.rule, p.X, p.Y);
-  if (near(v, p.answer)) return { correct: true, key: 'correct', message: p.backward ? `Yes! ${p.X} = ${fmt(v)}. Check: ${plugIn(p.rule, p.X, p.Y, v)}.` : `Yes! ${plugIn(p.rule, p.X, p.Y, p.target)}.` };
-  if (p.backward && near(v, run(p.rule, run(p.rule, p.answer))) && !near(run(p.rule, p.answer), p.answer)) {
-    return { correct: false, key: 'forward_instead', message: `That ran the machine forward. Work backward: which input ${p.X} gives ${fmt(run(p.rule, p.answer))}? Undo the rule.` };
-  }
-  const r0 = p.rows[0];
-  if (!p.backward && (p.rule.form === 'line' || p.rule.form === 'down') && r0.x !== 0 && near(v, (r0.y / r0.x) * p.target)) {
-    return { correct: false, key: 'scaled_with_start', message: `Scaling one row up doesn't work when there's a starting amount. Use the rule: ${rt}, so the answer is ${fmt(run(p.rule, p.target))}.` };
-  }
-  return { correct: false, key: 'use_the_rule', message: `Find the rule first (${p.Y} from ${p.X}), then ${p.backward ? 'undo it' : `put in ${fmt(p.target)}`}. Check your answer against the table's pattern.` };
-}
-/** Maya: which row breaks her rule? */
-export function checkMaya(p, i) {
-  const o = p.options[i];
-  const mayaText = ruleText(p.maya, 'd', 'h');
-  if (o.ok) return { correct: true, key: 'correct', message: `Right! ${mayaText} fits row 1 only. Row 2: ${fmt(p.rows[1].x)} + ${fmt(p.maya.b)} = ${fmt(p.rows[1].x + p.maya.b)}, not ${fmt(p.rows[1].y)}. The real rule is ${ruleText(p.rule, 'd', 'h')}.` };
-  if (o.row === -1) return { correct: false, key: 'first_row_only', message: `Test EVERY row! Row 2: ${fmt(p.rows[1].x)} + ${fmt(p.maya.b)} = ${fmt(p.rows[1].x + p.maya.b)}, not ${fmt(p.rows[1].y)}. A rule must fit them all.` };
-  return { correct: false, key: 'first_row_only', message: `It breaks even earlier. Row 2: ${fmt(p.rows[1].x)} + ${fmt(p.maya.b)} = ${fmt(p.rows[1].x + p.maya.b)}, not ${fmt(p.rows[1].y)}.` };
+/** The student sent input x through. Returns null when it made the target. */
+export function checkBack(p, x) {
+  const { rule, X, Y, target } = p, { m, b } = rule;
+  if (near(run(rule, x), target)) return null;
+  const how = rule.form === 'times' ? `Undo the × ${fmt(m)}: what is ${fmt(target)} ÷ ${fmt(m)}?`
+    : rule.form === 'plus' ? `Undo the + ${fmt(b)}: what is ${fmt(target)} − ${fmt(b)}?`
+      : rule.form === 'line' ? `Undo it in reverse order: take away ${fmt(b)}, then divide by ${fmt(m)}.`
+        : `How many ${fmt(m)}s must be taken from ${fmt(b)} to leave ${fmt(target)}?`;
+  return { key: 'backward', message: `${plugIn(rule, X, Y, x)}, not ${fmt(target)}. ${how}` };
 }
 
 /* ================================================================== */
-/* Worked solutions (after two misses)                                 */
+/* Feed: choose which inputs to test                                   */
 /* ================================================================== */
-export function workedSolution(p) {
-  const rt = ruleText(p.rule, p.X, p.Y), r = p.rule, r0 = p.rows[0];
-  const sub = (x) => plugIn(r, p.X, p.Y, x);
-  if (p.type === 'maya') return [`Maya's rule ${ruleText(p.maya, 'd', 'h')} fits row 1: ${fmt(r0.x)} + ${fmt(p.maya.b)} = ${fmt(r0.y)}.`, `Row 2 breaks it: ${fmt(p.rows[1].x)} + ${fmt(p.maya.b)} = ${fmt(p.rows[1].x + p.maya.b)}, not ${fmt(p.rows[1].y)}.`, `The rule that fits every row: ${rt}.`];
-  const how = r.form === 'times' ? `Each output is ${fmt(r.m)} times its input (${fmt(r0.y)} = ${fmt(r.m)} × ${fmt(r0.x)}).`
-    : r.form === 'plus' ? `Each output is ${fmt(r.b)} more than its input (${fmt(r0.y)} = ${fmt(r0.x)} + ${fmt(r.b)}).`
-      : r.form === 'line' ? `Each 1 more input adds ${fmt(r.m)}; at 0 the output would be ${fmt(r.b)}.`
-        : `It starts at ${fmt(r.b)} and goes down ${fmt(r.m)} for each 1 more input.`;
-  const lines = [how, `Rule: ${rt}.`];
-  if (p.type === 'crack') lines.push(`Check row 2: ${sub(p.rows[1].x)} ✓`);
-  if (p.type === 'fill') lines.push(...p.blanks.map((i) => `${sub(p.rows[i].x)}`));
-  if (p.type === 'predict') lines.push(p.backward ? `Work backward: ${p.X} = ${fmt(p.answer)}, because ${sub(p.answer)}.` : sub(p.target));
-  return lines;
+/** stones: how many inputs the student may test. extra: two stones the machine adds itself when the rule is tested. */
+export function genFeed(rnd, form, { stones = 4 } = {}) {
+  const mach = genMachine(rnd, form), hi = form === 'down' ? mach.xmax : 10;
+  return { id: nextId++, type: 'feed', ...mach, strip: { lo: 0, hi }, stones, extra: distinct(rnd, 1, hi, 2), forms: FORMS };
+}
+/** The table the student's stones made: one row per different input, in order. */
+export function feedRows(p, xs) {
+  return [...new Set(xs)].sort((a, c) => a - c).map((x) => ({ x, y: run(p.rule, x) }));
+}
+/** After feeding: the dials round for this machine. The machine's own stones stay hidden until the test. */
+export function dialsFromFeed(p, xs) {
+  const rows = feedRows(p, xs);
+  const hidden = p.extra.filter((x) => !rows.some((r) => r.x === x)).map((x) => ({ x, y: run(p.rule, x) }));
+  return { ...p, type: 'dials', fed: true, rows, hidden, preset: null, broken: false };
+}
+
+/* ================================================================== */
+/* Zones                                                               */
+/* ================================================================== */
+export const ZONES = [
+  { name: 'Catch It', blurb: 'Use the rule: where will each stone land?' },
+  { name: 'Read the Table', blurb: 'Set the dials to match the pattern' },
+  { name: 'Run It Backward', blurb: 'Pick the input, and read far ahead' },
+  { name: 'Feed the Machine', blurb: 'A hidden rule: choose what to test' },
+  { name: 'The Ancient Runes', blurb: 'Boss: two-step rules and rules that shrink' },
+];
+/** The rounds of a zone, in order. */
+export function genZone(rnd, zone) {
+  const two = ['times', 'plus'];
+  if (zone === 0) return [genCatch(rnd, 'times'), genCatch(rnd, 'plus'), genCatch(rnd, 'times')];
+  if (zone === 1) return [genDials(rnd, 'times', { forms: two }), genDials(rnd, 'plus', { forms: two }), genDials(rnd, 'times', { forms: two, skip: true }), genDials(rnd, 'plus', { forms: two, skip: true }), genDials(rnd, 'times', { forms: two, skip: true })];
+  if (zone === 2) return [genBack(rnd, 'times'), genBack(rnd, 'plus'), genCatch(rnd, pick(rnd, two), { count: 3, far: true }), genBack(rnd, 'line'), genBack(rnd, 'times')];
+  if (zone === 3) return [genFeed(rnd, 'times'), genFeed(rnd, 'plus'), genFeed(rnd, 'line')];
+  return [genDials(rnd, 'line', { skip: true }), genCatch(rnd, 'line', { count: 4 }), genFeed(rnd, 'down'), genBack(rnd, 'down', { zero: true }), genDials(rnd, 'line', { broken: true })];
 }

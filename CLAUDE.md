@@ -48,8 +48,12 @@ docs/lessons.md                    lesson lists from the textbook database
   keys (`genRing`, `genMystery`, `checkTry`) and forges a lock (`checkForge`). 4-5 Food Truck is rebuilt too (`truck.js`, drawn
   in HTML, not SVG): call tickets MORE or LESS on a rail (`checkEstimate`), pick the undo tool and watch the ticket unwind
   (`toolsFor` / `unwind`, with the reciprocal shown as `2/3 × 3/2 = 1`), ring up exact answers (`checkRing`), write a ticket
-  from a story with tiles (`checkBuild`) and find the new cook's wrong line (`genSlip`). Proposed order for reworking the
-  remaining games (most quiz-like first): 4-9, 4-4, 4-3, 4-8, 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
+  from a story with tiles (`checkBuild`) and find the new cook's wrong line (`genSlip`). 4-9 Rune Machine is rebuilt too
+  (`rune.js`, HTML): catch each output with a basket on a number line (`genCatch` / `checkCatch`), set the rule on dials and
+  watch the machine run every row (`genDials` / `testRule`), pick the input for a target (`genBack`), and choose which inputs
+  to test on a hidden rule (`genFeed` / `dialsFromFeed`). In a game's own CSS never reuse a class name from `shared/game/game.css`
+  (`.crate` is the life boxes in the top bar). Proposed order for reworking the
+  remaining games (most quiz-like first): 4-4, 4-3, 4-8, 4-6, 4-10, 4-2, then the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
   Rework one game at a time, each with a plan the owner approves.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the
