@@ -52,7 +52,7 @@ export const STAGES = [
     id: 'node_4_boss', lessonCode: 'BOSS', title: 'Golem Fort', subtitle: 'Topic 4 boss: The Equation Golem',
     coords: { x: 320, y: 300 }, built: true, isBoss: true, xpReward: 600, coinsReward: 250,
     building: 'golem_fort', url: './games/4-boss-golem-fort/index.html',
-    description: 'The Equation Golem guards the end of the valley. Break its feet, arms, shoulders and shield with everything from Topic 4, then shatter its core. Only a timed run defeats it.',
+    description: 'The Equation Golem guards the end of the valley. Break its feet, arms, shoulders, shield and core one at a time. For each part you choose a weapon: one of the valley\'s own machines, played at its hardest. Only a timed run defeats it.',
   },
 ];
 

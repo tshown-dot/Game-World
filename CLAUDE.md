@@ -71,8 +71,13 @@ docs/lessons.md                    lesson lists from the textbook database
   beam really tips as a timer; a saboteur changes one pan and the student does the same to the other (`genMatch` /
   `checkMatch`, with two changes or a hidden one in the boss), makes one move on both pans to get x alone (`genSolve` /
   `checkSolve`) and calls clamped scales LEVEL or TIPS (`genInspect`). Every Equation Valley lesson game is now rebuilt.
-  Proposed order for reworking the
-  remaining games: the Golem Fort; Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3.
+  The Golem Fort is rebuilt as a GAUNTLET of those games (`golem.js`): the golem has five parts, and for each one the student
+  picks a weapon, which is that lesson's real game opened in a frame for its boss zone. This is FORT MODE in `arcadeShell.js`:
+  a game opened with `?fort=<zone>` (and `&practice=1`) plays only that zone and posts `FORT_WEAPON_DONE` with
+  `{ won, good, bad, lives, practiceMode }` to the page that opened it, instead of showing a report. The fort adds the counts
+  up (`tally`), a weapon that breaks costs one of the fort's 3 hearts, and the fort itself runs on the same shell.
+  Any future town boss can be built the same way. Proposed order for reworking the
+  remaining games: Grade 7: 4-2, 4-5, 4-4, 4-1, 4-3 (and the Topic 3 Boss Castle could become a gauntlet too).
   Rework one game at a time, each with a plan the owner approves.
 - Every other game is built on `shared/game/gameShell.js`: `createGame({...})` takes the zones, problem generators, worked
   solution, timer seconds, wording and skill tips, and the game only draws its own problems and controls. Copy the
@@ -86,7 +91,7 @@ docs/lessons.md                    lesson lists from the textbook database
   (art made for a 1366 x 658 map, moved down 55 px). Its roads turn square corners using each stage's `via` points.
   Older Expression Town saves carry `unlockedNodes` and the old stage id `node_3_4` (`js/legacy.js`); the shared
   engine keeps every stage those saves had open. The Boss Castle (`node_apex`) opens `games/3-boss-castle/`, the
-  Topic 3 review boss (the Expression Colossus, lessons 3-1 to 3-7), built on the shared game shell like the Golem Fort.
+  Topic 3 review boss (the Expression Colossus, lessons 3-1 to 3-7), built on the shared game shell (the older quiz style).
 - `npm test` runs every test in the repo (the sheet script, the progress store, the Topic 3 hub and all its games).
 - **Grade 7 Isles** (owner decisions): every town in `shared/towns.js` has a `grade` (6 or 7) and a `number` (1-8 inside
   its grade). Grade 6 ids never change (`topic_1`...); Grade 7 ids start with `g7_`. The list order is the sheet's flag

@@ -19,6 +19,10 @@
 //   arcade.paused()            true while a banner, hint, briefing, fail screen or report covers the action
 //   arcade.flash(text)         a short banner
 //
+// FORT MODE: the Golem Fort (a town boss) uses these games as its weapons. Opened with ?fort=<zone> (and &practice=1),
+// a game plays only that zone: no zone choice, no report. When the zone is cleared, or the lives run out, it sends
+// { type: 'FORT_WEAPON_DONE', payload: { won, good, bad, lives, practiceMode } } to the page that opened it.
+//
 // The page needs the same ids as the other games (see towns/topic-4-equation-valley/games/4-7-force-field/index.html):
 // app, zonePips, zoneName, meterBox, meterFill, lives, score, practiceTag, bossBar, bossFill, briefing, zoneButtons,
 // startBtn, practiceBtn, helpBtn, soundBtn, exitBtn, banner, hint, hintText, hintBtn, fail, retryBtn, report,
@@ -33,6 +37,9 @@ export function createArcade(cfg) {
   };
   const IN_TOWN = window.parent !== window;            // inside a town's building (iframe) or opened directly
   const BOSS = set.zones.length - 1;
+  const QUERY = new URLSearchParams(location.search);
+  const FORT = QUERY.has('fort') ? Math.min(BOSS, Math.max(0, Number(QUERY.get('fort')) || 0)) : null;   // fort mode: the one zone to play
+  const START_PRACTICE = FORT !== null && QUERY.get('practice') === '1';
   const UI = {
     app: $('app'), zonePips: $('zonePips'), zoneName: $('zoneName'), meterBox: $('meterBox'), meterFill: $('meterFill'), lives: $('lives'), score: $('score'),
     practiceTag: $('practiceTag'), bossBar: $('bossBar'), bossFill: $('bossFill'), briefing: $('briefing'), zoneButtons: $('zoneButtons'),
@@ -81,6 +88,7 @@ export function createArcade(cfg) {
     showBanner(`ZONE ${z + 1}: ${set.zones[z].name.toUpperCase()}`, set.zones[z].blurb, () => set.startZone(z), quick ? 600 : 1500);
   }
   function zoneCleared() {
+    if (FORT !== null) return fortDone(true);
     if (G.zone >= BOSS) return finish();
     hubAudio.playLevelUp();
     startZone(G.zone + 1);
@@ -121,10 +129,23 @@ export function createArcade(cfg) {
     if (G.lives <= 0) {
       G.playing = false;
       set.stopZone();
-      setTimeout(() => UI.fail.classList.remove('hidden'), 900);
+      if (FORT !== null) setTimeout(() => fortDone(false), 900);
+      else setTimeout(() => UI.fail.classList.remove('hidden'), 900);
     }
   }
   function setBossProgress(percent) { G.bossProgress = percent; renderHud(); }
+  /** Fort mode: this weapon's one zone is over. Tell the fort how it went. */
+  function fortDone(won) {
+    if (G.result) return;
+    G.playing = false;
+    set.stopZone();
+    G.result = { won, good: G.good, bad: G.bad, lives: G.lives, practiceMode: G.practice };
+    clearTimeout(flash.t);
+    UI.banner.innerHTML = won ? 'WEAPON CHARGED!<small>back to the golem</small>' : 'WEAPON BROKEN<small>back to the golem</small>';
+    UI.banner.classList.remove('hidden');
+    if (won) hubAudio.playLevelUp();
+    window.parent.postMessage({ type: 'FORT_WEAPON_DONE', payload: G.result }, '*');
+  }
 
   /* ---------------- the report ---------------- */
   const stars = (ratio) => (ratio >= 0.9 ? 3 : ratio >= 0.7 ? 2 : 1);
@@ -184,7 +205,7 @@ export function createArcade(cfg) {
     G.startZone = Number(b.dataset.zone);
     UI.zoneButtons.querySelectorAll('[data-zone]').forEach((x) => x.classList.toggle('on', x === b));
   }));
-  $('startBtn').addEventListener('click', () => begin(false));
+  $('startBtn').addEventListener('click', () => begin(START_PRACTICE));
   $('practiceBtn').addEventListener('click', () => begin(true));
   $('retryBtn').addEventListener('click', retryZone);
   $('hintBtn').addEventListener('click', closeHint);
@@ -205,14 +226,19 @@ export function createArcade(cfg) {
     const key = e.key;
     if (key === 'm' || key === 'M') { $('soundBtn').click(); return; }
     if (key === 'h' || key === 'H') { $('helpBtn').click(); return; }
-    if (visible(UI.briefing)) { if (key === 'Enter') { e.preventDefault(); if (G.playing) $('helpBtn').click(); else begin(false); } return; }
+    if (visible(UI.briefing)) { if (key === 'Enter') { e.preventDefault(); if (G.playing) $('helpBtn').click(); else begin(START_PRACTICE); } return; }
     if (visible(UI.fail)) { if (key === 'Enter') { e.preventDefault(); retryZone(); } return; }
     if (visible(UI.hint)) { if (key === 'Enter' || key === ' ') { e.preventDefault(); closeHint(); } return; }
     if (visible(UI.report) || !G.playing) return;
     set.onKey(e);
   });
+  if (FORT !== null) {                                  // one zone only: no zone choice and no practice button (the fort decides)
+    G.startZone = FORT; G.zone = FORT;
+    UI.zoneButtons.parentElement.classList.add('hidden');
+    $('practiceBtn').classList.add('hidden');
+  }
   renderHud();
-  if (set.testName && new URLSearchParams(location.search).has('test')) window[set.testName] = { G };
+  if (set.testName && QUERY.has('test')) { window[set.testName] = { G }; if (FORT !== null) window.__weapon = { G, finish: fortDone }; }
 
   return { G, UI, $, good, bad, zoneCleared, paused, flash, renderHud, setBossProgress, hubAudio };
 }

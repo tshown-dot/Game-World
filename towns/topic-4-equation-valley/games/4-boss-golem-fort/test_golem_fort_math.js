@@ -1,113 +1,51 @@
-// Tests for Golem Fort (golem.js). Run with:  node towns/topic-4-equation-valley/games/4-boss-golem-fort/test_golem_fort_math.js
+// Tests for the Golem Fort's rules (golem.js). Run with:  node towns/topic-4-equation-valley/games/4-boss-golem-fort/test_golem_fort_math.js
 import assert from 'node:assert/strict';
-import {
-  seeded, fmt, parseNumber, fracText, near, run, ruleText, ZONES, genZone, genBackup,
-  genSolution, genBalance, genStory, genSolveEq, genRational, genWriteIneq, genGraph, genSolveIneq, genVariables, genTableRule, genDilemma,
-  checkNum, checkChoice, checkGraph, checkRule, workedSolution,
-} from './golem.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { PARTS, ZONES, WEAPON_ZONE, weaponUrl, strength, tally } from './golem.js';
 
 let passed = 0;
-function test(name, fn) { fn(); passed++; console.log('PASS', name); }
-const RUNS = 2000;
-const rnd = seeded(20261113);
-const noJunk = (s) => typeof s === 'string' && s.length > 0 && !/undefined|NaN|null|Infinity|\[object/.test(s);
-const typed = (v) => fmt(v).replace(/,/g, '').replace('−', '-');
+async function test(name, fn) { await fn(); passed++; console.log('PASS', name); }
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const weapons = PARTS.flatMap((p) => p.weapons);
 
-test('typed answers in many formats', () => {
-  for (const [raw, want] of [['23', 23], ['$15', 15], ['15.00', 15], ['4.75', 4.75], ['5/4', 1.25], ['1 1/4', 1.25], ['-3', -3], ['−3', -3], ['1,250', 1250], ['3 / 4', 0.75]]) assert.ok(near(parseNumber(raw), want), raw);
-  for (const raw of ['', 'abc', '1/0', 'x=5', '2 1/0']) assert.equal(parseNumber(raw), null, raw);
-  assert.equal(fracText(1.25), '1 1/4'); assert.equal(fracText(1 / 3), '1/3'); assert.equal(fracText(1.4), '1 2/5'); assert.equal(fracText(3), '3');
+await test('five parts, and every Topic 4 lesson is a weapon exactly once', () => {
+  assert.equal(PARTS.length, 5); assert.equal(ZONES.length, 5); assert.deepEqual(ZONES.map((z) => z.name), PARTS.map((p) => p.name));
+  assert.deepEqual(weapons.map((w) => w.lesson), ['4-1', '4-2', '4-3', '4-4', '4-5', '4-6', '4-7', '4-8', '4-9', '4-10']);
+  for (const p of PARTS) assert.ok(p.weapons.length >= 1 && p.weapons.length <= 3 && p.name && p.blurb);
+  for (const w of weapons) assert.ok(w.name && w.does && w.folder.startsWith(`${w.lesson}-`));
 });
 
-test(`every zone: ${RUNS} runs make clean, solvable problems`, () => {
-  assert.equal(ZONES.length, 5);
-  for (let i = 0; i < RUNS / 5; i++) {
-    for (let z = 0; z < 5; z++) {
-      const list = genZone(rnd, z);
-      assert.equal(list.length, 5);
-      for (const p of list) {
-        assert.ok(noJunk(p.prompt.replace(/<[^>]+>/g, '')), p.prompt);
-        assert.ok(['num', 'choice', 'graph', 'rule'].includes(p.kind));
-        for (const line of workedSolution(p)) assert.ok(noJunk(line), `${p.type}: ${line}`);
-        if (p.kind === 'choice') {
-          assert.equal(p.options.filter((o) => o.ok).length, 1, p.type);
-          assert.equal(new Set(p.options.map((o) => o.text)).size, p.options.length, `${p.type}: no repeated options ${p.options.map((o) => o.text)}`);
-          p.options.forEach((o, k) => { const r = checkChoice(p, k); assert.equal(r.correct, o.ok); assert.ok(noJunk(r.message)); });
-        }
-        if (p.kind === 'num') {
-          assert.ok(checkNum(p, typed(p.answer)).correct, `${p.type}: ${p.answer}`);
-          assert.ok(checkNum(p, '').nudge);
-          for (const t of p.traps) if (!near(t.v, p.answer)) assert.equal(checkNum(p, String(t.v)).key, t.key, `${p.type} trap`);
-          assert.ok(!checkNum(p, String(p.answer + 1000)).correct);
-          if (z < 2) assert.ok(Number.isInteger(p.answer) && p.answer > 0, 'whole-number answers before the Shoulders');
-        }
-      }
-      const back = genBackup(rnd, list[0]);
-      assert.equal(back.type, list[0].type); assert.notEqual(back.id, list[0].id);
-    }
+await test('every weapon is a real game with a boss zone that can run in fort mode', async () => {
+  for (const w of weapons) {
+    const dir = path.join(HERE, '..', w.folder);
+    assert.ok(fs.existsSync(path.join(dir, 'index.html')), `${w.folder} has a page`);
+    const game = fs.readFileSync(path.join(dir, 'game.js'), 'utf8');
+    assert.ok(/shared\/game\/arcadeShell\.js/.test(game), `${w.name} runs on the action shell, which has fort mode`);
+    const mathFile = fs.readdirSync(dir).find((f) => f.endsWith('.js') && f !== 'game.js' && !f.startsWith('test_'));
+    const math = await import(pathToFileURL(path.join(dir, mathFile)).href);
+    assert.equal(math.ZONES.length, WEAPON_ZONE + 1, `${w.name}: zone ${WEAPON_ZONE + 1} is its last (boss) zone`);
   }
+  assert.ok(/FORT_WEAPON_DONE/.test(fs.readFileSync(path.join(HERE, '../../../../shared/game/arcadeShell.js'), 'utf8')));
 });
 
-test('the Feet: solutions and balance', () => {
-  for (let i = 0; i < RUNS; i++) {
-    const p = genSolution(rnd);
-    const k = p.options.findIndex((o) => o.key === 'same_operation');
-    assert.ok(k >= 0, 'the same-operation slip is offered');
-    const b = genBalance(rnd);
-    assert.equal(checkChoice(b, b.options.findIndex((o) => o.key === 'one_side')).key, 'one_side');
-  }
+await test('weapon addresses', () => {
+  const w = weapons[3];
+  assert.equal(weaponUrl(w), '../4-4-gear-shift/index.html?fort=4'); assert.equal(weaponUrl(w, { practice: true }), '../4-4-gear-shift/index.html?fort=4&practice=1');
+  assert.equal(weaponUrl(w, { practice: true, test: true }), '../4-4-gear-shift/index.html?fort=4&practice=1&test');
 });
 
-test('the Arms and Shoulders: using the same operation is caught', () => {
-  for (let i = 0; i < RUNS; i++) {
-    for (const op of ['+', '−', '×', '÷']) { const p = genStory(rnd, op); assert.equal(checkNum(p, String(p.traps[0].v)).key, 'same_operation'); }
-    for (const f of ['dec+', 'dec−', 'dec×', 'frac×', 'frac+']) {
-      const p = genRational(rnd, f);
-      assert.ok(checkNum(p, typed(p.answer)).correct);
-      if (f === 'frac+') { assert.ok(checkNum(p, fracText(p.answer)).correct, `mixed number ${fracText(p.answer)}`); }
-      if (!near(p.traps[0].v, p.answer)) assert.equal(checkNum(p, String(p.traps[0].v)).key, 'same_operation');
-    }
-  }
-  const p = { ...genRational(seeded(3), 'frac+'), answer: 1.25 };
-  for (const raw of ['1.25', '5/4', '1 1/4']) assert.ok(checkNum(p, raw).correct, raw);
+await test('the golem weakens one part at a time', () => {
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(strength), [100, 80, 60, 40, 20, 0]); assert.equal(strength(9), 0);
 });
 
-test('the Shield: writing, solving and graphing inequalities', () => {
-  const seen = new Set();
-  for (let i = 0; i < RUNS; i++) {
-    const w = genWriteIneq(rnd); seen.add(w.sign);
-    const g = genGraph(rnd);
-    const closed = g.sign === '≤' || g.sign === '≥', right = g.sign === '>' || g.sign === '≥';
-    const good = { b: g.b, circle: closed ? 'closed' : 'open', dir: right ? 'right' : 'left' };
-    assert.ok(checkGraph(g, good).correct);
-    assert.ok(checkGraph(g, { ...good, dir: null }).nudge);
-    assert.equal(checkGraph(g, { ...good, b: g.b + 1 }).key, 'boundary');
-    assert.equal(checkGraph(g, { ...good, circle: closed ? 'open' : 'closed' }).key, 'open_closed');
-    assert.equal(checkGraph(g, { ...good, dir: right ? 'left' : 'right' }).key, 'shade_direction');
-    const s = genSolveIneq(rnd);
-    assert.ok(s.options.some((o) => o.key === 'flipped_sign') && s.options.some((o) => o.key === 'same_operation'));
-  }
-  assert.deepEqual([...seen].sort(), ['<', '>', '≤', '≥']);
-});
-
-test('the Core: variables, table rules and the dilemma', () => {
-  for (let i = 0; i < RUNS; i++) {
-    const v = genVariables(rnd);
-    assert.equal(checkChoice(v, v.options.findIndex((o) => !o.ok)).key, 'swapped_variables');
-    for (const f of ['times', 'plus', 'line']) {
-      const p = genTableRule(rnd, f);
-      assert.ok(checkRule(p, { ...p.rule }).correct, ruleText(p.rule));
-      assert.ok(checkRule(p, { form: 'line', m: 2 }).nudge);
-      if (f === 'times') assert.equal(checkRule(p, { form: 'plus', b: p.rule.m }).key, 'add_vs_times');
-      if (f === 'line') assert.equal(checkRule(p, { form: 'times', m: p.rule.m }).key, 'forgot_start');
-      if (f === 'plus') assert.ok(checkRule(p, { form: 'line', m: 1, b: p.rule.b }).correct, 'y = 1x + 4 is the same rule');
-    }
-    const [a, b] = genDilemma(rnd);
-    assert.equal(b.rule, a.rule, 'part 2 uses the same rule as part 1');
-    assert.equal(run(b.rule, b.answer), run(a.rule, b.answer));
-    assert.equal(a.options.find((o) => o.ok).text, ruleText(a.rule, a.X, a.Y));
-    for (const t of b.traps) if (!near(t.v, b.answer)) assert.equal(checkNum(b, String(t.v)).key, t.key);
-  }
+await test('what a weapon sends back is made safe before it is added up', () => {
+  assert.deepEqual(tally({ won: true, good: 6, bad: 1, lives: 3, practiceMode: false }), { won: true, good: 6, bad: 1 });
+  assert.deepEqual(tally({ won: false, good: 2, bad: 9 }), { won: false, good: 2, bad: 9 });
+  assert.deepEqual(tally({ won: 'yes', good: -4, bad: 2.6 }), { won: false, good: 0, bad: 3 }, 'won must be exactly true');
+  assert.deepEqual(tally({ won: true, good: 9999, bad: NaN }), { won: true, good: 60, bad: 0 });
+  for (const junk of [null, undefined, 'x', 7, []]) assert.deepEqual(tally(junk), { won: false, good: 0, bad: 0 });
 });
 
 console.log(`\n${passed} tests passed`);

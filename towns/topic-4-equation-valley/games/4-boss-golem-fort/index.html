@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Golem Fort · Topic 4 Boss: The Equation Golem</title>
+  <title>Golem Fort · Topic 4 Boss</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@700;800;900&display=swap">
   <link rel="stylesheet" href="../../../../shared/game/game.css">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main id="app">
+<main id="app" class="arcade">
 
   <!-- ===== HUD ===== -->
   <header class="hud">
@@ -19,11 +19,11 @@
       <div class="px hud-name">GOLEM FORT</div>
     </div>
     <div class="hud-zone">
-      <div class="px hud-label">ZONE</div>
+      <div class="px hud-label">PART</div>
       <div id="zonePips" class="zone-pips"></div>
       <div id="zoneName" class="zone-name"></div>
     </div>
-    <div class="hud-meter" id="meterBox" title="When this fills, the golem's fist lands">
+    <div class="hud-meter" id="meterBox" title="A broken weapon costs a heart">
       <div class="px hud-label">FIST</div>
       <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
     </div>
@@ -42,21 +42,22 @@
     </div>
   </header>
 
-  <!-- ===== PLAY AREA ===== -->
+  <!-- ===== PLAY AREA (the whole screen: no question panel) ===== -->
   <section class="stage" id="stage">
-    <svg id="scene" viewBox="0 0 800 520" aria-label="The Equation Golem and the stone tablet"></svg>
+    <div id="sign" class="sign"><small id="signSmall" class="px"></small><div id="signText"></div></div>
+    <div id="play" class="play">
+      <svg id="golemArt" class="gscene" viewBox="0 0 420 520" role="img" aria-label="The Equation Golem"></svg>
+      <div class="armory">
+        <div id="strength" class="strength"><span class="px">GOLEM STRENGTH</span><div class="sbar"><div id="strengthFill" class="sfill"></div></div></div>
+        <div id="cards" class="cards"></div>
+        <div id="fline" class="fline"></div>
+      </div>
+    </div>
     <div id="practiceTag" class="practice-tag px hidden">PRACTICE</div>
     <div id="bossBar" class="boss-bar hidden">
       <div class="px boss-name">THE EQUATION GOLEM</div>
       <div class="boss-hp"><div id="bossFill" class="boss-fill"></div></div>
     </div>
-  </section>
-
-  <section class="panel">
-    <div id="taskTag" class="task-tag px"></div>
-    <div id="prompt" class="prompt"></div>
-    <div id="controls" class="controls"></div>
-    <div id="feedback" class="feedback hidden"></div>
   </section>
 
   <!-- ===== BRIEFING ===== -->
@@ -65,45 +66,52 @@
       <div class="brief-head">
         <div class="brief-icon">🗿</div>
         <div>
-          <div class="px brief-title">BOSS BRIEFING: THE EQUATION GOLEM</div>
-          <div class="brief-sub">Equation Valley · Topic 4 boss · A review of lessons 4-1 to 4-10</div>
+          <div class="px brief-title">MISSION BRIEFING: GOLEM FORT</div>
+          <div class="brief-sub">Equation Valley · Topic 4 Boss · Lessons 4-1 to 4-10</div>
         </div>
       </div>
       <div class="brief-cols">
-        <div class="brief-col"><div class="px col-h">1. THE GOLEM</div>
-          <p>The Equation Golem is built from everything in Topic 4. Break its <b>feet, arms, shoulders, shield</b> and finally its <b>core</b>.</p>
-          <p class="mono">x + 9 = 23 &nbsp;·&nbsp; h ≤ 12 &nbsp;·&nbsp; y = 3x + 3</p></div>
-        <div class="brief-col"><div class="px col-h">2. STRIKE</div>
-          <p>Every right answer knocks off a stone: solve equations, pick answers, build inequality graphs and crack table rules.</p></div>
+        <div class="brief-col"><div class="px col-h">1. BREAK THE GOLEM</div>
+          <p>The Equation Golem has <b>five parts</b>: feet, arms, shoulders, shield and core. Break them one at a time.</p></div>
+        <div class="brief-col"><div class="px col-h">2. CHOOSE YOUR WEAPON</div>
+          <p>Each part is broken with a machine from the valley. <b>Pick one</b>, then play its hardest zone. Clear the zone and the part shatters.</p></div>
         <div class="brief-col"><div class="px col-h">3. STAKES</div>
-          <p>The golem's <b>FIST</b> charges while you think, and mistakes charge it faster. Lose all <b>3 hearts</b> and you're knocked out. Only a timed run defeats the golem.</p></div>
+          <p>If a weapon breaks (you lose all 3 lives inside it), the golem takes one of your <b>3 hearts</b>. Lose them all and you start that part again. Only a timed run defeats the golem.</p></div>
       </div>
-      <div class="brief-keys">Type numbers · <kbd>1</kbd>–<kbd>4</kbd> answers and graph buttons · <kbd>←</kbd> <kbd>→</kbd> boundary · <kbd>↑</kbd> <kbd>↓</kbd> rule shape · <kbd>Enter</kbd> strike · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
+      <div class="brief-keys"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> or tap to choose a weapon · each weapon has its own controls · <kbd>H</kbd> help · <kbd>M</kbd> sound</div>
       <div class="brief-zones">
         <span class="px">START AT:</span>
         <div id="zoneButtons" class="zone-buttons"></div>
       </div>
       <div class="brief-actions">
-        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🗿 FACE THE GOLEM (ENTER)</span></button>
-        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no timer · does not defeat the golem</small></button>
+        <button type="button" id="startBtn" class="btn btn-go"><span class="px">🗿 STORM THE FORT (ENTER)</span></button>
+        <button type="button" id="practiceBtn" class="btn btn-practice"><span class="px">PRACTICE</span><small>no hearts lost · does not defeat the golem</small></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== ZONE BANNER / FAIL / REPORT ===== -->
+  <!-- ===== ZONE BANNER / HINT / FAIL / REPORT ===== -->
   <div id="banner" class="banner hidden px"></div>
+
+  <div id="hint" class="overlay hidden">
+    <div class="card small hint-card">
+      <div class="px big-title">FORT TIP</div>
+      <div id="hintText" class="hint-text"></div>
+      <button type="button" id="hintBtn" class="btn btn-go"><span class="px">GOT IT (ENTER)</span></button>
+    </div>
+  </div>
 
   <div id="fail" class="overlay hidden">
     <div class="card small">
-      <div class="px big-title">KNOCKED OUT!</div>
-      <p id="failText">The golem landed three hits.</p>
-      <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ RETRY THIS ZONE (ENTER)</span></button>
+      <div class="px big-title">THE GOLEM STANDS!</div>
+      <p id="failText">All 3 hearts are gone.</p>
+      <button type="button" id="retryBtn" class="btn btn-go"><span class="px">↻ TRY THIS PART AGAIN (ENTER)</span></button>
     </div>
   </div>
 
   <div id="report" class="overlay hidden">
     <div class="card report">
-      <div class="px big-title">BATTLE REPORT</div>
+      <div class="px big-title">FORT REPORT</div>
       <div id="reportStars" class="report-stars"></div>
       <div id="reportStats" class="report-stats"></div>
       <div id="reportZones" class="report-zones"></div>
